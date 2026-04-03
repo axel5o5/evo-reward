@@ -127,4 +127,19 @@ emevo-ext/
 
 ---
 
+## Repo Contents
+
+```
+reward-evo/
+├── docs/           # Planning documents and writeups
+├── papers/         # PDFs of key references
+└── src/
+    ├── configs/    # One YAML per experiment condition
+    ├── src/        # Environment, agents, policy, reward, evolution, PPO
+    ├── analysis/   # Visualization and capacity utilization metrics
+    └── results/    # Organized by condition and seed
+```
+
+---
+
 *Columbia University — Advanced Reinforcement Learning, Spring 2026*
