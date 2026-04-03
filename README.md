@@ -130,7 +130,7 @@ emevo-ext/
 ## Repo Contents
 
 ```
-reward-evo/
+evo-reward/
 ├── docs/           # Planning documents and writeups
 ├── papers/         # PDFs of key references
 └── src/
