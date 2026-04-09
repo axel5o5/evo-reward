@@ -1,0 +1,159 @@
+# K&D Faithful Replication — Baseline Configuration
+# All parameters match Kanagawa & Doya (2025) arXiv:2507.09992
+# Sources: Appendix A, Tables 2-4, Section 3
+# See docs/technical-spec-kd-replication.md for full derivation of each value.
+# See docs/emevo-diff.md for deviations and open questions.
+#
+# BEFORE RUNNING: resolve all open questions in emevo-diff.md items 1-9.
+# In particular, verify obs_dim, energy_share_ratio, spawn_spread, and food_max
+# against the emevo source at github.com/oist/emevo (2025 paper branch).
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "baseline_faithful"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "linear"         # 4-weight linear genome — K&D faithful
+social_obs:         "position_only"  # no heading/velocity of neighbors
+policy_type:        "mlp"            # feedforward MLP — K&D faithful
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960              # 960×960 units (Appendix A)
+total_steps:        10_240_000       # 1024 × 10^4 steps (Section 4)
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+# VERIFIED against emevo gecco2026 branch (circle_foraging.py:740-748).
+# 128 = 32 proximity sensors × 4 per-type channels (prey, predator, food, wall)
+#  72 = 4 types × 18 tactile bins (binary contact per type per bin)
+#   2 = velocity (vx, vy) — 2D, not scalar
+#   1 = angle, 1 = angular velocity, 1 = energy
+# Total: 128 + 72 + 2 + 1 + 1 + 1 = 205
+obs_dim:            205              # CONFIRMED: see emevo-diff.md items #1, #2
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150              # (Section 4)
+predator_initial:   10               # (Section 4)
+prey_cap:           450              # (Section 3)
+predator_cap:       50               # (Section 3)
+
+# Initial energy for the starting population (not offspring — those use parent energy).
+# VERIFIED: config/env/20251122-predator-square.toml:22,37
+prey_e_initial:     100.0            # CONFIRMED: init_energy = 100.0
+predator_e_initial: 100.0            # CONFIRMED: predator_init_energy = 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0             # (Appendix A)
+predator_radius:    14.0             # (Appendix A)
+max_motor_norm:     114.0            # F; max ‖f‖ (Appendix A note: "0 < ‖f‖ < 114")
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32           # (Section 3)
+n_proximity_channels:   4            # CONFIRMED: per-type channels [prey, predator, food, wall]
+proximity_fov_deg:      120.0        # forward arc in degrees (Section 3), "wide" in emevo
+proximity_max_range:    200.0        # CONFIRMED: sensor_length = 200.0 (emevo code; paper says 120)
+n_tactile_sensors:      18           # (Section 3), n_tactile_bins = 18
+n_tactile_channels:     4            # CONFIRMED: per-type channels, same 4 types as proximity
+tactile_spacing_deg:    20.0         # degrees between sensors (360/18 = 20)
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:3-4
+# food_num_fn = ["linear", 40, 0.5, 600] → initial=40, growth=0.5/step, cap=600
+# Body text (600) is correct, Appendix A (100) is wrong.
+food_max:               600          # CONFIRMED: n_max_foods = 600
+food_initial:           40           # CONFIRMED: initial food count at start
+food_growth_rate:       0.5          # CONFIRMED: linear growth per step
+food_max_regen_per_step: 10          # CONFIRMED: n_max_food_regen = 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0       # CONFIRMED: max energy cap (20251122 config:23)
+prey_e_food:            1.0          # energy gained per food item (Section 3)
+prey_c_b:               1.0e-4       # CONFIRMED: basic_energy_consumption (code differs from paper Table 2's 2.5e-3)
+prey_c_a:               2.5e-6       # CONFIRMED: force_energy_consumption (code differs from paper Table 2's 1.0e-4)
+# Energy update: Δe = n_eaten * e_food - c_a * ‖action‖ - c_b
+# WARNING: These values are from the emevo source code (20251122-predator-square.toml:24-25).
+# The paper Table 2 lists different values (c_b=2.5e-3, c_a=1.0e-4). We follow the code.
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3       # CONFIRMED: predator_basic_ec = 4e-3 (matches Table 2)
+predator_d_a:           5.0e-5       # CONFIRMED: predator_force_ec = 5e-5 (matches Table 2)
+# Energy gain: Σ_{prey caught} η * prey_energy_at_catch
+# VERIFIED: config/env/20251122-predator-square.toml:40
+predator_eta:           0.6          # CONFIRMED: predator_digestive_rate = 0.6
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_deg:         60.0     # medium mouth (Figure 3 — default for experiments)
+predator_mouth_range_min:   40.0     # (Section 3 / Figure 3)
+predator_mouth_range_max:   80.0     # (Section 3 / Figure 3)
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+# h(t,e) = κ_h * (1 - 1/(1 + α_e·exp(-β_h·e))) * α_t·exp(β_t·t)
+kappa_h:            0.01             # (Table 3)
+alpha_e:            0.02             # (Table 3)
+beta_h:             0.2              # (Table 3)
+alpha_t_prey:       4.0e-7           # (Table 3, prey)
+alpha_t_pred:       2.0e-7           # (Table 3, predator)
+beta_t_prey:        2.0e-6           # (Table 3, prey)
+beta_t_pred:        4.0e-6           # (Table 3, predator)
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+# b(e) = κ_b / (1 + exp(ζ - β_b·e))
+kappa_b:            1.0e-3           # (Table 3)
+beta_b:             0.1              # (Table 3)
+zeta_b_prey:        10.0             # (Table 3, ζ=10 for prey → ~20-30 energy needed)
+zeta_b_pred:        100.0            # (Table 3, ζ=100 for predator → ~240-260 needed)
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:26,10
+energy_share_ratio: 0.4              # CONFIRMED: parent loses 0.4×e, child gets 0.4×e
+spawn_spread:       100.0            # CONFIRMED: neighbor_stddev = 100.0 world units
+
+# ─── Reward Genome ───────────────────────────────────────────────────────────
+# Weight order (canonical, never change): [w_eat, w_act, w_prey, w_pred]
+reward_weights_init_std:  0.1        # weights ~ N(0, 0.1) at birth (Section 4)
+mutation_df:              2          # Student's t degrees of freedom (2025 paper)
+mutation_scale:           0.4        # Student's t scale parameter (2025 paper)
+weight_clip:              100.0      # clip after mutation to [-100, 100] (2025 paper)
+# Note: 2024 paper used Cauchy (df=1), scale=0.02, clip=[-10,10]. Do NOT use those values.
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64             # hidden units per layer (Table 4)
+policy_n_hidden_layers: 2            # CONFIRMED: 2 hidden layers in shared trunk (ppo_normal.py:43-48)
+# Architecture (CONFIRMED from ppo_normal.py:28-65):
+#   Shared trunk: input → Linear(obs_dim, 64) → tanh → Linear(64, 64) → tanh
+#   Value head:   Linear(64, 1)
+#   Policy head:  Linear(64, 2) — action means, with orthogonal init (scale=0.01)
+#   log_std:      learned parameter shape (2,), state-independent, init zeros
+# Activation: tanh
+# Output: Gaussian policy — action_mean (2,) + learned log_std (2,)
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+# All from Table 4 of the 2025 paper.
+gamma:              0.999            # discount factor
+rollout_steps:      1024             # N — steps per PPO update
+minibatch_size:     256              # minibatch size
+ppo_epochs:         10               # optimization epochs per rollout
+clip_epsilon:       0.2              # PPO clipping parameter
+entropy_coef:       0.001            # entropy bonus coefficient
+gae_lambda:         0.95             # GAE λ parameter (note: paper calls this γ)
+lr:                 3.0e-4           # Adam learning rate
+adam_eps:           1.0e-7           # Adam ε
+# Value function clipping: not specified in paper. Use standard PPO with VF clipping.
+vf_clip:            true             # clip value function loss
+vf_coef:            0.5              # value function loss coefficient (standard)
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:20-21, circle_foraging.py:739
+# Note: emevo uses sigmoid_scale mapping (smooth) not hard clipping.
+# Network output → sigmoid_scale(x) = 100*sigmoid(x) + (-20) → [-20, 80]
+action_clip_low:    -20.0            # CONFIRMED: min_force = -20.0
+action_clip_high:   80.0             # CONFIRMED: max_force = 80.0
+action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+checkpoint_interval_steps:  25_000   # save checkpoint every 25k steps
+log_interval_steps:         10_000   # log metrics every 10k steps
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+# Run separately per seed. K&D used 5 seeds for the main results.
+# Phase 1a: start with seeds 0 and 1; add more after qualitative validation.
+seed:               0
