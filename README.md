@@ -71,7 +71,7 @@ The architectural comparison itself — independent vs. shared policy, continuou
 ### Codebase structure
 
 ```
-emevo-ext/
+evo-reward/
 ├── configs/                 # One YAML per experiment condition
 ├── src/
 │   ├── environment.py       # JAX 2D world, physics, food, collisions
