@@ -450,10 +450,12 @@ def process_births_and_deaths(
 
 def regenerate_food(world: WorldState, config: dict) -> WorldState:
     """
-    n_{t+1} = min(n_t + g - n_eaten_this_step, n_max)
+    n_{t+1} = min(n_t + g, n_max)
     Spawn new food items at random positions when floor(n_{t+1}) > current item count.
-    g = config["food_growth_rate"] = 0.02
-    n_max = config["food_max"] = 100
+    g = config["food_growth_rate"] = 0.5 (CONFIRMED)
+    n_max = config["food_max"] = 600 (CONFIRMED)
+    Max new items per step: config["food_max_regen_per_step"] = 10 (CONFIRMED)
+    Food eaten is tracked separately via check_eating / remove_eaten_food.
     """
 ```
 
@@ -655,8 +657,10 @@ CONFIG_SCHEMA = {
     # Sensors
     "n_proximity_sensors":       int,      # 32
     "proximity_fov_deg":         float,    # 120.0
-    "proximity_max_range":       float,    # 120.0
+    "n_proximity_channels":      int,      # 4 — CONFIRMED
+    "proximity_max_range":       float,    # 200.0 — CONFIRMED (not 120)
     "n_tactile_sensors":         int,      # 18
+    "n_tactile_channels":        int,      # 4 — CONFIRMED
     "tactile_spacing_deg":       float,    # 20.0
     # Food
     "food_max":                  int,      # 600 — CONFIRMED
@@ -664,8 +668,8 @@ CONFIG_SCHEMA = {
     "food_growth_rate":          float,    # 0.5 — CONFIRMED
     # Energy — prey
     "prey_e_food":               float,    # 1.0
-    "prey_c_b":                  float,    # 2.5e-3
-    "prey_c_a":                  float,    # 1.0e-4
+    "prey_c_b":                  float,    # 1.0e-4 — CONFIRMED code value
+    "prey_c_a":                  float,    # 2.5e-6 — CONFIRMED code value
     # Energy — predator
     "predator_d_b":              float,    # 4.0e-3
     "predator_d_a":              float,    # 5.0e-5
@@ -697,7 +701,11 @@ CONFIG_SCHEMA = {
     "weight_clip":               float,    # 100.0
     # Policy
     "policy_hidden_size":        int,      # 64
-    "policy_n_layers":           int,      # 3
+    "policy_n_hidden_layers":    int,      # 2 — CONFIRMED (2 hidden, not 3)
+    # Action mapping
+    "action_clip_low":           float,    # -20.0 — CONFIRMED
+    "action_clip_high":          float,    # 80.0 — CONFIRMED
+    "action_mapping":            str,      # "sigmoid" — CONFIRMED (D10)
     # PPO
     "gamma":                     float,    # 0.999
     "rollout_steps":             int,      # 1024

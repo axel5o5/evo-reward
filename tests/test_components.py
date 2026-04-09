@@ -19,30 +19,36 @@ from scipy import stats
 
 @pytest.fixture
 def base_config():
-    """Minimal config matching baseline_faithful.yaml for unit tests."""
+    """Minimal config matching baseline_faithful.yaml for unit tests.
+    All values CONFIRMED against emevo gecco2026 branch.
+    """
     return {
         "world_size": 960,
         "prey_radius": 10.0,
         "predator_radius": 14.0,
         "max_motor_norm": 114.0,
         "n_proximity_sensors": 32,
+        "n_proximity_channels": 4,
         "proximity_fov_deg": 120.0,
-        "proximity_max_range": 120.0,
+        "proximity_max_range": 200.0,       # CONFIRMED: sensor_length=200 (not 120)
         "n_tactile_sensors": 18,
+        "n_tactile_channels": 4,
         "tactile_spacing_deg": 20.0,
-        "obs_dim": 54,  # update after resolving emevo-diff open item #2
-        "food_max": 100,
-        "food_growth_rate": 0.02,
-        "food_regen_rate": 0.5,
+        "obs_dim": 205,                     # CONFIRMED: 128+72+2+1+1+1
+        "food_max": 600,                    # CONFIRMED: n_max_foods=600
+        "food_initial": 40,
+        "food_growth_rate": 0.5,            # CONFIRMED: 0.5/step
+        "food_max_regen_per_step": 10,
         "prey_e_food": 1.0,
-        "prey_c_b": 2.5e-3,
-        "prey_c_a": 1.0e-4,
+        "prey_c_b": 1.0e-4,                # CONFIRMED: code value (not paper 2.5e-3)
+        "prey_c_a": 2.5e-6,                # CONFIRMED: code value (not paper 1.0e-4)
         "predator_d_b": 4.0e-3,
         "predator_d_a": 5.0e-5,
         "predator_eta": 0.6,
         "predator_mouth_deg": 60.0,
         "predator_mouth_range_min": 40.0,
         "predator_mouth_range_max": 80.0,
+        "energy_capacity": 1000.0,
         "kappa_h": 0.01,
         "alpha_e": 0.02,
         "beta_h": 0.2,
@@ -54,14 +60,19 @@ def base_config():
         "beta_b": 0.1,
         "zeta_b_prey": 10.0,
         "zeta_b_pred": 100.0,
-        "energy_share_ratio": 0.5,
-        "spawn_spread": 30.0,
+        "energy_share_ratio": 0.4,          # CONFIRMED: 0.4 (not 0.5)
+        "spawn_spread": 100.0,              # CONFIRMED: neighbor_stddev=100.0
+        "prey_e_initial": 100.0,            # CONFIRMED: init_energy=100.0
+        "predator_e_initial": 100.0,        # CONFIRMED
         "reward_weights_init_std": 0.1,
         "mutation_df": 2,
         "mutation_scale": 0.4,
         "weight_clip": 100.0,
         "policy_hidden_size": 64,
-        "policy_n_layers": 3,
+        "policy_n_hidden_layers": 2,        # CONFIRMED: 2 hidden layers (not 3)
+        "action_clip_low": -20.0,
+        "action_clip_high": 80.0,
+        "action_mapping": "sigmoid",
         "gamma": 0.999,
         "rollout_steps": 1024,
         "minibatch_size": 256,
@@ -71,6 +82,11 @@ def base_config():
         "gae_lambda": 0.95,
         "lr": 3.0e-4,
         "adam_eps": 1.0e-7,
+        # Population caps
+        "prey_initial": 150,
+        "predator_initial": 10,
+        "prey_cap": 450,
+        "predator_cap": 50,
     }
 
 
@@ -375,7 +391,7 @@ class TestConfig:
             "food_max", "food_growth_rate", "prey_c_b", "prey_c_a",
             "predator_d_b", "predator_d_a", "kappa_h", "alpha_e", "beta_h",
             "kappa_b", "beta_b", "mutation_scale", "weight_clip",
-            "policy_hidden_size", "policy_n_layers", "rollout_steps",
+            "policy_hidden_size", "policy_n_hidden_layers", "rollout_steps",
             "minibatch_size", "ppo_epochs", "lr",
         ]
         for key in positive_keys:
