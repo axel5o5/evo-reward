@@ -23,16 +23,11 @@ Extension code means: shared policy, MLP reward genome, LSTM policy, social obse
 
 ## Start Here — In This Exact Order
 
-### 1. Resolve open questions against the emevo source
+### 1. ✅ DONE — Resolve open questions against the emevo source
 
-Before writing a single line of simulation code, clone emevo and answer the 9 open questions in `docs/emevo-diff.md`. These are not guessable — getting them wrong causes Phase 1a to fail for non-obvious reasons.
+All 9 open questions in `docs/emevo-diff.md` have been resolved against the emevo `gecco2026` branch. Reference config: `config/env/20251122-predator-square.toml`. Key corrected values are in `configs/baseline_faithful.yaml` and `docs/interfaces.md`. See `docs/emevo-diff.md` for full citations.
 
-```bash
-git clone https://github.com/oist/emevo
-# The 2025 paper branch is likely main (the 2024 results are on alife2024 branch — confirm)
-```
-
-For each open item in `docs/emevo-diff.md`: find the answer in emevo source, mark ✅, update `configs/baseline_faithful.yaml` with the correct value. Resolve items 1 and 2 first (they determine `obs_dim`), then update `docs/interfaces.md`.
+**Do not re-do this step.** If you need to verify a parameter, check `docs/emevo-diff.md` first — it has file:line citations for every answer.
 
 ### 2. Install dependencies
 
@@ -71,7 +66,7 @@ Hard dependency chain — do not reorder:
 3. agents.py          observation vector construction, stimulus extraction
 4. reward.py          linear reward genome, reward computation
 5. evolution.py       mutation t(df=2), spawn_offspring
-6. policy.py          MLP policy, action sampling, value head
+6. policy.py          MLP policy (2 hidden, sigmoid action), value head
 7. ppo.py             GAE, PPO update, rollout buffer management
 8. metrics.py         logging, checkpointing, save/load
 9. scripts/run_experiment.py   ties it all together
@@ -106,21 +101,38 @@ If PASS: run seed 1. If FAIL: see the debugging section below. Do not proceed to
 
 ## Key Numbers (do not substitute)
 
+Values below are from the **emevo gecco2026 source code** (ground truth), which in some cases differs from the paper tables. Where they differ, the code wins — see `docs/emevo-diff.md` for details.
+
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| World size | 960×960 | Appendix A |
+| World size | 960×960, square | emevo `20251122-predator-square.toml` |
 | Prey radius / Predator radius | 10 / 14 | Appendix A |
-| Proximity sensors | 32, 120° FOV, max range 120 | Appendix A |
-| Tactile sensors | 18, 20° spacing | Section 3 |
-| Prey c_b / c_a | 2.5e-3 / 1.0e-4 | Table 2 |
-| Predator d_b / d_a | 4.0e-3 / 5.0e-5 | Table 2 |
-| Mutation | Student's t(df=2, scale=0.4), clip ±100 | 2025 paper |
+| **obs_dim** | **205** | emevo source (128 sensor + 72 tactile + 5 scalars) |
+| Proximity sensors | 32 sensors, 120° FOV, **range 200**, **4 channels/sensor** | emevo source (paper says range 120 — code uses 200) |
+| Sensor channels (per sensor) | [prey, predator, food, wall] — winner-take-all | emevo `circle_foraging_with_predator.py:84-111` |
+| Tactile sensors | 18 bins × **4 type channels** = 72 values | emevo source |
+| Velocity in obs | **2D (vx, vy)**, not scalar speed | emevo `circle_foraging.py:744` |
+| Prey c_b / c_a | **1.0e-4 / 2.5e-6** | emevo source (paper Table 2 says 2.5e-3 / 1.0e-4 — code differs) |
+| Predator d_b / d_a | 4.0e-3 / 5.0e-5 | emevo source (matches paper Table 2) |
+| Predator digestive rate (η) | 0.6 | emevo source |
+| Initial energy (both species) | **100.0** | emevo source |
+| Energy capacity (max) | 1000.0 | emevo source |
+| energy_share_ratio | **0.4** (parent loses 40%, child gets 40%) | emevo source |
+| spawn_spread (neighbor_stddev) | **100.0** world units | emevo source |
+| Food capacity | **600** (body text correct, not Appendix A's 100) | emevo source |
+| Food initial / growth rate | 40 / 0.5 per step | emevo source |
+| Action range | [-20, 80], **sigmoid mapping** (not hard clip) | emevo source |
+| Policy trunk | **2 hidden layers** (64 units, tanh), shared | emevo `ppo_normal.py:28-65` |
+| Mutation | Student's t(df=2, scale=0.4), clip ±100 | 2025 paper + emevo `20250805-mutation-t2-clip100.toml` |
 | Reward weight init | N(0, 0.1) | Section 4 |
 | PPO N / lr / clip / epochs / GAE-λ / γ | 1024 / 3e-4 / 0.2 / 10 / 0.95 / 0.999 | Table 4 |
-| Policy hidden size | 64 | Table 4 |
 | Entropy coef | 0.001 | Table 4 |
+| Obs normalization | **None** — raw obs to network | emevo source |
 
-**Critical mutation note:** The 2024 paper used Cauchy (df=1, scale=0.02, clip=±10). The 2025 paper uses t(df=2, scale=0.4, clip=±100). We replicate the 2025 paper. Do not use 2024 values.
+**Critical notes:**
+- The 2024 paper used Cauchy (df=1, scale=0.02, clip=±10). The 2025 paper uses t(df=2, scale=0.4, clip=±100). We replicate the 2025 paper. Do not use 2024 values.
+- Prey energy costs in the code are ~25× smaller than in the paper. Use the code values.
+- The "3-layer MLP" in the paper means 2 hidden layers + 1 output, not 3 hidden layers.
 
 ---
 
@@ -128,31 +140,44 @@ If PASS: run seed 1. If FAIL: see the debugging section below. Do not proceed to
 
 ```
 r = w_eat * n_eaten
-  + 0.01 * w_act * (‖f‖ / 114.0)
-  + 0.1  * w_prey * max_k(s_prey^k)
-  + 0.1  * w_pred * max_k(s_pred^k)
+  + 0.01 * w_act * (‖f_scaled‖ / F_max)
+  + 0.1  * w_prey * agg_k(s_prey^k)
+  + 0.1  * w_pred * agg_k(s_pred^k)
 ```
 
 - The 0.01 and 0.1 coefficients are **fixed architecture** — not part of the genome
-- `F = 114.0` is the max motor output norm, also fixed
+- `f_scaled = sigmoid_scale(raw_action)` — the post-sigmoid motor output, NOT the raw network output
+- `F_max = sqrt(act_high^2 + act_high^2) = sqrt(80^2 + 80^2) ≈ 113.14` — the max norm of the scaled action space
+- `s_prey^k` = proximity sensor k, **channel 0** (prey channel). `s_pred^k` = channel 1 (predator channel). Values clipped ≥ 0 before aggregation.
+- `agg_k` = emevo default is **mean** over 32 sensors (`sensor_agg_type="mean"`). The paper describes "most prominent" which suggests **max**. Use the config parameter `sensor_agg_type` to control this.
 - Genome order: `[w_eat, w_act, w_prey, w_pred]` — canonical everywhere, never permuted
 
 ---
 
 ## Observation Vector Layout
 
+**obs_dim = 205.** Confirmed against emevo gecco2026 branch. See `docs/interfaces.md` for the full indexed layout.
+
 ```
-Index 0–31:   proximity sensors    (32,)  inverse distance [0,1]
-Index 32–49:  tactile sensors      (18,)  binary contact
-Index 50:     angle                (1,)   radians [-π, π]
-Index 51:     speed                (1,)   scalar ‖v‖  ← VERIFY: 2D velocity?
-Index 52:     angular velocity     (1,)   radians/step
-Index 53:     energy               (1,)   raw value
-─────────────────────────────────────────────────────────────
-obs_dim = 54  (or 55 if velocity is 2D — resolve from emevo source first)
+Index 0–127:    proximity sensors    (32, 4)  32 sensors × 4 channels
+                                              Channels: [prey, predator, food, wall]
+                                              Winner-take-all per sensor: only closest
+                                              type is positive; others = -1.0.
+                                              Flattened row-major.
+Index 128–199:  tactile collision    (4, 18)  4 type channels × 18 bins
+                                              Channels: [conspecific, other_species, food, wall]
+                                              Binary contact. Flattened row-major.
+Index 200–201:  velocity             (2,)     2D (vx, vy), range [-10, 10]
+Index 202:      angle                (1,)     heading in radians
+Index 203:      angular velocity     (1,)     radians/step
+Index 204:      energy               (1,)     raw value, capped at 1000.0
+────────────────────────────────────────────────────────────────────────
+obs_dim = 205   (128 + 72 + 2 + 1 + 1 + 1)
 ```
 
 Always use `config["obs_dim"]`, never the literal number.
+
+**Important for reward extraction:** `s_prey^k` comes from sensor k channel 0 (prey). `s_pred^k` from channel 1 (predator). These are specific channels, not a mixed single-channel signal.
 
 ---
 
@@ -193,7 +218,7 @@ Checked automatically by `scripts/validate_replication.py`:
 
 Stop. Debug in this order:
 
-1. **Agents not eating food** (PPO not working): Run 10 prey, no predators, 10k steps. Do they learn to approach food? If not: check lr=3e-4, rollout=1024, 3-layer MLP with tanh.
+1. **Agents not eating food** (PPO not working): Run 10 prey, no predators, 10k steps. Do they learn to approach food? If not: check lr=3e-4, rollout=1024, 2-hidden-layer MLP with tanh, sigmoid action mapping.
 
 2. **Reward weights not drifting** (evolution not running): Print a histogram of 10,000 mutation samples. Should be heavy-tailed, not Gaussian. If it looks Gaussian, you used `jax.random.normal` instead of t(df=2).
 
@@ -228,7 +253,7 @@ README.md                          ← project overview
 docs/
   technical-spec-kd-replication.md ← ALL K&D parameters (start here for numbers)
   interfaces.md                    ← module contracts and data structures
-  emevo-diff.md                    ← deviations from emevo; 9 open questions
+  emevo-diff.md                    ← deviations from emevo; all 9 items resolved (D1-D10)
   development-roadmap.md           ← phases, full test specs, engineering backlog
   experimental-plan.md             ← scientific phases, hypotheses H1-H7
   full-extension-design-doc.md     ← extension axis rationale (read after baseline works)
@@ -265,7 +290,7 @@ papers/
 ## Gate Sequence (never skip)
 
 ```
-1. Resolve emevo-diff.md open items 1–9 against emevo source
+1. ✅ Resolve emevo-diff.md open items 1–9 against emevo source
 2. pytest tests/test_components.py       → all green
 3. pytest tests/test_phase0.py           → all green
 4. run_experiment.py seed 0              → ~10h run

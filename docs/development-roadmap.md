@@ -38,7 +38,7 @@ Track E   Engineering improvements (ongoing, never blocks science)
 3. `agents.py` — observation vector construction from world state; reward computation from genome
 4. `reward.py` — linear reward genome (4 weights); reward scalar from genome + obs stimuli
 5. `evolution.py` — Student's t(df=2, scale=0.4) mutation; weight clipping; newborn initialization
-6. `policy.py` — independent per-agent MLP (3 layers, 64 hidden); Gaussian action head; action sampling
+6. `policy.py` — independent per-agent MLP (2 hidden layers, 64 units, tanh); sigmoid action mapping to [-20, 80]; Gaussian action head
 7. `ppo.py` — rollout buffer; GAE; clipped surrogate loss; value loss; entropy bonus; Adam optimizer
 8. `metrics.py` — reward weight logging; population size; checkpoint save/load
 9. `scripts/run_experiment.py` — single-command entrypoint from config YAML
