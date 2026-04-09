@@ -3,12 +3,16 @@ import ReactMarkdown from "react-markdown";
 
 const DOCS_FILES = [
   { name: "background.md", label: "Background" },
+  { name: "project-description.md", label: "Project Description" },
+  { name: "project-understanding.md", label: "Project Understanding" },
   { name: "technical-spec-kd-replication.md", label: "Technical Spec" },
   { name: "interfaces.md", label: "Interfaces" },
   { name: "emevo-diff.md", label: "emevo Diff" },
   { name: "development-roadmap.md", label: "Development Roadmap" },
   { name: "experimental-plan.md", label: "Experimental Plan" },
   { name: "full-extension-design-doc.md", label: "Extension Design" },
+  { name: "reading-guide.md", label: "Reading Guide" },
+  { name: "annotated-bibliography.md", label: "Annotated Bibliography" },
   { name: "dashboard-design.md", label: "Dashboard Design" },
 ];
 
@@ -21,18 +25,17 @@ export default function DocsViewer() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/docs/${selectedDoc}`)
-      .then((res) => { if (!res.ok) throw new Error(`Failed`); return res.text(); })
+    // Docs are copied to public/docs/ by the Vite plugin at build time
+    fetch(`./docs/${selectedDoc}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Not found`);
+        return res.text();
+      })
       .then((text) => { setContent(text); setLoading(false); })
       .catch(() => {
-        fetch(`../../docs/${selectedDoc}`)
-          .then((res) => { if (!res.ok) throw new Error(`Not found`); return res.text(); })
-          .then((text) => { setContent(text); setLoading(false); })
-          .catch(() => {
-            setContent("");
-            setError(`Could not load docs/${selectedDoc}. Create a symlink: cd dashboard/site/public && ln -s ../../../docs docs`);
-            setLoading(false);
-          });
+        setContent("");
+        setError(`Could not load docs/${selectedDoc}. The docs should be auto-copied at build time.`);
+        setLoading(false);
       });
   }, [selectedDoc]);
 

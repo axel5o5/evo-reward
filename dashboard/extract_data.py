@@ -157,10 +157,12 @@ def extract_module_deps():
         for other_name in modules:
             if other_name == name:
                 continue
-            # Check for imports like "from .reward import" or "import reward" or "from reward import"
+            # Check for imports like "from src.reward import", "from .reward import",
+            # "import reward", "from reward import"
             patterns = [
+                rf"from\s+src\.{other_name}\s+import",
                 rf"from\s+\.?{other_name}\s+import",
-                rf"import\s+{other_name}",
+                rf"import\s+(?:src\.)?{other_name}",
             ]
             for pat in patterns:
                 if re.search(pat, content):

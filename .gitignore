@@ -2,3 +2,13 @@
 __pycache__/
 **/__pycache__/
 *.pyc
+
+# Dashboard
+dashboard/site/node_modules/
+dashboard/site/dist/
+dashboard/site/public/docs/
+dashboard/app/.env
+dashboard/app/utils/__pycache__/
+
+# Results (large data files)
+results/

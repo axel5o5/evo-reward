@@ -12,6 +12,7 @@ const ConfigReference = lazy(() => import("./pages/ConfigReference"));
 const SessionTimeline = lazy(() => import("./pages/SessionTimeline"));
 const DeviationTracker = lazy(() => import("./pages/DeviationTracker"));
 const DocsViewer = lazy(() => import("./pages/DocsViewer"));
+const References = lazy(() => import("./pages/References"));
 
 function useTheme() {
   const [dark, setDark] = useState(() => {
@@ -86,6 +87,7 @@ const NAV_ITEMS = [
   { path: "/config", label: "Config Reference", description: "Searchable parameter table" },
   { path: "/timeline", label: "Timeline", description: "Git commit project history" },
   { path: "/deviations", label: "Deviations", description: "Paper vs code tracker" },
+  { path: "/references", label: "References", description: "Annotated paper bibliography" },
   { path: "/docs", label: "Documentation", description: "Rendered markdown docs" },
 ];
 
@@ -146,6 +148,7 @@ export default function App() {
               <Route path="/config" element={<ConfigReference />} />
               <Route path="/timeline" element={<SessionTimeline />} />
               <Route path="/deviations" element={<DeviationTracker />} />
+              <Route path="/references" element={<References />} />
               <Route path="/docs" element={<DocsViewer />} />
             </Routes>
           </Suspense>

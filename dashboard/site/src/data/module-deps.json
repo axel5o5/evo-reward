@@ -41,5 +41,30 @@
       "file": "src/reward.py"
     }
   ],
-  "edges": []
+  "edges": [
+    {
+      "source": "agents",
+      "target": "environment"
+    },
+    {
+      "source": "agents",
+      "target": "reward"
+    },
+    {
+      "source": "evolution",
+      "target": "environment"
+    },
+    {
+      "source": "lifecycle",
+      "target": "environment"
+    },
+    {
+      "source": "lifecycle",
+      "target": "evolution"
+    },
+    {
+      "source": "ppo",
+      "target": "policy"
+    }
+  ]
 }

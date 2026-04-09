@@ -59,6 +59,18 @@
       "title": "Action mapping: sigmoid scaling, not hard clipping",
       "resolved": false,
       "body_preview": "**Component:** `policy.py`, `environment.py`\n\n**emevo:** Network outputs raw unbounded values. These are mapped through `sigmoid_scale(x) = (high - low) * sigmoid(x) + low` to produce actions in [-20,..."
+    },
+    {
+      "id": "D11",
+      "title": "Food not in phyjax2d physics",
+      "resolved": false,
+      "body_preview": "**Component:** `environment.py`\n\n**emevo:** Food items are static circles in the phyjax2d Space. Agents physically collide with food (bounce off). Eating is detected via tactile sensor bins (mouth_ran..."
+    },
+    {
+      "id": "D12",
+      "title": "Sensor bin placement",
+      "resolved": false,
+      "body_preview": "**Component:** `environment.py:compute_proximity_sensors`\n\n**emevo:** Uses phyjax2d raycast functions for sensor computation. Exact bin placement may differ.\n\n**Ours:** 32 sensor bins evenly dividing ..."
     }
   ]
 }

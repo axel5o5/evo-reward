@@ -135,6 +135,46 @@
       "author": "Axel Browne",
       "phase": "0",
       "session": null
+    },
+    {
+      "hash": "b69b2736",
+      "message": "[Dashboard] Build full two-part dashboard: Streamlit results app + React conceptual site",
+      "date": "2026-04-09 13:37:59 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "edf00abb",
+      "message": "[Dashboard] Add Vercel config and package-lock for deployment",
+      "date": "2026-04-09 15:16:34 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "24a9c50a",
+      "message": "[Dashboard] Make extract_data.py non-fatal in build for Vercel deploy",
+      "date": "2026-04-09 15:22:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3e557d8d",
+      "message": "[Dashboard] Add dark theme with toggle, dark as default",
+      "date": "2026-04-09 15:40:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5e6ca1e0",
+      "message": "[Dashboard] Add GitHub link to sidebar, link explorer from README",
+      "date": "2026-04-09 15:42:22 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }
