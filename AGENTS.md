@@ -61,14 +61,14 @@ Record exact versions in `requirements.txt` to match what emevo's 2025 branch us
 Hard dependency chain — do not reorder:
 
 ```
-1. environment.py     world, physics via phyjax2d, sensors, food
-2. lifecycle.py       energy updates, hazard h(t,e), birth b(e), events
-3. agents.py          observation vector construction, stimulus extraction
-4. reward.py          linear reward genome, reward computation
-5. evolution.py       mutation t(df=2), spawn_offspring
-6. policy.py          MLP policy (2 hidden, sigmoid action), value head
-7. ppo.py             GAE, PPO update, rollout buffer management
-8. metrics.py         logging, checkpointing, save/load
+1. ✅ environment.py     world, physics via phyjax2d, sensors, food
+2. ✅ lifecycle.py       energy updates, hazard h(t,e), birth b(e), events
+3. ✅ agents.py          observation vector construction, stimulus extraction
+4. ✅ reward.py          linear reward genome, reward computation
+5. ✅ evolution.py       mutation t(df=2), spawn_offspring
+6. ✅ policy.py          MLP policy (2 hidden, sigmoid action), value head
+7. ✅ ppo.py             GAE, PPO update, rollout buffer management
+8. ✅ metrics.py         logging, checkpointing, save/load
 9. scripts/run_experiment.py   ties it all together
 ```
 
@@ -292,8 +292,10 @@ papers/
 Session 1 complete: emevo audited, obs_dim=205, all open questions resolved.
 Session 2 complete: environment.py + lifecycle.py, 8/8 lifecycle tests green.
 Session 3 complete: agents.py, reward.py, evolution.py, ppo.py (GAE), 14/14 tests green.
+Session 4 complete: policy.py, ppo.py (full update), metrics.py, 31/31 tests green (4 skipped).
 Note: step_physics placeholder — phyjax2d integration needed before Phase 0 gate.
-Next task: Session 4 — policy.py, ppo.py (full update), metrics.py.
+Note: scripts/run_experiment.py not yet implemented — 1 test skipped pending that module.
+Next task: Session 5 — integration (run_experiment.py), Phase 0 gate.
 
 ---
 
