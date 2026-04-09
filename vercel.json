@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd dashboard/site && npm install && npm run build",
+  "outputDirectory": "dashboard/site/dist",
+  "installCommand": "echo 'install handled in buildCommand'",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
