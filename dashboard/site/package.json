@@ -6,7 +6,7 @@
   "scripts": {
     "extract": "python3 ../extract_data.py",
     "dev": "npm run extract && vite",
-    "build": "npm run extract && tsc -b && vite build",
+    "build": "python3 ../extract_data.py || true && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
