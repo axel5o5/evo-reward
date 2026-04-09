@@ -287,6 +287,16 @@ papers/
 
 ---
 
+## Current Status
+
+Session 1 complete: emevo audited, obs_dim=205, all open questions resolved.
+Session 2 complete: environment.py + lifecycle.py, 8/8 lifecycle tests green.
+Session 3 complete: agents.py, reward.py, evolution.py, ppo.py (GAE), 14/14 tests green.
+Note: step_physics placeholder — phyjax2d integration needed before Phase 0 gate.
+Next task: Session 4 — policy.py, ppo.py (full update), metrics.py.
+
+---
+
 ## Gate Sequence (never skip)
 
 ```
