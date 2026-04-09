@@ -2,6 +2,8 @@
 
 Research repository for **Evolved Reward Structures in Predator-Prey RL: How Agent Capacity Shapes What Evolution Discovers** — a graduate project in Columbia University's Advanced Reinforcement Learning course.
 
+**[Interactive Explorer](https://evo-reward.axelinter.net)** — browse the reward equation, observation vector, simulation loop, mutation distributions, and more.
+
 ---
 
 ## Overview
