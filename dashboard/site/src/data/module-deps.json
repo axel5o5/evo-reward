@@ -1,0 +1,45 @@
+{
+  "nodes": [
+    {
+      "name": "agents",
+      "lines": 119,
+      "file": "src/agents.py"
+    },
+    {
+      "name": "environment",
+      "lines": 937,
+      "file": "src/environment.py"
+    },
+    {
+      "name": "evolution",
+      "lines": 98,
+      "file": "src/evolution.py"
+    },
+    {
+      "name": "lifecycle",
+      "lines": 387,
+      "file": "src/lifecycle.py"
+    },
+    {
+      "name": "metrics",
+      "lines": 202,
+      "file": "src/metrics.py"
+    },
+    {
+      "name": "policy",
+      "lines": 127,
+      "file": "src/policy.py"
+    },
+    {
+      "name": "ppo",
+      "lines": 189,
+      "file": "src/ppo.py"
+    },
+    {
+      "name": "reward",
+      "lines": 65,
+      "file": "src/reward.py"
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,64 @@
+{
+  "deviations": [
+    {
+      "id": "D1",
+      "title": "Mutation: Student's t(df=2, scale=0.4) clipped to \u00b1100 \u2014 not Cauchy",
+      "resolved": false,
+      "body_preview": "**Component:** `evolution.py` / `mutate_genome()`\n\n**emevo (2024 paper / alife2024 branch):** Cauchy distribution (= t with df=1), scale=0.02, clipped to [-10, 10].\n\n**emevo (2025 paper):** Student's ..."
+    },
+    {
+      "id": "D2",
+      "title": "Population sizes: faithful config matches K&D; simplified configs use ~80",
+      "resolved": false,
+      "body_preview": "**Component:** `configs/`\n\n**emevo:** prey_initial=150, predator_initial=10, prey_cap=450, predator_cap=50.\n\n**baseline_faithful.yaml:** Matches emevo exactly.\n\n**baseline_simplified.yaml and extensio..."
+    },
+    {
+      "id": "D3",
+      "title": "Physics engine: phyjax2d as external dependency",
+      "resolved": false,
+      "body_preview": "**Component:** `environment.py`, `requirements.txt`\n\n**emevo:** Uses `phyjax2d`, authored by Kanagawa (`github.com/kngwyu/phyjax2d`). May be bundled or installed as a package depending on the branch.\n..."
+    },
+    {
+      "id": "D4",
+      "title": "Independent policy mode: staggered per-agent PPO, not synchronized",
+      "resolved": false,
+      "body_preview": "**Component:** `ppo.py`, main loop\n\n**emevo:** Each agent runs its own PPO update asynchronously when its personal rollout buffer fills (N=1024 steps). Updates are staggered since agents are born at d..."
+    },
+    {
+      "id": "D5",
+      "title": "Food capacity ambiguity: using n_max=100 from parameter tables",
+      "resolved": true,
+      "body_preview": "**RESOLVED:** The body text (600) is correct, not Appendix A (100). Verified against `config/env/20251122-predator-square.toml` on gecco2026 branch: `n_max_foods = 600, food_num_fn = [\"linear\", 40, 0...."
+    },
+    {
+      "id": "D6",
+      "title": "Codebase structure: functional modules vs emevo's class hierarchy",
+      "resolved": false,
+      "body_preview": "**Component:** All modules\n\n**emevo:** Uses Python classes with state (an `Environment` object, agent objects, etc.).\n\n**Ours:** Functional style \u2014 pure functions and dataclasses, no mutable class sta..."
+    },
+    {
+      "id": "D7",
+      "title": "Observation vector: 205 dimensions, not 54",
+      "resolved": false,
+      "body_preview": "**Component:** `agents.py`, `policy.py`, all obs consumers\n\n**emevo:** Observations are structured as a NamedTuple with per-type sensor channels:\n- Proximity sensors: (32 sensors \u00d7 4 types) = 128 valu..."
+    },
+    {
+      "id": "D8",
+      "title": "Sensor range: 200 units, not 120",
+      "resolved": false,
+      "body_preview": "**Component:** `environment.py`, `configs/baseline_faithful.yaml`\n\n**emevo:** `sensor_length = 200.0` for both prey and predators. Source: `config/env/20251122-predator-square.toml:12,36`.\n\n**Paper (A..."
+    },
+    {
+      "id": "D9",
+      "title": "Network architecture: 2 hidden layers in shared trunk, not 3",
+      "resolved": false,
+      "body_preview": "**Component:** `policy.py`\n\n**emevo:** `NormalPPONet` has a shared torso with 2 hidden layers (each 64 units, tanh activation), followed by separate value head (\u21921) and policy mean head (\u21922), plus lea..."
+    },
+    {
+      "id": "D10",
+      "title": "Action mapping: sigmoid scaling, not hard clipping",
+      "resolved": false,
+      "body_preview": "**Component:** `policy.py`, `environment.py`\n\n**emevo:** Network outputs raw unbounded values. These are mapped through `sigmoid_scale(x) = (high - low) * sigmoid(x) + low` to produce actions in [-20,..."
+    }
+  ]
+}

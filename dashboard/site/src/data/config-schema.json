@@ -1,0 +1,537 @@
+{
+  "parameters": [
+    {
+      "key": "experiment_name",
+      "value": "baseline_faithful",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": ""
+    },
+    {
+      "key": "policy_mode",
+      "value": "independent",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "one policy network per agent \u2014 K&D faithful"
+    },
+    {
+      "key": "lifecycle_mode",
+      "value": "continuous",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "energy-driven birth-death \u2014 K&D faithful"
+    },
+    {
+      "key": "reward_type",
+      "value": "linear",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "4-weight linear genome \u2014 K&D faithful"
+    },
+    {
+      "key": "social_obs",
+      "value": "position_only",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "no heading/velocity of neighbors"
+    },
+    {
+      "key": "policy_type",
+      "value": "mlp",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "feedforward MLP \u2014 K&D faithful"
+    },
+    {
+      "key": "coevolution_mode",
+      "value": "concurrent",
+      "section": "Identity",
+      "comment": "",
+      "inline_comment": "both species evolve simultaneously"
+    },
+    {
+      "key": "world_size",
+      "value": 960,
+      "section": "World",
+      "comment": "",
+      "inline_comment": "960\u00d7960 units (Appendix A)"
+    },
+    {
+      "key": "total_steps",
+      "value": 10240000,
+      "section": "World",
+      "comment": "",
+      "inline_comment": "1024 \u00d7 10^4 steps (Section 4)"
+    },
+    {
+      "key": "obs_dim",
+      "value": 205,
+      "section": "Observation",
+      "comment": "VERIFIED against emevo gecco2026 branch (circle_foraging.py:740-748). 128 = 32 proximity sensors \u00d7 4 per-type channels (prey, predator, food, wall) 72 = 4 types \u00d7 18 tactile bins (binary contact per type per bin) 2 = velocity (vx, vy) \u2014 2D, not scalar 1 = angle, 1 = angular velocity, 1 = energy Total: 128 + 72 + 2 + 1 + 1 + 1 = 205",
+      "inline_comment": "CONFIRMED: see emevo-diff.md items #1, #2"
+    },
+    {
+      "key": "prey_initial",
+      "value": 150,
+      "section": "Population",
+      "comment": "",
+      "inline_comment": "(Section 4)"
+    },
+    {
+      "key": "predator_initial",
+      "value": 10,
+      "section": "Population",
+      "comment": "",
+      "inline_comment": "(Section 4)"
+    },
+    {
+      "key": "prey_cap",
+      "value": 450,
+      "section": "Population",
+      "comment": "",
+      "inline_comment": "(Section 3)"
+    },
+    {
+      "key": "predator_cap",
+      "value": 50,
+      "section": "Population",
+      "comment": "",
+      "inline_comment": "(Section 3)"
+    },
+    {
+      "key": "prey_e_initial",
+      "value": 100.0,
+      "section": "Population",
+      "comment": "Initial energy for the starting population (not offspring \u2014 those use parent energy). VERIFIED: config/env/20251122-predator-square.toml:22,37",
+      "inline_comment": "CONFIRMED: init_energy = 100.0"
+    },
+    {
+      "key": "predator_e_initial",
+      "value": 100.0,
+      "section": "Population",
+      "comment": "",
+      "inline_comment": "CONFIRMED: predator_init_energy = 100.0"
+    },
+    {
+      "key": "prey_radius",
+      "value": 10.0,
+      "section": "Agent Bodies",
+      "comment": "",
+      "inline_comment": "(Appendix A)"
+    },
+    {
+      "key": "predator_radius",
+      "value": 14.0,
+      "section": "Agent Bodies",
+      "comment": "",
+      "inline_comment": "(Appendix A)"
+    },
+    {
+      "key": "max_motor_norm",
+      "value": 114.0,
+      "section": "Agent Bodies",
+      "comment": "",
+      "inline_comment": "F; max \u2016f\u2016 (Appendix A note: \"0 < \u2016f\u2016 < 114\")"
+    },
+    {
+      "key": "n_proximity_sensors",
+      "value": 32,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "(Section 3)"
+    },
+    {
+      "key": "n_proximity_channels",
+      "value": 4,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "CONFIRMED: per-type channels [prey, predator, food, wall]"
+    },
+    {
+      "key": "proximity_fov_deg",
+      "value": 120.0,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "forward arc in degrees (Section 3), \"wide\" in emevo"
+    },
+    {
+      "key": "proximity_max_range",
+      "value": 200.0,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "CONFIRMED: sensor_length = 200.0 (emevo code; paper says 120)"
+    },
+    {
+      "key": "n_tactile_sensors",
+      "value": 18,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "(Section 3), n_tactile_bins = 18"
+    },
+    {
+      "key": "n_tactile_channels",
+      "value": 4,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "CONFIRMED: per-type channels, same 4 types as proximity"
+    },
+    {
+      "key": "tactile_spacing_deg",
+      "value": 20.0,
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "degrees between sensors (360/18 = 20)"
+    },
+    {
+      "key": "food_max",
+      "value": 600,
+      "section": "Food Dynamics",
+      "comment": "VERIFIED: config/env/20251122-predator-square.toml:3-4 food_num_fn = [\"linear\", 40, 0.5, 600] \u2192 initial=40, growth=0.5/step, cap=600 Body text (600) is correct, Appendix A (100) is wrong.",
+      "inline_comment": "CONFIRMED: n_max_foods = 600"
+    },
+    {
+      "key": "food_initial",
+      "value": 40,
+      "section": "Food Dynamics",
+      "comment": "",
+      "inline_comment": "CONFIRMED: initial food count at start"
+    },
+    {
+      "key": "food_growth_rate",
+      "value": 0.5,
+      "section": "Food Dynamics",
+      "comment": "",
+      "inline_comment": "CONFIRMED: linear growth per step"
+    },
+    {
+      "key": "food_max_regen_per_step",
+      "value": 10,
+      "section": "Food Dynamics",
+      "comment": "",
+      "inline_comment": "CONFIRMED: n_max_food_regen = 10"
+    },
+    {
+      "key": "energy_capacity",
+      "value": 1000.0,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "CONFIRMED: max energy cap (20251122 config:23)"
+    },
+    {
+      "key": "prey_e_food",
+      "value": 1.0,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "energy gained per food item (Section 3)"
+    },
+    {
+      "key": "prey_c_b",
+      "value": 0.0001,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "CONFIRMED: basic_energy_consumption (code differs from paper Table 2's 2.5e-3)"
+    },
+    {
+      "key": "prey_c_a",
+      "value": 2.5e-06,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "CONFIRMED: force_energy_consumption (code differs from paper Table 2's 1.0e-4)"
+    },
+    {
+      "key": "predator_d_b",
+      "value": 0.004,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "CONFIRMED: predator_basic_ec = 4e-3 (matches Table 2)"
+    },
+    {
+      "key": "predator_d_a",
+      "value": 5e-05,
+      "section": "Energy",
+      "comment": "",
+      "inline_comment": "CONFIRMED: predator_force_ec = 5e-5 (matches Table 2)"
+    },
+    {
+      "key": "predator_eta",
+      "value": 0.6,
+      "section": "Energy",
+      "comment": "Energy gain: \u03a3_{prey caught} \u03b7 * prey_energy_at_catch VERIFIED: config/env/20251122-predator-square.toml:40",
+      "inline_comment": "CONFIRMED: predator_digestive_rate = 0.6"
+    },
+    {
+      "key": "predator_mouth_deg",
+      "value": 60.0,
+      "section": "Predator Mouth",
+      "comment": "",
+      "inline_comment": "medium mouth (Figure 3 \u2014 default for experiments)"
+    },
+    {
+      "key": "predator_mouth_range_min",
+      "value": 40.0,
+      "section": "Predator Mouth",
+      "comment": "",
+      "inline_comment": "(Section 3 / Figure 3)"
+    },
+    {
+      "key": "predator_mouth_range_max",
+      "value": 80.0,
+      "section": "Predator Mouth",
+      "comment": "",
+      "inline_comment": "(Section 3 / Figure 3)"
+    },
+    {
+      "key": "kappa_h",
+      "value": 0.01,
+      "section": "Hazard Function h(t, e)",
+      "comment": "h(t,e) = \u03ba_h * (1 - 1/(1 + \u03b1_e\u00b7exp(-\u03b2_h\u00b7e))) * \u03b1_t\u00b7exp(\u03b2_t\u00b7t)",
+      "inline_comment": "(Table 3)"
+    },
+    {
+      "key": "alpha_e",
+      "value": 0.02,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3)"
+    },
+    {
+      "key": "beta_h",
+      "value": 0.2,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3)"
+    },
+    {
+      "key": "alpha_t_prey",
+      "value": 4e-07,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3, prey)"
+    },
+    {
+      "key": "alpha_t_pred",
+      "value": 2e-07,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3, predator)"
+    },
+    {
+      "key": "beta_t_prey",
+      "value": 2e-06,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3, prey)"
+    },
+    {
+      "key": "beta_t_pred",
+      "value": 4e-06,
+      "section": "Hazard Function h(t, e)",
+      "comment": "",
+      "inline_comment": "(Table 3, predator)"
+    },
+    {
+      "key": "kappa_b",
+      "value": 0.001,
+      "section": "Birth Function b(e)",
+      "comment": "b(e) = \u03ba_b / (1 + exp(\u03b6 - \u03b2_b\u00b7e))",
+      "inline_comment": "(Table 3)"
+    },
+    {
+      "key": "beta_b",
+      "value": 0.1,
+      "section": "Birth Function b(e)",
+      "comment": "",
+      "inline_comment": "(Table 3)"
+    },
+    {
+      "key": "zeta_b_prey",
+      "value": 10.0,
+      "section": "Birth Function b(e)",
+      "comment": "",
+      "inline_comment": "(Table 3, \u03b6=10 for prey \u2192 ~20-30 energy needed)"
+    },
+    {
+      "key": "zeta_b_pred",
+      "value": 100.0,
+      "section": "Birth Function b(e)",
+      "comment": "",
+      "inline_comment": "(Table 3, \u03b6=100 for predator \u2192 ~240-260 needed)"
+    },
+    {
+      "key": "energy_share_ratio",
+      "value": 0.4,
+      "section": "Offspring",
+      "comment": "VERIFIED: config/env/20251122-predator-square.toml:26,10",
+      "inline_comment": "CONFIRMED: parent loses 0.4\u00d7e, child gets 0.4\u00d7e"
+    },
+    {
+      "key": "spawn_spread",
+      "value": 100.0,
+      "section": "Offspring",
+      "comment": "",
+      "inline_comment": "CONFIRMED: neighbor_stddev = 100.0 world units"
+    },
+    {
+      "key": "reward_weights_init_std",
+      "value": 0.1,
+      "section": "Reward Genome",
+      "comment": "Weight order (canonical, never change): [w_eat, w_act, w_prey, w_pred]",
+      "inline_comment": "weights ~ N(0, 0.1) at birth (Section 4)"
+    },
+    {
+      "key": "mutation_df",
+      "value": 2,
+      "section": "Reward Genome",
+      "comment": "",
+      "inline_comment": "Student's t degrees of freedom (2025 paper)"
+    },
+    {
+      "key": "mutation_scale",
+      "value": 0.4,
+      "section": "Reward Genome",
+      "comment": "",
+      "inline_comment": "Student's t scale parameter (2025 paper)"
+    },
+    {
+      "key": "weight_clip",
+      "value": 100.0,
+      "section": "Reward Genome",
+      "comment": "",
+      "inline_comment": "clip after mutation to [-100, 100] (2025 paper)"
+    },
+    {
+      "key": "policy_hidden_size",
+      "value": 64,
+      "section": "Policy Network",
+      "comment": "",
+      "inline_comment": "hidden units per layer (Table 4)"
+    },
+    {
+      "key": "policy_n_hidden_layers",
+      "value": 2,
+      "section": "Policy Network",
+      "comment": "",
+      "inline_comment": "CONFIRMED: 2 hidden layers in shared trunk (ppo_normal.py:43-48)"
+    },
+    {
+      "key": "gamma",
+      "value": 0.999,
+      "section": "PPO Hyperparameters",
+      "comment": "All from Table 4 of the 2025 paper.",
+      "inline_comment": "discount factor"
+    },
+    {
+      "key": "rollout_steps",
+      "value": 1024,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "N \u2014 steps per PPO update"
+    },
+    {
+      "key": "minibatch_size",
+      "value": 256,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "minibatch size"
+    },
+    {
+      "key": "ppo_epochs",
+      "value": 10,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "optimization epochs per rollout"
+    },
+    {
+      "key": "clip_epsilon",
+      "value": 0.2,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "PPO clipping parameter"
+    },
+    {
+      "key": "entropy_coef",
+      "value": 0.001,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "entropy bonus coefficient"
+    },
+    {
+      "key": "gae_lambda",
+      "value": 0.95,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "GAE \u03bb parameter (note: paper calls this \u03b3)"
+    },
+    {
+      "key": "lr",
+      "value": 0.0003,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "Adam learning rate"
+    },
+    {
+      "key": "adam_eps",
+      "value": 1e-07,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "Adam \u03b5"
+    },
+    {
+      "key": "vf_clip",
+      "value": true,
+      "section": "PPO Hyperparameters",
+      "comment": "Value function clipping: not specified in paper. Use standard PPO with VF clipping.",
+      "inline_comment": "clip value function loss"
+    },
+    {
+      "key": "vf_coef",
+      "value": 0.5,
+      "section": "PPO Hyperparameters",
+      "comment": "",
+      "inline_comment": "value function loss coefficient (standard)"
+    },
+    {
+      "key": "action_clip_low",
+      "value": -20.0,
+      "section": "Action Space",
+      "comment": "VERIFIED: config/env/20251122-predator-square.toml:20-21, circle_foraging.py:739 Note: emevo uses sigmoid_scale mapping (smooth) not hard clipping. Network output \u2192 sigmoid_scale(x) = 100*sigmoid(x) + (-20) \u2192 [-20, 80]",
+      "inline_comment": "CONFIRMED: min_force = -20.0"
+    },
+    {
+      "key": "action_clip_high",
+      "value": 80.0,
+      "section": "Action Space",
+      "comment": "",
+      "inline_comment": "CONFIRMED: max_force = 80.0"
+    },
+    {
+      "key": "action_mapping",
+      "value": "sigmoid",
+      "section": "Action Space",
+      "comment": "",
+      "inline_comment": "CONFIRMED: sigmoid_scale, not hard clip"
+    },
+    {
+      "key": "checkpoint_interval_steps",
+      "value": 25000,
+      "section": "Logging",
+      "comment": "",
+      "inline_comment": "save checkpoint every 25k steps"
+    },
+    {
+      "key": "log_interval_steps",
+      "value": 10000,
+      "section": "Logging",
+      "comment": "",
+      "inline_comment": "log metrics every 10k steps"
+    },
+    {
+      "key": "seed",
+      "value": 0,
+      "section": "Reproducibility",
+      "comment": "Run separately per seed. K&D used 5 seeds for the main results. Phase 1a: start with seeds 0 and 1; add more after qualitative validation.",
+      "inline_comment": ""
+    }
+  ],
+  "source": "configs/baseline_faithful.yaml"
+}

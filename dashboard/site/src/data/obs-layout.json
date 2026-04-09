@@ -1,0 +1,69 @@
+{
+  "total_dim": 205,
+  "segments": [
+    {
+      "name": "proximity_sensors",
+      "start": 0,
+      "end": 127,
+      "shape": [
+        32,
+        4
+      ],
+      "description": "32 sensors x 4 channels [prey, predator, food, wall]",
+      "details": "Winner-take-all: only closest type positive; others = -1.0. FOV: 120 deg, range: 200 units.",
+      "range": "[-1, 1]"
+    },
+    {
+      "name": "tactile_collision",
+      "start": 128,
+      "end": 199,
+      "shape": [
+        4,
+        18
+      ],
+      "description": "4 type channels x 18 bins at 20 deg spacing",
+      "details": "Channels: [conspecific, other_species, food, wall]. Binary contact.",
+      "range": "{0, 1}"
+    },
+    {
+      "name": "velocity",
+      "start": 200,
+      "end": 201,
+      "shape": [
+        2
+      ],
+      "description": "2D velocity (vx, vy)",
+      "range": "[-10, 10]"
+    },
+    {
+      "name": "angle",
+      "start": 202,
+      "end": 202,
+      "shape": [
+        1
+      ],
+      "description": "Agent heading in radians",
+      "range": "[-2pi, 2pi]"
+    },
+    {
+      "name": "angular_velocity",
+      "start": 203,
+      "end": 203,
+      "shape": [
+        1
+      ],
+      "description": "Angular velocity (radians/step)",
+      "range": "[-pi/10, pi/10]"
+    },
+    {
+      "name": "energy",
+      "start": 204,
+      "end": 204,
+      "shape": [
+        1
+      ],
+      "description": "Raw energy value",
+      "range": "[0, 1000]"
+    }
+  ]
+}

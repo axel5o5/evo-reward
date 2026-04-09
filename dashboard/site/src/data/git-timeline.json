@@ -1,0 +1,140 @@
+{
+  "commits": [
+    {
+      "hash": "b69f9443",
+      "message": "Initial commit",
+      "date": "2026-04-03 09:55:08 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6713acb5",
+      "message": "Rename project from 'evolved-reward' to 'reward-evo'",
+      "date": "2026-04-03 09:56:59 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f13d0804",
+      "message": "README",
+      "date": "2026-04-03 10:00:39 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "77086dd9",
+      "message": "Initial documentation",
+      "date": "2026-04-03 10:31:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "48ad710c",
+      "message": "Rename project from reward-evo to evo-reward",
+      "date": "2026-04-03 10:50:56 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e8e29151",
+      "message": "Delete .DS_Store",
+      "date": "2026-04-03 10:51:32 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "21c938eb",
+      "message": "added documentation and a reading guide",
+      "date": "2026-04-03 11:32:23 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e69695e4",
+      "message": "Merge remote-tracking branch 'origin/main'",
+      "date": "2026-04-03 11:33:59 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5964f2dd",
+      "message": "Fix remaining reward-evo reference in README repo tree",
+      "date": "2026-04-03 11:37:36 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1743ed11",
+      "message": "[Phase 0] Resolve all 9 open questions in emevo-diff.md against emevo source",
+      "date": "2026-04-09 10:38:46 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "22790b9c",
+      "message": "Add project scaffolding: AGENTS.md, docs, configs, scripts, tests",
+      "date": "2026-04-09 10:40:41 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6e6f0346",
+      "message": "[Phase 0] Update AGENTS.md with confirmed emevo values, add session 2 prompt",
+      "date": "2026-04-09 10:47:37 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "12ec0377",
+      "message": "[Phase 0] Implement environment.py and lifecycle.py, update test config to confirmed values",
+      "date": "2026-04-09 11:18:12 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "7cf8da22",
+      "message": "[Phase 0] Add __pycache__ and recursive .DS_Store to .gitignore, remove tracked .DS_Store",
+      "date": "2026-04-09 11:19:14 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "ba8a3b87",
+      "message": "[Phase 0] Implement agents.py, reward.py, evolution.py, ppo.py \u2014 14/14 tests green",
+      "date": "2026-04-09 11:30:09 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "ee5160cd",
+      "message": "[Phase 0] Update AGENTS.md with current status through Session 3",
+      "date": "2026-04-09 11:34:20 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "891b937e",
+      "message": "[Phase 0] Implement policy.py, ppo_update(), metrics.py \u2014 31/31 tests green",
+      "date": "2026-04-09 12:06:38 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    }
+  ]
+}
