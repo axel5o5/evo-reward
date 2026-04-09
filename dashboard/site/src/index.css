@@ -1,3 +1,58 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Smooth theme transitions */
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark mode scrollbar */
+.dark {
+  color-scheme: dark;
+}
+
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e1e2e;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Range input styling for dark mode */
+.dark input[type="range"] {
+  background: transparent;
+}
+
+.dark input[type="range"]::-webkit-slider-runnable-track {
+  background: #374151;
+  border-radius: 4px;
+  height: 6px;
+}
+
+/* Selection color */
+.dark ::selection {
+  background: #2563eb;
+  color: white;
+}
+
+/* Fix prose/markdown dark mode code blocks */
+.dark .prose pre {
+  background: #0d1117 !important;
+}
+
+.dark .prose code:not(pre code) {
+  background: #1f2937;
+  color: #e5e7eb;
+}

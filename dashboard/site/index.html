@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>evo-reward Explorer</title>
+    <script>
+      // Prevent flash of wrong theme on load
+      (function() {
+        var stored = localStorage.getItem('evo-theme');
+        var dark = stored ? stored === 'dark' : true;
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
+    <style>
+      /* Critical dark bg to prevent white flash */
+      html.dark { background: #030712; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

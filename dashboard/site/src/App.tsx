@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 
 // Pages — lazy loaded for code splitting
 const ObservationLayout = lazy(() => import("./pages/ObservationLayout"));
@@ -13,11 +13,41 @@ const SessionTimeline = lazy(() => import("./pages/SessionTimeline"));
 const DeviationTracker = lazy(() => import("./pages/DeviationTracker"));
 const DocsViewer = lazy(() => import("./pages/DocsViewer"));
 
+function useTheme() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const stored = localStorage.getItem("evo-theme");
+    if (stored) return stored === "dark";
+    // Default to dark
+    return true;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("evo-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  return { dark, toggle: () => setDark((d) => !d) };
+}
+
+function ThemeToggle({ dark, toggle }: { dark: boolean; toggle: () => void }) {
+  return (
+    <button
+      onClick={toggle}
+      className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      <span className="text-base">{dark ? "\u2600\uFE0F" : "\uD83C\uDF19"}</span>
+      <span>{dark ? "Light mode" : "Dark mode"}</span>
+    </button>
+  );
+}
+
 function Home() {
   return (
     <div className="max-w-4xl mx-auto py-12 px-6">
-      <h1 className="text-4xl font-bold mb-4">evo-reward Explorer</h1>
-      <p className="text-lg text-gray-600 mb-8">
+      <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">evo-reward Explorer</h1>
+      <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
         Interactive guide to the evolutionary reward structures project —
         replicating and extending Kanagawa & Doya (2025).
       </p>
@@ -26,10 +56,10 @@ function Home() {
           <NavLink
             key={item.path}
             to={item.path}
-            className="block p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition"
+            className="block p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition"
           >
-            <h3 className="font-semibold text-lg">{item.label}</h3>
-            <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+            <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{item.label}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.description}</p>
           </NavLink>
         ))}
       </div>
@@ -40,7 +70,7 @@ function Home() {
 function Loading() {
   return (
     <div className="max-w-4xl mx-auto py-12 px-6">
-      <div className="text-gray-400">Loading...</div>
+      <div className="text-gray-400 dark:text-gray-500">Loading...</div>
     </div>
   );
 }
@@ -60,30 +90,37 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
+  const { dark, toggle } = useTheme();
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
         {/* Sidebar */}
-        <nav className="fixed left-0 top-0 h-full w-56 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
-          <div className="text-sm font-bold text-gray-400 uppercase tracking-wide mb-4">
+        <nav className="fixed left-0 top-0 h-full w-56 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4 overflow-y-auto flex flex-col">
+          <div className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
             evo-reward
           </div>
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/"}
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded text-sm mb-1 transition ${
-                  isActive
-                    ? "bg-blue-100 text-blue-800 font-medium"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          <div className="flex-1">
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === "/"}
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded text-sm mb-1 transition ${
+                    isActive
+                      ? "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 font-medium"
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+            <ThemeToggle dark={dark} toggle={toggle} />
+          </div>
         </nav>
 
         {/* Main content */}
