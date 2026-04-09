@@ -1,0 +1,45 @@
+# evo-reward dependencies
+# Pin versions to match github.com/oist/emevo (2025 paper branch).
+# After cloning emevo, check its pyproject.toml or setup.py and update versions here.
+
+# ─── JAX (GPU) ───────────────────────────────────────────────────────────────
+# For GPU: replace with the CUDA-specific install command from
+# https://jax.readthedocs.io/en/latest/installation.html
+# Example for CUDA 12: pip install -U "jax[cuda12]"
+# For CPU only (testing/dev): uncomment the lines below
+# jax>=0.4.20
+# jaxlib>=0.4.20
+
+# ─── Neural networks and optimizers ──────────────────────────────────────────
+flax>=0.7.0
+optax>=0.1.7
+
+# ─── Physics engine — K&D's own JAX 2D physics ───────────────────────────────
+# VERIFY version against emevo's 2025 branch before pinning.
+# Install from source if pip package is outdated:
+#   pip install git+https://github.com/kngwyu/phyjax2d
+phyjax2d>=0.1.0   # ⚠ VERIFY exact version from emevo pyproject.toml
+
+# ─── Scientific computing ─────────────────────────────────────────────────────
+numpy>=1.24.0
+scipy>=1.10.0      # needed for scipy.stats.t (mutation distribution)
+
+# ─── Configuration and I/O ───────────────────────────────────────────────────
+pyyaml>=6.0
+
+# ─── Visualization ───────────────────────────────────────────────────────────
+matplotlib>=3.7.0
+
+# ─── Experiment tracking (optional but strongly recommended) ─────────────────
+# Uncomment one:
+# wandb>=0.15.0
+# tensorboard>=2.13.0
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+pytest>=7.4.0
+pytest-xdist>=3.3.0    # parallel test execution
+
+# ─── Development ─────────────────────────────────────────────────────────────
+# Optional but useful:
+# ipython
+# jupyterlab
