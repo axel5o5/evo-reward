@@ -305,7 +305,18 @@ Session 6 complete:
   ✅ Part D: 25k smoke test PASSED — 9621s (2.6 steps/s avg)
      Step 25k: prey=106, pred=50, food=600, std(w_pred)=0.760 >> 0.05, no crash/NaN
 Note: D11 food not in phyjax2d, D12 sensor bin fix, D13 PPO JIT, D14 padded batch — all in emevo-diff.md.
-Next task: Phase 1a — run_experiment.py seed 0 full 10M steps, then validate_replication.py.
+Session 7 complete: Fully-JAX simulation rewrite
+  ✅ src/jax_state.py — SimState pytree (flax.struct, 161 leaves, 500 agent slots)
+  ✅ src/jax_evolution.py — Pure-JAX Student's t mutation (no scipy)
+  ✅ src/jax_food.py — JIT eating detection + food regen (pairwise broadcast + lax.scan)
+  ✅ src/jax_lifecycle.py — Vectorized energy/hazard/birth (all jnp, lax.scan for births)
+  ✅ src/jax_ppo.py — Per-agent conditional PPO (vmap + lax.cond + lax.fori_loop)
+  ✅ src/jax_sim.py — Unified sim_step_core (steps 1-9 JIT-compiled)
+  ✅ scripts/run_experiment_jax.py — New runner with PPO integration
+  ✅ Vectorized observations, check_eating, update_energies in original code
+  ✅ 52/52 tests green, 3 skipped
+  Verified: 100 steps no NaN, population dynamics active, food regen, energy decay
+Next task: GPU test on Vast.ai, then Phase 1a with run_experiment_jax.py.
 
 ---
 
