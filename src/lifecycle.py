@@ -139,38 +139,58 @@ def update_energy_predator(
 
 def update_energies(world, eating_events: dict, actions_taken: dict, config: dict):
     """
-    Apply energy update equation to all agents.
+    Apply energy update equation to all agents (vectorized).
 
-    eating_events: {agent_id: n_consumed} for prey,
+    eating_events: {agent_id: n_consumed (int)} for prey,
                    or {agent_id: [(prey_id, prey_energy), ...]} for predators.
     actions_taken: {agent_id: jnp.ndarray shape (2,)}
 
     Returns updated WorldState with new energies.
     Agents with e < 0 are NOT yet removed here.
     """
-    for agent in world.agents:
-        aid = agent.agent_id
-        action = actions_taken.get(aid, jnp.zeros(2))
-        action_norm = float(jnp.linalg.norm(action))
+    import numpy as np
 
-        if agent.species == 0:  # prey
-            n_eaten = eating_events.get(aid, 0)
-            agent.energy = update_energy_prey(
-                agent.energy, n_eaten, action_norm, config
-            )
-        else:  # predator
-            prey_caught = eating_events.get(aid, [])
-            if isinstance(prey_caught, int):
-                # Simple case: just count, no prey energy info
-                # Use a default prey energy (shouldn't happen in normal flow)
-                prey_energies = [config.get("prey_e_initial", 100.0)] * prey_caught
-            else:
-                prey_energies = [pe for (_pid, pe) in prey_caught]
-            agent.energy = update_energy_predator(
-                agent.energy, prey_energies, action_norm, config
-            )
+    n = len(world.agents)
+    if n == 0:
+        return world
 
-        # Increment age
+    e_food = config["prey_e_food"]
+    c_b = config["prey_c_b"]
+    c_a = config["prey_c_a"]
+    d_b = config["predator_d_b"]
+    d_a = config["predator_d_a"]
+    eta = config["predator_eta"]
+    cap = config.get("energy_capacity", 1000.0)
+
+    # Extract arrays (one Python pass)
+    energies = np.empty(n)
+    species = np.empty(n, dtype=np.int32)
+    action_norms = np.empty(n)
+    food_gains = np.zeros(n)
+
+    for i, agent in enumerate(world.agents):
+        energies[i] = agent.energy
+        species[i] = agent.species
+        action = actions_taken.get(agent.agent_id)
+        action_norms[i] = float(np.linalg.norm(np.asarray(action))) if action is not None else 0.0
+
+        ev = eating_events.get(agent.agent_id)
+        if ev is not None:
+            if agent.species == 0:
+                food_gains[i] = (ev if isinstance(ev, int) else 0) * e_food
+            elif isinstance(ev, list):
+                food_gains[i] = eta * sum(pe for _, pe in ev)
+
+    # Vectorized energy update
+    prey_mask = species == 0
+    delta = np.where(prey_mask,
+                     food_gains - c_a * action_norms - c_b,
+                     food_gains - d_a * action_norms - d_b)
+    new_energies = np.minimum(energies + delta, cap)
+
+    # Write back (one Python pass)
+    for i, agent in enumerate(world.agents):
+        agent.energy = float(new_energies[i])
         agent.age += 1
 
     return world
