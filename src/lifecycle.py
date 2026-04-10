@@ -12,6 +12,7 @@ Energy cost parameters use CODE values (not paper Table 2):
 
 import math
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -200,6 +201,31 @@ def update_energies(world, eating_events: dict, actions_taken: dict, config: dic
 # Birth and death processing
 # ---------------------------------------------------------------------------
 
+def _batch_hazard_prob(ages, energies, species, config):
+    """Vectorized hazard probability for all agents. Returns (n,) array."""
+    kappa_h = config["kappa_h"]
+    alpha_e = config["alpha_e"]
+    beta_h = config["beta_h"]
+
+    alpha_t = np.where(species == 0, config["alpha_t_prey"], config["alpha_t_pred"])
+    beta_t = np.where(species == 0, config["beta_t_prey"], config["beta_t_pred"])
+
+    energy_term = 1.0 - 1.0 / (1.0 + alpha_e * np.exp(np.clip(-beta_h * energies, -700, 700)))
+    age_term = alpha_t * np.exp(np.clip(beta_t * ages, -700, 700))
+    h = kappa_h * energy_term * age_term
+    return np.clip(h, 0.0, 1.0)
+
+
+def _batch_birth_prob(energies, species, config):
+    """Vectorized birth probability for all agents. Returns (n,) array."""
+    kappa_b = config["kappa_b"]
+    beta_b = config["beta_b"]
+    zeta = np.where(species == 0, config["zeta_b_prey"], config["zeta_b_pred"])
+
+    exponent = np.clip(zeta - beta_b * energies, -700, 700)
+    return kappa_b / (1.0 + np.exp(exponent))
+
+
 def process_births_and_deaths(world, rng_key, config: dict):
     """
     1. Kill agents: remove if e < 0; else kill with prob h(age, energy).
@@ -209,73 +235,82 @@ def process_births_and_deaths(world, rng_key, config: dict):
        - Offspring created via spawn_offspring (from evolution.py).
     3. Enforce caps.
 
+    Hazard and birth probabilities are computed in batch (vectorized numpy).
+    Only spawn_offspring remains per-agent (creates AgentState objects).
+
     Returns:
         world: updated WorldState
         dead_ids: list of agent IDs that died
         born_ids: list of agent IDs that were born
     """
-    import random as pyrandom
-
     energy_share_ratio = config["energy_share_ratio"]
     prey_cap = config.get("prey_cap", 450)
     predator_cap = config.get("predator_cap", 50)
 
-    dead_ids = []
-    survivors = []
+    n = len(world.agents)
+    if n == 0:
+        return world, [], []
 
-    # Step 1: Death processing
+    # --- Step 1: Death processing (vectorized hazard) ---
+    ages = np.array([a.age for a in world.agents])
+    energies = np.array([a.energy for a in world.agents])
+    species = np.array([a.species for a in world.agents])
+
+    h_all = _batch_hazard_prob(ages, energies, species, config)
+
     rng_key, death_key = jax.random.split(rng_key)
-    death_randoms = jax.random.uniform(death_key, shape=(len(world.agents),))
+    death_randoms = np.array(jax.random.uniform(death_key, shape=(n,)))
 
-    for i, agent in enumerate(world.agents):
-        if agent.energy < 0:
-            dead_ids.append(agent.agent_id)
-            continue
+    dead_mask = (energies < 0) | (death_randoms < h_all)
 
-        h = hazard_prob(agent.age, agent.energy, agent.species, config)
-        if float(death_randoms[i]) < h:
-            dead_ids.append(agent.agent_id)
-            continue
+    dead_ids = [world.agents[i].agent_id for i in range(n) if dead_mask[i]]
+    survivors = [world.agents[i] for i in range(n) if not dead_mask[i]]
 
-        survivors.append(agent)
+    # --- Step 2: Birth processing (vectorized birth prob) ---
+    n_surv = len(survivors)
+    if n_surv == 0:
+        world.agents = []
+        world.rng_key = rng_key
+        return world, dead_ids, []
 
-    # Step 2: Birth processing
-    born_ids = []
-    newborns = []
+    surv_energies = np.array([a.energy for a in survivors])
+    surv_species = np.array([a.species for a in survivors])
 
-    # Count current population by species
-    prey_count = sum(1 for a in survivors if a.species == 0)
-    pred_count = sum(1 for a in survivors if a.species == 1)
+    b_all = _batch_birth_prob(surv_energies, surv_species, config)
 
     rng_key, birth_key = jax.random.split(rng_key)
-    birth_randoms = jax.random.uniform(birth_key, shape=(len(survivors),))
+    birth_randoms = np.array(jax.random.uniform(birth_key, shape=(n_surv,)))
 
-    # Track next available agent ID
+    wants_birth = birth_randoms < b_all
+
+    # Apply population caps
+    prey_count = int(np.sum(surv_species == 0))
+    pred_count = int(np.sum(surv_species == 1))
+
     max_id = max((a.agent_id for a in survivors), default=-1)
     next_id = max_id + 1
 
-    for i, agent in enumerate(survivors):
-        b = birth_prob(agent.energy, agent.species, config)
-        if float(birth_randoms[i]) >= b:
+    born_ids = []
+    newborns = []
+
+    for i in range(n_surv):
+        if not wants_birth[i]:
             continue
 
-        # Check population cap
+        agent = survivors[i]
         if agent.species == 0 and prey_count >= prey_cap:
             continue
         if agent.species == 1 and pred_count >= predator_cap:
             continue
 
-        # Create offspring
         rng_key, spawn_key = jax.random.split(rng_key)
 
         try:
             from src.evolution import spawn_offspring
             child = spawn_offspring(agent, next_id, spawn_key, config)
         except (ImportError, NotImplementedError):
-            # evolution.py not yet implemented; create minimal child
             child = _minimal_offspring(agent, next_id, spawn_key, config)
 
-        # Parent loses energy
         agent.energy -= agent.energy * energy_share_ratio
 
         newborns.append(child)
