@@ -964,12 +964,17 @@ def extract_obs_state(world: WorldState, config: dict) -> dict:
 
     circle_state = physics["stated"].get("circle")
 
-    # Build energies array from agent list (not stored in physics SoA)
-    energies = jnp.zeros(max_agents)
+    # Build energies array from agent list (batch set, not per-agent .at[].set())
+    slots_list = []
+    energy_vals = []
     for agent in world.agents:
-        slot = physics["agent_id_to_slot"].get(agent.agent_id)
-        if slot is not None:
-            energies = energies.at[slot].set(agent.energy)
+        s = physics["agent_id_to_slot"].get(agent.agent_id)
+        if s is not None:
+            slots_list.append(s)
+            energy_vals.append(agent.energy)
+    energies = jnp.zeros(max_agents)
+    if slots_list:
+        energies = energies.at[jnp.array(slots_list)].set(jnp.array(energy_vals))
 
     # Pad food positions to fixed size
     if world.food_positions is not None and len(world.food_positions) > 0:
