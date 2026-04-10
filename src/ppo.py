@@ -146,12 +146,13 @@ def ppo_update(
     Returns: (new_params, new_opt_state, info_dict)
     info_dict keys: "policy_loss", "value_loss", "entropy", "approx_kl"
     """
-    observations = rollout["observations"]
-    actions = rollout["actions"]
-    old_log_probs = rollout["log_probs"]
-    rewards = rollout["rewards"]
-    values = rollout["values"]
-    dones = rollout["dones"]
+    # Accept numpy or JAX arrays in the rollout (numpy is faster to write to)
+    observations = jnp.asarray(rollout["observations"])
+    actions = jnp.asarray(rollout["actions"])
+    old_log_probs = jnp.asarray(rollout["log_probs"])
+    rewards = jnp.asarray(rollout["rewards"])
+    values = jnp.asarray(rollout["values"])
+    dones = jnp.asarray(rollout["dones"])
 
     N = observations.shape[0]
 
