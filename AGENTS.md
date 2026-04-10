@@ -297,13 +297,15 @@ Session 5 complete:
   ✅ Part A: phyjax2d integrated — differential drive matching emevo (dt=0.1, damping=0.8/0.6, 5 sub-steps)
   ✅ Part B: scripts/run_experiment.py — full simulation loop, batched policy via vmap
   ✅ Part C: test_phase0.py — 11/11 tests pass, 43/43 total tests green
-Session 6 in progress:
+Session 6 complete:
   ✅ Perf fix D13: PPO minibatch step JIT-compiled — eliminates re-tracing (was 30+ min at step 1024)
   ✅ Perf fix D14: Batched policy uses power-of-2 padding — eliminates recompile on pop change
-  ✅ 43/43 tests green after both fixes
-  🔄 Part D: 50k smoke test restarted (PID 93539, fixes applied, ~1-2h expected)
+  ✅ NumPy rollout buffer + stacked params cache (additional ~2x speedup)
+  ✅ 43/43 tests green after all fixes
+  ✅ Part D: 25k smoke test PASSED — 9621s (2.6 steps/s avg)
+     Step 25k: prey=106, pred=50, food=600, std(w_pred)=0.760 >> 0.05, no crash/NaN
 Note: D11 food not in phyjax2d, D12 sensor bin fix, D13 PPO JIT, D14 padded batch — all in emevo-diff.md.
-Next task: Verify smoke test completion (no crash, no NaN, std(w)>0.05, pop>0), then Phase 1a.
+Next task: Phase 1a — run_experiment.py seed 0 full 10M steps, then validate_replication.py.
 
 ---
 
@@ -313,7 +315,8 @@ Next task: Verify smoke test completion (no crash, no NaN, std(w)>0.05, pop>0), 
 1. ✅ Resolve emevo-diff.md open items 1–9 against emevo source
 2. pytest tests/test_components.py       → all green
 3. pytest tests/test_phase0.py           → all green
-4. run_experiment.py seed 0              → ~10h run
+4. ✅ 25k smoke test                     → PASS (prey=106, pred=50, std(w_pred)=0.760)
+5. run_experiment.py seed 0              → ~10h run
 5. validate_replication.py               → PASS
 6. run seeds 1–4
 7. Only then: Phase 1b (shared policy comparison)
