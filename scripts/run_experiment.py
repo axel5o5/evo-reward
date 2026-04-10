@@ -42,8 +42,10 @@ from src.environment import (
     init_world, step_physics, check_eating, remove_eaten_food,
     map_actions, sync_physics_after_population_change, sync_physics_food,
     get_sensor_readings, CHANNEL_PREY, CHANNEL_PREDATOR,
+    extract_obs_state,
 )
 from src.agents import get_observation
+from src.observations import compute_all_observations
 from src.reward import compute_linear_reward
 from src.lifecycle import update_energies, process_births_and_deaths, regenerate_food
 from src.policy import init_policy, sample_action, PolicyNetwork, policy_forward
@@ -289,12 +291,11 @@ def run_experiment(config, seed, max_steps=None, out_dir="results"):
 
         agent_order = list(world.agents)
 
-        # === 1. Get observations for all agents ===
-        obs_list = []
-        for agent in agent_order:
-            obs = get_observation(world, agent.agent_id, config)
-            obs_list.append(obs)
-        all_obs = jnp.stack(obs_list)
+        # === 1. Get observations for all agents (vectorized JAX) ===
+        obs_state = extract_obs_state(world, config)
+        all_obs_padded = compute_all_observations(obs_state, config)  # (max_agents, obs_dim)
+        slots = jnp.array([world.physics["agent_id_to_slot"][a.agent_id] for a in agent_order])
+        all_obs = all_obs_padded[slots]  # (n_agents, obs_dim)
 
         # === 2. Sample actions (batched) ===
         rng_key, sample_key = jax.random.split(rng_key)
@@ -348,31 +349,33 @@ def run_experiment(config, seed, max_steps=None, out_dir="results"):
             elif agent_sp == 1 and isinstance(val, list):
                 prey_caught_total += len(val)
 
-        # === 5. Compute rewards (reuse pre-computed observations) ===
-        for i, agent in enumerate(agent_order):
-            aid = agent.agent_id
-            # Extract stimuli from pre-computed obs (avoids redundant sensor scan)
-            stimuli = _extract_stimuli_from_obs(all_obs[i], config)
+        # === 5. Compute rewards (vectorized) ===
+        n_sensors = config["n_proximity_sensors"]
+        n_channels = config.get("n_proximity_channels", 4)
+        prox_all = all_obs[:, :n_sensors * n_channels].reshape(n_agents, n_sensors, n_channels)
+        max_s_prey_all = jnp.max(jnp.clip(prox_all[:, :, CHANNEL_PREY], 0.0), axis=1)
+        max_s_pred_all = jnp.max(jnp.clip(prox_all[:, :, CHANNEL_PREDATOR], 0.0), axis=1)
+        motor_norms = jnp.linalg.norm(all_actions[:n_agents], axis=1) / F_max
 
-            ev = eating_events.get(aid, 0)
+        # Build n_eaten array (still needs Python for eating_events dict lookup)
+        n_eaten_arr = []
+        for agent in agent_order:
+            ev = eating_events.get(agent.agent_id, 0)
             if agent.species == 0:
-                stimuli["n_eaten"] = ev if isinstance(ev, int) else 0
+                n_eaten_arr.append(ev if isinstance(ev, int) else 0)
             else:
-                stimuli["n_eaten"] = len(ev) if isinstance(ev, list) else 0
+                n_eaten_arr.append(len(ev) if isinstance(ev, list) else 0)
+        n_eaten_jnp = jnp.array(n_eaten_arr, dtype=jnp.float32)
 
-            action = actions[aid]
-            motor_norm = float(jnp.linalg.norm(action)) / F_max
-            stimuli["motor_norm"] = motor_norm
+        all_weights = jnp.stack([jnp.asarray(a.reward_weights) for a in agent_order])
+        coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
+        stimuli_mat = jnp.stack([n_eaten_jnp, motor_norms, max_s_prey_all, max_s_pred_all], axis=1)
+        all_rewards = jnp.sum(all_weights * stimuli_mat * coefs, axis=1)
 
-            r = float(compute_linear_reward(
-                agent.reward_weights,
-                stimuli["n_eaten"], stimuli["motor_norm"],
-                stimuli["max_s_prey"], stimuli["max_s_pred"],
-            ))
-
+        for i, agent in enumerate(agent_order):
             buf = agent.rollout
             ptr = buf["ptr"]
-            buf["rewards"][ptr] = r
+            buf["rewards"][ptr] = float(all_rewards[i])
             buf["dones"][ptr] = False
             buf["ptr"] = ptr + 1
 

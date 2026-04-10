@@ -235,10 +235,16 @@ def _init_physics_state(space, agents, max_agents, config):
     # Predator slots start after prey slots in the circle array
     act_ratio = jnp.ones((max_agents, 1))
     pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
+    # --- Per-slot species, radii, energies (for vectorized observation computation) ---
+    species_arr = jnp.zeros(max_agents, dtype=jnp.int32)
+    radii_arr = jnp.zeros(max_agents)
+
     # Apply pred_ratio to slots occupied by predators
     for agent in agents:
+        slot = agent_id_to_slot[agent.agent_id]
+        species_arr = species_arr.at[slot].set(agent.species)
+        radii_arr = radii_arr.at[slot].set(pred_radius if agent.species == 1 else prey_radius)
         if agent.species == 1:
-            slot = agent_id_to_slot[agent.agent_id]
             act_ratio = act_ratio.at[slot].set(pred_ratio)
 
     # Track free slots
@@ -255,6 +261,8 @@ def _init_physics_state(space, agents, max_agents, config):
         "act_p2": act_p2,
         "act_ratio": act_ratio,
         "max_agents": max_agents,
+        "species": species_arr,
+        "radii": radii_arr,
     }
 
 
@@ -903,8 +911,12 @@ def sync_physics_after_population_change(world: WorldState, dead_ids: list, newb
             free_slots.append(slot)
 
     # Activate newborns
-    pred_ratio = (config["predator_radius"] ** 2) / (config["prey_radius"] ** 2)
+    prey_radius = config["prey_radius"]
+    pred_radius = config["predator_radius"]
+    pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
     act_ratio = physics["act_ratio"]
+    species_arr = physics["species"]
+    radii_arr = physics["radii"]
     for agent in newborns:
         if not free_slots:
             break
@@ -916,12 +928,15 @@ def sync_physics_after_population_change(world: WorldState, dead_ids: list, newb
         velocities_xy = velocities_xy.at[slot].set(jnp.zeros(2))
         velocities_ang = velocities_ang.at[slot].set(0.0)
         is_active = is_active.at[slot].set(True)
-        # Set act_ratio for predators
+        species_arr = species_arr.at[slot].set(agent.species)
+        radii_arr = radii_arr.at[slot].set(pred_radius if agent.species == 1 else prey_radius)
         if agent.species == 1:
             act_ratio = act_ratio.at[slot].set(pred_ratio)
         else:
             act_ratio = act_ratio.at[slot].set(1.0)
     physics["act_ratio"] = act_ratio
+    physics["species"] = species_arr
+    physics["radii"] = radii_arr
 
     circle_state = circle_state.replace(
         p=pj.Position(angle=angles, xy=positions),
@@ -935,3 +950,49 @@ def sync_physics_after_population_change(world: WorldState, dead_ids: list, newb
 def sync_physics_food(world: WorldState, config: dict):
     """No-op: food is managed in Python, not in phyjax2d."""
     pass
+
+
+def extract_obs_state(world: WorldState, config: dict) -> dict:
+    """Extract fixed-shape SoA arrays for vectorized observation computation.
+
+    Returns a dict of JAX arrays with static shapes (max_agents, food_max)
+    suitable for passing to JIT-compiled observation functions.
+    """
+    physics = world.physics
+    max_agents = physics["max_agents"]
+    food_max = config["food_max"]
+
+    circle_state = physics["stated"].get("circle")
+
+    # Build energies array from agent list (not stored in physics SoA)
+    energies = jnp.zeros(max_agents)
+    for agent in world.agents:
+        slot = physics["agent_id_to_slot"].get(agent.agent_id)
+        if slot is not None:
+            energies = energies.at[slot].set(agent.energy)
+
+    # Pad food positions to fixed size
+    if world.food_positions is not None and len(world.food_positions) > 0:
+        n_food = len(world.food_positions)
+        food_pos = jnp.array(world.food_positions[:food_max])
+        pad = food_max - food_pos.shape[0]
+        if pad > 0:
+            food_pos = jnp.concatenate([food_pos, jnp.zeros((pad, 2))], axis=0)
+        food_active = jnp.zeros(food_max, dtype=bool).at[:n_food].set(True)
+    else:
+        food_pos = jnp.zeros((food_max, 2))
+        food_active = jnp.zeros(food_max, dtype=bool)
+
+    return {
+        "positions": circle_state.p.xy,            # (max_agents, 2)
+        "angles": circle_state.p.angle,             # (max_agents,)
+        "velocities_xy": circle_state.v.xy,         # (max_agents, 2)
+        "velocities_ang": circle_state.v.angle,     # (max_agents,)
+        "is_active": circle_state.is_active,        # (max_agents,) bool
+        "species": physics["species"],              # (max_agents,) int32
+        "radii": physics["radii"],                  # (max_agents,)
+        "energies": energies,                       # (max_agents,)
+        "food_positions": food_pos,                 # (food_max, 2)
+        "food_active": food_active,                 # (food_max,) bool
+        "max_agents": max_agents,
+    }
