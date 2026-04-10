@@ -62,23 +62,20 @@ export default function DocsViewer() {
         </div>
 
         <div className="col-span-3">
-          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 min-h-96">
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8 min-h-96">
             <div className="text-xs text-gray-400 dark:text-gray-500 mb-4 font-mono">docs/{selectedDoc}</div>
             {loading && <div className="text-gray-400 dark:text-gray-500">Loading...</div>}
             {error && (
               <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">{error}</div>
             )}
             {!loading && !error && content && (
-              <div className="prose prose-sm dark:prose-invert max-w-none
-                prose-headings:text-gray-800 dark:prose-headings:text-gray-200
-                prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed
-                prose-code:text-sm prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100
-                prose-table:text-sm prose-th:bg-gray-50 dark:prose-th:bg-gray-800
-                prose-td:px-3 prose-td:py-2
-                prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-                prose-li:text-gray-700 dark:prose-li:text-gray-300
-                prose-strong:text-gray-900 dark:prose-strong:text-gray-100">
+              <div className="prose prose-base dark:prose-invert max-w-none
+                prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950
+                prose-code:before:content-none prose-code:after:content-none
+                prose-code:bg-gray-100 dark:prose-code:bg-gray-800
+                prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-normal
+                prose-th:bg-gray-50 dark:prose-th:bg-gray-800
+                prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
                 <ReactMarkdown
                   components={{
                     a: ({ href, children, ...props }) => {
