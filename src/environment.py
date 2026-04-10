@@ -12,15 +12,24 @@ Matches the confirmed 205-dim observation layout from emevo gecco2026 branch:
   Index 203:     angular velocity    (1,)
   Index 204:     energy              (1,)
 
-Physics via phyjax2d where available; pure-Python fallback for testing.
+Physics via phyjax2d — differential drive matching emevo gecco2026 branch.
 
 emevo source references:
   - circle_foraging.py:740-748 (obs_space definition)
+  - circle_foraging.py: act_p1/act_p2 force points, Vec2d(0, r).rotated(±0.75π)
   - circle_foraging_with_predator.py:84-111 (_observe_closest)
   - circle_foraging_with_predator.py:466-473 (observation construction)
   - circle_foraging_with_predator.py:401 (action clip)
   - cf_predator.py:122 (sigmoid_scale action mapping)
   - config/env/20251122-predator-square.toml (all parameter values)
+
+phyjax2d physics parameters (from emevo config):
+  dt=0.1, linear_damping=0.8, angular_damping=0.6
+  n_velocity_iter=6, n_position_iter=2, n_physics_iter=5
+  max_velocity=10.0, max_angular_velocity=π
+  density=0.1, friction=0.2, elasticity=0.4
+  Force points: Vec2d(0, agent_radius).rotated(±0.75π)
+  Predator act_ratio: (predator_radius² / prey_radius²)
 """
 
 import math
@@ -30,6 +39,7 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 import numpy as np
+import phyjax2d as pj
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +84,26 @@ class WorldState:
     food_internal: float = 0.0            # real-valued food counter
     food_positions: object = None          # jnp.ndarray shape (n_food, 2)
     rng_key: object = None                 # jax.random.PRNGKey
+    # phyjax2d physics state (set by init_world)
+    physics: object = None                 # dict with space, stated, solver, slot maps
+
+
+# ---------------------------------------------------------------------------
+# phyjax2d constants (from emevo gecco2026 config)
+# ---------------------------------------------------------------------------
+
+N_PHYSICS_ITER = 5        # sub-steps per simulation step
+PHYSICS_DT = 0.1
+LINEAR_DAMPING = 0.8
+ANGULAR_DAMPING = 0.6
+N_VELOCITY_ITER = 6
+N_POSITION_ITER = 2
+MAX_VELOCITY = 10.0
+MAX_ANGULAR_VELOCITY = float(math.pi)
+AGENT_DENSITY = 0.1
+AGENT_FRICTION = 0.2
+AGENT_ELASTICITY = 0.4
+FOOD_RADIUS = 4.0         # emevo config: food_radius = 4.0
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +123,139 @@ TACTILE_OTHER_SPECIES = 1
 TACTILE_FOOD = 2
 TACTILE_WALL = 3
 N_TACTILE_CHANNELS = 4
+
+
+# ---------------------------------------------------------------------------
+# phyjax2d world building
+# ---------------------------------------------------------------------------
+
+def _build_physics(config: dict, n_agent_slots=None):
+    """Build the phyjax2d Space with circle slots for agents and wall segments.
+
+    Food is managed in Python (not in phyjax2d) since eating detection
+    is distance-based and food doesn't need physics collisions.
+
+    n_agent_slots: number of agent circle slots (default: prey_cap + predator_cap)
+
+    Returns: (space, max_agents)
+    """
+    max_agents = n_agent_slots or (config.get("prey_cap", 450) + config.get("predator_cap", 50))
+    world_size = config["world_size"]
+    prey_radius = config["prey_radius"]
+    predator_radius = config["predator_radius"]
+
+    builder = pj.SpaceBuilder(
+        gravity=(0.0, 0.0),
+        dt=PHYSICS_DT,
+        linear_damping=LINEAR_DAMPING,
+        angular_damping=ANGULAR_DAMPING,
+        n_velocity_iter=N_VELOCITY_ITER,
+        n_position_iter=N_POSITION_ITER,
+        max_velocity=MAX_VELOCITY,
+        max_angular_velocity=MAX_ANGULAR_VELOCITY,
+    )
+
+    # Wall segments
+    segments = pj.make_square_segments(0.0, float(world_size), 0.0, float(world_size))
+    for a, b in segments:
+        builder.add_segment(p1=a, p2=b, elasticity=AGENT_ELASTICITY, friction=AGENT_FRICTION)
+
+    # Agent circles — prey slots first, then predator slots
+    prey_cap = config.get("prey_cap", 450)
+    pred_cap = config.get("predator_cap", 50)
+    total_cap = prey_cap + pred_cap
+    prey_slots = int(max_agents * prey_cap / total_cap)
+    pred_slots = max_agents - prey_slots
+
+    for _ in range(prey_slots):
+        builder.add_circle(
+            radius=prey_radius, density=AGENT_DENSITY,
+            friction=AGENT_FRICTION, elasticity=AGENT_ELASTICITY,
+        )
+    for _ in range(pred_slots):
+        builder.add_circle(
+            radius=predator_radius, density=AGENT_DENSITY,
+            friction=AGENT_FRICTION, elasticity=AGENT_ELASTICITY,
+        )
+
+    space = builder.build()
+    return space, max_agents
+
+
+def _init_physics_state(space, agents, max_agents, config):
+    """Initialize phyjax2d state from agent list.
+
+    Returns: physics dict with space, stated, solver, slot maps, force points.
+    """
+    prey_radius = config["prey_radius"]
+    pred_radius = config["predator_radius"]
+
+    stated = space.zeros_state()
+    solver = space.init_solver()
+
+    # --- Agent positions ---
+    circle_state = stated.get("circle")
+    positions = jnp.zeros((max_agents, 2))
+    angles = jnp.zeros(max_agents)
+    velocities_xy = jnp.zeros((max_agents, 2))
+    velocities_ang = jnp.zeros(max_agents)
+    is_active = jnp.zeros(max_agents, dtype=bool)
+
+    agent_id_to_slot = {}
+    slot_to_agent_id = {}
+    next_slot = 0
+
+    for agent in agents:
+        slot = next_slot
+        next_slot += 1
+        agent_id_to_slot[agent.agent_id] = slot
+        slot_to_agent_id[slot] = agent.agent_id
+        positions = positions.at[slot].set(agent.position)
+        angles = angles.at[slot].set(agent.angle)
+        if agent.velocity is not None:
+            velocities_xy = velocities_xy.at[slot].set(agent.velocity)
+        velocities_ang = velocities_ang.at[slot].set(agent.ang_vel)
+        is_active = is_active.at[slot].set(True)
+
+    circle_state = circle_state.replace(
+        p=pj.Position(angle=angles, xy=positions),
+        v=pj.Velocity(angle=velocities_ang, xy=velocities_xy),
+        is_active=is_active,
+    )
+    stated = stated.replace(circle=circle_state)
+
+    # --- Force application points (emevo: Vec2d(0, agent_radius).rotated(±0.75π)) ---
+    # All agents use prey_radius for force points (matching emevo)
+    act_p1_vec = pj.Vec2d(0, prey_radius).rotated(math.pi * 0.75)
+    act_p2_vec = pj.Vec2d(0, prey_radius).rotated(-math.pi * 0.75)
+    act_p1 = jnp.tile(jnp.array(act_p1_vec), (max_agents, 1))
+    act_p2 = jnp.tile(jnp.array(act_p2_vec), (max_agents, 1))
+
+    # --- Act ratio: 1.0 for prey, (pred_r²/prey_r²) for predators ---
+    # Predator slots start after prey slots in the circle array
+    act_ratio = jnp.ones((max_agents, 1))
+    pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
+    # Apply pred_ratio to slots occupied by predators
+    for agent in agents:
+        if agent.species == 1:
+            slot = agent_id_to_slot[agent.agent_id]
+            act_ratio = act_ratio.at[slot].set(pred_ratio)
+
+    # Track free slots
+    free_slots = list(range(next_slot, max_agents))
+
+    return {
+        "space": space,
+        "stated": stated,
+        "solver": solver,
+        "agent_id_to_slot": agent_id_to_slot,
+        "slot_to_agent_id": slot_to_agent_id,
+        "free_slots": free_slots,
+        "act_p1": act_p1,
+        "act_p2": act_p2,
+        "act_ratio": act_ratio,
+        "max_agents": max_agents,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -201,12 +364,18 @@ def init_world(config: dict, rng_key) -> WorldState:
         minval=0.0, maxval=float(world_size),
     )
 
+    # --- Build phyjax2d physics ---
+    # Use full capacity for agent slots (population can grow to caps)
+    space, max_agents = _build_physics(config)
+    physics = _init_physics_state(space, agents, max_agents, config)
+
     return WorldState(
         step=0,
         agents=agents,
         food_internal=float(food_initial),
         food_positions=food_positions,
         rng_key=rng_key,
+        physics=physics,
     )
 
 
@@ -226,14 +395,14 @@ def compute_proximity_sensors(
     config: dict,
 ) -> jnp.ndarray:
     """
-    Compute 32-sensor x 4-channel proximity readings.
+    Compute 32-sensor x 4-channel proximity readings (vectorized).
 
     Each sensor covers a slice of the 120-degree forward FOV.
-    For each sensor, raycast to find the closest object of each type.
+    For each sensor, find the closest object of each type.
     Winner-take-all: only the closest type gets a positive value (inverse
     distance scaled to [0,1]); all other channels = -1.0.
 
-    Returns: shape (32, 4), flattened to (128,) by caller.
+    Returns: shape (32, 4).
 
     emevo source: circle_foraging_with_predator.py:84-111 _observe_closest()
     """
@@ -242,134 +411,99 @@ def compute_proximity_sensors(
     max_range = config["proximity_max_range"]
     agent_heading = agent.angle
 
-    # Sensor angles: evenly distributed across FOV, centered on heading
     half_fov = fov_rad / 2.0
-    sensor_angles = np.linspace(
-        agent_heading - half_fov,
-        agent_heading + half_fov,
-        n_sensors,
-    )
+    bin_width = fov_rad / n_sensors
+    sensor_centers = np.array([
+        agent_heading - half_fov + (i + 0.5) * bin_width
+        for i in range(n_sensors)
+    ])
+    sensor_half_width = bin_width / 2.0 + 1e-9
 
-    # Half-angle of each sensor's bin
-    sensor_half_width = (fov_rad / n_sensors) / 2.0
-
-    agent_pos = np.array(agent.position)
+    agent_pos = np.array(agent.position, dtype=np.float64)
     agent_radius = config["prey_radius"] if agent.species == 0 else config["predator_radius"]
 
-    # Initialize: all channels = -1 (nothing detected)
-    readings = np.full((n_sensors, N_CHANNELS), -1.0, dtype=np.float32)
+    closest_dist = np.full((n_sensors, N_CHANNELS), np.inf)
 
-    # For each sensor, track closest distance per channel
-    closest_dist = np.full((n_sensors, N_CHANNELS), float('inf'))
+    # --- Vectorized scan of other agents ---
+    others = [a for a in world.agents if a.agent_id != agent.agent_id]
+    if others:
+        other_pos = np.array([np.array(a.position) for a in others], dtype=np.float64)
+        other_species = np.array([a.species for a in others])
+        other_radii = np.where(other_species == 0, config["prey_radius"], config["predator_radius"])
 
-    # --- Scan other agents ---
-    for other in world.agents:
-        if other.agent_id == agent.agent_id:
-            continue
+        diffs = other_pos - agent_pos[np.newaxis, :]
+        dists = np.linalg.norm(diffs, axis=1)
+        edge_dists = dists - agent_radius - other_radii
+        edge_dists = np.maximum(edge_dists, 0.0)
 
-        other_pos = np.array(other.position)
-        diff = other_pos - agent_pos
-        dist = np.linalg.norm(diff)
-        other_radius = config["prey_radius"] if other.species == 0 else config["predator_radius"]
-        # Distance edge-to-edge
-        edge_dist = dist - agent_radius - other_radius
+        angles_to = np.arctan2(diffs[:, 1], diffs[:, 0])
+        channels = np.where(other_species == 0, CHANNEL_PREY, CHANNEL_PREDATOR)
 
-        if edge_dist > max_range or edge_dist < 0:
-            if edge_dist < 0:
-                edge_dist = 0.0  # contact
-            else:
-                continue
+        # Filter by range
+        in_range = edge_dists <= max_range
+        for idx in np.where(in_range)[0]:
+            angle = angles_to[idx]
+            ed = edge_dists[idx]
+            ch = channels[idx]
+            # Compute angle diff to each sensor and find the bin
+            adiffs = (angle - sensor_centers + math.pi) % (2 * math.pi) - math.pi
+            bin_idx = np.argmin(np.abs(adiffs))
+            if abs(adiffs[bin_idx]) <= sensor_half_width:
+                if ed < closest_dist[bin_idx, ch]:
+                    closest_dist[bin_idx, ch] = ed
 
-        # Angle to other agent
-        angle_to = math.atan2(diff[1], diff[0])
-
-        # Determine channel: prey=0, predator=1
-        if other.species == 0:
-            channel = CHANNEL_PREY
-        else:
-            channel = CHANNEL_PREDATOR
-
-        # Check which sensor bin this falls into
-        for s in range(n_sensors):
-            adiff = _angle_diff(angle_to, sensor_angles[s])
-            if abs(adiff) <= sensor_half_width:
-                if edge_dist < closest_dist[s, channel]:
-                    closest_dist[s, channel] = edge_dist
-                break  # Each object falls in at most one sensor bin
-
-    # --- Scan food items ---
+    # --- Vectorized scan of food ---
     if world.food_positions is not None and len(world.food_positions) > 0:
-        food_pos_np = np.array(world.food_positions)
-        for fi in range(len(food_pos_np)):
-            diff = food_pos_np[fi] - agent_pos
-            dist = np.linalg.norm(diff)
-            # Food is a point (radius ~0)
-            edge_dist = dist - agent_radius
-            if edge_dist > max_range:
-                continue
-            if edge_dist < 0:
-                edge_dist = 0.0
+        food_pos = np.array(world.food_positions, dtype=np.float64)
+        diffs = food_pos - agent_pos[np.newaxis, :]
+        dists = np.linalg.norm(diffs, axis=1)
+        edge_dists = np.maximum(dists - agent_radius, 0.0)
 
-            angle_to = math.atan2(diff[1], diff[0])
-            for s in range(n_sensors):
-                adiff = _angle_diff(angle_to, sensor_angles[s])
-                if abs(adiff) <= sensor_half_width:
-                    if edge_dist < closest_dist[s, CHANNEL_FOOD]:
-                        closest_dist[s, CHANNEL_FOOD] = edge_dist
-                    break
+        in_range = edge_dists <= max_range
+        if np.any(in_range):
+            angles_to = np.arctan2(diffs[in_range, 1], diffs[in_range, 0])
+            eds = edge_dists[in_range]
+            for i in range(len(angles_to)):
+                angle = angles_to[i]
+                ed = eds[i]
+                adiffs = (angle - sensor_centers + math.pi) % (2 * math.pi) - math.pi
+                bin_idx = np.argmin(np.abs(adiffs))
+                if abs(adiffs[bin_idx]) <= sensor_half_width:
+                    if ed < closest_dist[bin_idx, CHANNEL_FOOD]:
+                        closest_dist[bin_idx, CHANNEL_FOOD] = ed
 
-    # --- Scan walls ---
+    # --- Vectorized wall scan ---
     world_size = config["world_size"]
-    # For each sensor direction, compute distance to nearest wall
-    for s in range(n_sensors):
-        sa = sensor_angles[s]
-        dx = math.cos(sa)
-        dy = math.sin(sa)
+    cos_sa = np.cos(sensor_centers)
+    sin_sa = np.sin(sensor_centers)
 
-        # Ray from agent_pos in direction (dx, dy), find intersection with walls
-        # Walls at x=0, x=world_size, y=0, y=world_size
-        min_wall_dist = float('inf')
+    wall_dists = np.full(n_sensors, np.inf)
+    # Right wall (x=world_size)
+    mask = cos_sa > 1e-9
+    wall_dists[mask] = np.minimum(wall_dists[mask], (world_size - agent_pos[0]) / cos_sa[mask])
+    # Left wall (x=0)
+    mask = cos_sa < -1e-9
+    wall_dists[mask] = np.minimum(wall_dists[mask], -agent_pos[0] / cos_sa[mask])
+    # Top wall (y=world_size)
+    mask = sin_sa > 1e-9
+    wall_dists[mask] = np.minimum(wall_dists[mask], (world_size - agent_pos[1]) / sin_sa[mask])
+    # Bottom wall (y=0)
+    mask = sin_sa < -1e-9
+    wall_dists[mask] = np.minimum(wall_dists[mask], -agent_pos[1] / sin_sa[mask])
 
-        if dx > 1e-9:
-            t = (world_size - agent_pos[0]) / dx
-            if t > 0:
-                min_wall_dist = min(min_wall_dist, t)
-        elif dx < -1e-9:
-            t = -agent_pos[0] / dx
-            if t > 0:
-                min_wall_dist = min(min_wall_dist, t)
+    wall_edge = np.maximum(wall_dists - agent_radius, 0.0)
+    in_range = wall_edge <= max_range
+    closest_dist[in_range, CHANNEL_WALL] = np.minimum(
+        closest_dist[in_range, CHANNEL_WALL], wall_edge[in_range]
+    )
 
-        if dy > 1e-9:
-            t = (world_size - agent_pos[1]) / dy
-            if t > 0:
-                min_wall_dist = min(min_wall_dist, t)
-        elif dy < -1e-9:
-            t = -agent_pos[1] / dy
-            if t > 0:
-                min_wall_dist = min(min_wall_dist, t)
-
-        wall_edge_dist = min_wall_dist - agent_radius
-        if wall_edge_dist < 0:
-            wall_edge_dist = 0.0
-        if wall_edge_dist <= max_range:
-            closest_dist[s, CHANNEL_WALL] = wall_edge_dist
-
-    # --- Convert distances to inverse-distance readings + winner-take-all ---
-    for s in range(n_sensors):
-        # Find the channel with the closest object
-        min_channel = -1
-        min_dist = float('inf')
-        for c in range(N_CHANNELS):
-            if closest_dist[s, c] < min_dist:
-                min_dist = closest_dist[s, c]
-                min_channel = c
-
-        if min_channel >= 0 and min_dist <= max_range:
-            # Inverse distance: 1.0 at contact, 0.0 at max_range
-            inv_dist = 1.0 - (min_dist / max_range)
-            inv_dist = max(0.0, min(1.0, inv_dist))
-            readings[s, min_channel] = inv_dist
-            # Other channels remain -1.0 (winner-take-all)
+    # --- Winner-take-all: convert to readings ---
+    readings = np.full((n_sensors, N_CHANNELS), -1.0, dtype=np.float32)
+    min_channels = np.argmin(closest_dist, axis=1)
+    min_dists = closest_dist[np.arange(n_sensors), min_channels]
+    detected = min_dists <= max_range
+    inv_dist = np.clip(1.0 - min_dists[detected] / max_range, 0.0, 1.0)
+    readings[np.where(detected)[0], min_channels[detected]] = inv_dist
 
     return jnp.array(readings)
 
@@ -640,68 +774,164 @@ def remove_eaten_food(world: WorldState, food_eaten_indices: set) -> WorldState:
 
 
 # ---------------------------------------------------------------------------
-# Physics step (placeholder — full phyjax2d integration later)
+# Physics step via phyjax2d (differential drive matching emevo)
 # ---------------------------------------------------------------------------
+
+def _make_jit_stepper(space):
+    """Create a JIT-compiled physics stepper for the given space.
+
+    Returns a function: (stated, solver, act_p1, act_p2, f1, f2) -> (stated, solver)
+    that applies forces and runs N_PHYSICS_ITER sub-steps.
+    """
+    @jax.jit
+    def _jit_step(stated, solver, act_p1, act_p2, f1, f2):
+        circle = stated.get("circle")
+        circle = circle.apply_force_local(act_p1, f1)
+        circle = circle.apply_force_local(act_p2, f2)
+        stated = stated.replace(circle=circle)
+
+        def body(carry, _):
+            st, sol = carry
+            st, sol, _contact = pj.step(space, st, sol)
+            return (st, sol), None
+        (stated, solver), _ = jax.lax.scan(body, (stated, solver), None, length=N_PHYSICS_ITER)
+        return stated, solver
+
+    return _jit_step
+
 
 def step_physics(world: WorldState, actions: dict, config: dict) -> WorldState:
     """
-    Apply one physics step. Placeholder implementation using simple
-    differential-drive kinematics until phyjax2d is integrated.
+    Apply one simulation step of physics via phyjax2d (JIT-compiled).
 
-    actions: {agent_id: jnp.ndarray shape (2,)} — [f_left, f_right]
-    Motor forces mapped via sigmoid_scale before reaching here.
+    Differential drive: two rear force points at Vec2d(0, agent_radius).rotated(±0.75π).
+    Forces are in the local y-direction: f = [0, action_value * act_ratio].
+    5 phyjax2d sub-steps per simulation step (n_physics_iter=5).
+
+    actions: {agent_id: jnp.ndarray shape (2,)} — already sigmoid-scaled motor forces.
 
     Returns updated WorldState with new positions/velocities/angles.
     """
-    world_size = config["world_size"]
-    max_velocity = 10.0  # MAX_VELOCITY from emevo
+    physics = world.physics
+    stated = physics["stated"]
+    space = physics["space"]
+    solver = physics["solver"]
+    agent_id_to_slot = physics["agent_id_to_slot"]
+    act_p1 = physics["act_p1"]
+    act_p2 = physics["act_p2"]
+    act_ratio = physics["act_ratio"]
+    max_agents = physics["max_agents"]
 
+    # Build action array: shape (max_agents, 2), zeros for inactive
+    action_arr = jnp.zeros((max_agents, 2))
     for agent in world.agents:
         aid = agent.agent_id
+        slot = agent_id_to_slot.get(aid)
+        if slot is None:
+            continue
         action = actions.get(aid, jnp.zeros(2))
+        action_arr = action_arr.at[slot].set(action)
 
-        # Map raw actions through sigmoid
-        mapped_action = map_actions(action, config)
-        f_left = float(mapped_action[0])
-        f_right = float(mapped_action[1])
+    # Construct forces in local frame: f = [0, action_value * act_ratio]
+    f1_raw = action_arr[:, 0:1] * act_ratio
+    f2_raw = action_arr[:, 1:2] * act_ratio
+    f1 = jnp.concatenate([jnp.zeros_like(f1_raw), f1_raw], axis=1)
+    f2 = jnp.concatenate([jnp.zeros_like(f2_raw), f2_raw], axis=1)
 
-        # Simple differential drive model
-        # Translation force = (f_left + f_right) / 2
-        # Rotation torque = (f_right - f_left) / (2 * radius)
-        radius = config["prey_radius"] if agent.species == 0 else config["predator_radius"]
+    # Get or create JIT-compiled stepper
+    if "_jit_step" not in physics:
+        physics["_jit_step"] = _make_jit_stepper(space)
+    jit_step = physics["_jit_step"]
 
-        force = (f_left + f_right) / 2.0
-        torque = (f_right - f_left) / (2.0 * radius)
+    stated, solver = jit_step(stated, solver, act_p1, act_p2, f1, f2)
 
-        # Update angular velocity and angle
-        ang_vel = agent.ang_vel + torque * 0.01  # simplified
-        ang_vel = max(-math.pi / 10, min(math.pi / 10, ang_vel))
-        angle = agent.angle + ang_vel
+    # Read back positions, velocities, angles to AgentState objects
+    circle_state = stated.get("circle")
+    for agent in world.agents:
+        slot = agent_id_to_slot.get(agent.agent_id)
+        if slot is None:
+            continue
+        agent.position = circle_state.p.xy[slot]
+        agent.velocity = circle_state.v.xy[slot]
+        agent.angle = float(circle_state.p.angle[slot])
+        agent.ang_vel = float(circle_state.v.angle[slot])
 
-        # Update velocity
-        vx = float(agent.velocity[0]) + force * math.cos(angle) * 0.01
-        vy = float(agent.velocity[1]) + force * math.sin(angle) * 0.01
-
-        # Clamp velocity
-        speed = math.sqrt(vx**2 + vy**2)
-        if speed > max_velocity:
-            scale = max_velocity / speed
-            vx *= scale
-            vy *= scale
-
-        # Update position
-        px = float(agent.position[0]) + vx
-        py = float(agent.position[1]) + vy
-
-        # Clamp to world boundaries
-        px = max(0.0, min(float(world_size), px))
-        py = max(0.0, min(float(world_size), py))
-
-        # Apply updates
-        agent.position = jnp.array([px, py])
-        agent.velocity = jnp.array([vx, vy])
-        agent.angle = angle
-        agent.ang_vel = ang_vel
+    # Store updated physics state
+    physics["stated"] = stated
+    physics["solver"] = solver
 
     world.step += 1
     return world
+
+
+# ---------------------------------------------------------------------------
+# Physics state synchronization (after births/deaths)
+# ---------------------------------------------------------------------------
+
+def sync_physics_after_population_change(world: WorldState, dead_ids: list, newborns: list, config: dict):
+    """
+    Update phyjax2d state after agents die or are born.
+
+    dead_ids: list of agent_ids that died
+    newborns: list of AgentState objects that were just born
+    """
+    physics = world.physics
+    if physics is None:
+        return
+
+    stated = physics["stated"]
+    agent_id_to_slot = physics["agent_id_to_slot"]
+    slot_to_agent_id = physics["slot_to_agent_id"]
+    free_slots = physics["free_slots"]
+    max_agents = physics["max_agents"]
+
+    circle_state = stated.get("circle")
+    positions = circle_state.p.xy
+    angles = circle_state.p.angle
+    velocities_xy = circle_state.v.xy
+    velocities_ang = circle_state.v.angle
+    is_active = circle_state.is_active
+
+    # Deactivate dead agents
+    for aid in dead_ids:
+        slot = agent_id_to_slot.pop(aid, None)
+        if slot is not None:
+            slot_to_agent_id.pop(slot, None)
+            is_active = is_active.at[slot].set(False)
+            velocities_xy = velocities_xy.at[slot].set(jnp.zeros(2))
+            velocities_ang = velocities_ang.at[slot].set(0.0)
+            free_slots.append(slot)
+
+    # Activate newborns
+    pred_ratio = (config["predator_radius"] ** 2) / (config["prey_radius"] ** 2)
+    act_ratio = physics["act_ratio"]
+    for agent in newborns:
+        if not free_slots:
+            break
+        slot = free_slots.pop(0)
+        agent_id_to_slot[agent.agent_id] = slot
+        slot_to_agent_id[slot] = agent.agent_id
+        positions = positions.at[slot].set(agent.position)
+        angles = angles.at[slot].set(agent.angle)
+        velocities_xy = velocities_xy.at[slot].set(jnp.zeros(2))
+        velocities_ang = velocities_ang.at[slot].set(0.0)
+        is_active = is_active.at[slot].set(True)
+        # Set act_ratio for predators
+        if agent.species == 1:
+            act_ratio = act_ratio.at[slot].set(pred_ratio)
+        else:
+            act_ratio = act_ratio.at[slot].set(1.0)
+    physics["act_ratio"] = act_ratio
+
+    circle_state = circle_state.replace(
+        p=pj.Position(angle=angles, xy=positions),
+        v=pj.Velocity(angle=velocities_ang, xy=velocities_xy),
+        is_active=is_active,
+    )
+    stated = stated.replace(circle=circle_state)
+    physics["stated"] = stated
+
+
+def sync_physics_food(world: WorldState, config: dict):
+    """No-op: food is managed in Python, not in phyjax2d."""
+    pass

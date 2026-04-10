@@ -69,7 +69,7 @@ Hard dependency chain — do not reorder:
 6. ✅ policy.py          MLP policy (2 hidden, sigmoid action), value head
 7. ✅ ppo.py             GAE, PPO update, rollout buffer management
 8. ✅ metrics.py         logging, checkpointing, save/load
-9. scripts/run_experiment.py   ties it all together
+9. ✅ scripts/run_experiment.py   ties it all together
 ```
 
 After each module: run `pytest tests/test_components.py -k <module_name>` before starting the next.
@@ -293,9 +293,17 @@ Session 1 complete: emevo audited, obs_dim=205, all open questions resolved.
 Session 2 complete: environment.py + lifecycle.py, 8/8 lifecycle tests green.
 Session 3 complete: agents.py, reward.py, evolution.py, ppo.py (GAE), 14/14 tests green.
 Session 4 complete: policy.py, ppo.py (full update), metrics.py, 31/31 tests green (4 skipped).
-Note: step_physics placeholder — phyjax2d integration needed before Phase 0 gate.
-Note: scripts/run_experiment.py not yet implemented — 1 test skipped pending that module.
-Next task: Session 5 — integration (run_experiment.py), Phase 0 gate.
+Session 5 complete:
+  ✅ Part A: phyjax2d integrated — differential drive matching emevo (dt=0.1, damping=0.8/0.6, 5 sub-steps)
+  ✅ Part B: scripts/run_experiment.py — full simulation loop, batched policy via vmap
+  ✅ Part C: test_phase0.py — 11/11 tests pass, 43/43 total tests green
+Session 6 in progress:
+  ✅ Perf fix D13: PPO minibatch step JIT-compiled — eliminates re-tracing (was 30+ min at step 1024)
+  ✅ Perf fix D14: Batched policy uses power-of-2 padding — eliminates recompile on pop change
+  ✅ 43/43 tests green after both fixes
+  🔄 Part D: 50k smoke test restarted (PID 93539, fixes applied, ~1-2h expected)
+Note: D11 food not in phyjax2d, D12 sensor bin fix, D13 PPO JIT, D14 padded batch — all in emevo-diff.md.
+Next task: Verify smoke test completion (no crash, no NaN, std(w)>0.05, pop>0), then Phase 1a.
 
 ---
 

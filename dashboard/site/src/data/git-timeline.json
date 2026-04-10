@@ -175,6 +175,22 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "ca350d68",
+      "message": "[Dashboard] Deploy docs to Vercel, fix module deps, add References page",
+      "date": "2026-04-09 16:01:56 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c29fbd14",
+      "message": "updated the codebase structure in README to read with the real repo name",
+      "date": "2026-04-09 16:45:01 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }

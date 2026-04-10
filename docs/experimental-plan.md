@@ -147,7 +147,7 @@ config = {
 ### Codebase structure
 
 ```
-emevo-ext/
+evo-reward/
 ├── configs/                 # One YAML per experiment condition
 │   ├── baseline_faithful.yaml    # K&D faithful: independent + continuous
 │   ├── baseline_simplified.yaml  # shared + continuous (default for extensions)

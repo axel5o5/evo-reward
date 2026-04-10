@@ -87,6 +87,12 @@ def base_config():
         "predator_initial": 10,
         "prey_cap": 450,
         "predator_cap": 50,
+        # Identity / logging / scheduling
+        "experiment_name": "test",
+        "total_steps": 10_240_000,
+        "seed": 0,
+        "checkpoint_interval_steps": 25_000,
+        "log_interval_steps": 10_000,
     }
 
 

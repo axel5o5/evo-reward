@@ -230,6 +230,78 @@ When a deviation is discovered during implementation, add an entry here immediat
 
 ---
 
+### [D11] Food not in phyjax2d physics
+
+**Component:** `environment.py`
+
+**emevo:** Food items are static circles in the phyjax2d Space. Agents physically collide with food (bounce off). Eating is detected via tactile sensor bins (mouth_range indices).
+
+**Ours:** Food is managed in Python only — positions stored in `world.food_positions`, not added to phyjax2d. Agents do not physically collide with food. Eating is detected by distance check in `check_eating()`.
+
+**Reason:** Adding 600 static circles to phyjax2d increases physics step time from ~8ms to ~43ms per step. Since food-agent physics collisions are not critical to the evolutionary dynamics (what matters is eating detection and energy), we skip food in phyjax2d.
+
+**Risk:** Agents passing through food positions instead of bouncing off could affect movement patterns. Low risk for replication since the key dynamics (eating, predation, reproduction) are unaffected.
+
+**Discovered:** Phase 0, Session 5.
+
+**Resolution:** If Phase 1a fails to reproduce K&D results, add food as static circles to phyjax2d and accept the performance cost.
+
+---
+
+### [D12] Sensor bin placement
+
+**Component:** `environment.py:compute_proximity_sensors`
+
+**emevo:** Uses phyjax2d raycast functions for sensor computation. Exact bin placement may differ.
+
+**Ours:** 32 sensor bins evenly dividing the 120° FOV. Bin centers at `heading - fov/2 + (i+0.5) * bin_width`. Small epsilon (1e-9) added to bin half-width for floating-point boundary handling.
+
+**Reason:** Pure-Python sensor implementation for portability and testability. Bin placement ensures no gaps at FOV boundaries.
+
+**Risk:** Slight differences in sensor readings compared to emevo's raycast. Low risk — the sensor patterns are qualitatively the same.
+
+**Discovered:** Phase 0, Session 5.
+
+---
+
+### [D13] PPO minibatch update is JIT-compiled
+
+**Component:** `src/ppo.py`
+
+**emevo:** emevo's PPO implementation details vary; emevo uses JAX throughout so similar JIT patterns likely apply.
+
+**Ours:** The per-minibatch gradient step (`jax.value_and_grad` + `optax.adam.update`) is wrapped in a module-level `@jax.jit` function, cached by hyperparameter tuple. Without this, JAX re-traces the backward pass on every call (10 epochs × 4 minibatches = 40 re-traces per PPO update; with 45+ simultaneous agents at step 1024, this was >1,800 re-traces ≈ 30+ minutes before the first log line).
+
+**Reason:** Pure performance fix. The math is identical — same loss function, same optimizer, same gradients. Only the execution path changes (traced once vs. traced every call).
+
+**Risk:** None. JIT is semantically transparent for pure JAX computations. The compiled function produces identical outputs to the eager version.
+
+**Discovered:** Phase 0, Session 6 (smoke test took >27 minutes to reach step 10k; profiled to PPO re-tracing).
+
+**Resolution:** Verified: benchmark shows first call 0.73s (compile), subsequent calls 0.07s; 43/43 tests pass.
+
+---
+
+### [D14] Batched policy inference uses power-of-2 padding
+
+**Component:** `scripts/run_experiment.py:_get_batched_sampler`
+
+**emevo:** emevo manages population with fixed-capacity JAX arrays (slots), so vmap is always called on the same shape regardless of current population.
+
+**Ours:** Initial implementation cached the JIT-compiled vmap function keyed by exact agent count. Each birth/death changed n_agents, triggering a new JAX compilation (~5-10s). With population growing from 45→151 over 20k steps, this caused ~106 recompilations.
+
+Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-padded to that size; outputs are sliced to actual n_agents. Maximum ~log2(max_pop) compilations across the entire run.
+
+**Reason:** Performance fix. Math is identical — padded rows produce garbage outputs that are immediately discarded.
+
+**Risk:** None. Only the JIT boundary changes, not the computation.
+
+**Discovered:** Phase 0, Session 6.
+
+**Resolution:** Verified via tests (43/43 pass) and smoke-test step-rate improvement.
+
+---
+
 ## Differences That Are NOT Deviations
 
 These look like differences but are not, because they don't affect the science:
