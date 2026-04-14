@@ -96,6 +96,18 @@ def base_config():
     }
 
 
+@pytest.fixture
+def mlp_config(base_config):
+    """Config for MLP reward genome tests (Axis 1)."""
+    return {
+        **base_config,
+        "reward_type": "mlp",
+        "mlp_hidden_size": 8,
+        "mlp_mutation_scale": 0.01,
+        "mlp_weight_clip": 10.0,
+    }
+
+
 # ─── Reward genome ────────────────────────────────────────────────────────────
 
 class TestRewardGenome:
@@ -158,6 +170,311 @@ class TestRewardGenome:
         genome = jnp.array([0.0, 0.0, 0.0, -10.0])
         r = compute_linear_reward(genome, n_eaten=0, motor_norm=0.0, max_s_prey=0.0, max_s_pred=1.0)
         assert float(r) < 0, f"Fear reward should be negative, got {float(r)}"
+
+
+# ─── MLP reward genome (Axis 1) ──────────────────────────────────────────────
+
+class TestMLPRewardGenome:
+
+    def test_mlp_genome_shape(self, mlp_config):
+        """init_mlp_genome returns correct PyTree structure with 121 params."""
+        from src.reward import init_mlp_genome
+        from jax.flatten_util import ravel_pytree
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Verify PyTree structure
+        assert 'params' in genome
+        assert 'Dense_0' in genome['params']
+        assert 'Dense_1' in genome['params']
+        assert 'Dense_2' in genome['params']
+
+        # Verify layer shapes: 4->8->8->1
+        assert genome['params']['Dense_0']['kernel'].shape == (4, 8)
+        assert genome['params']['Dense_0']['bias'].shape == (8,)
+        assert genome['params']['Dense_1']['kernel'].shape == (8, 8)
+        assert genome['params']['Dense_1']['bias'].shape == (8,)
+        assert genome['params']['Dense_2']['kernel'].shape == (8, 1)
+        assert genome['params']['Dense_2']['bias'].shape == (1,)
+
+        # Verify total param count
+        flat, _ = ravel_pytree(genome)
+        assert flat.shape == (121,), f"Expected 121 params, got {flat.shape[0]}"
+
+    def test_mlp_genome_output_scalar(self, mlp_config):
+        """compute_mlp_reward returns a scalar float32 for various inputs."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Normal stimuli
+        stimuli = jnp.array([1.0, 0.5, 0.3, 0.8])
+        r = compute_mlp_reward(genome, stimuli)
+        assert r.shape == (), f"Expected scalar, got shape {r.shape}"
+        assert r.dtype == jnp.float32
+        assert jnp.isfinite(r)
+
+        # Zero stimuli
+        r_zero = compute_mlp_reward(genome, jnp.zeros(4))
+        assert jnp.isfinite(r_zero)
+
+        # Large stimuli (tanh saturates, should still be finite)
+        r_large = compute_mlp_reward(genome, jnp.ones(4) * 100.0)
+        assert jnp.isfinite(r_large)
+
+    def test_mlp_mutation_changes_genome(self, mlp_config):
+        """mutate_mlp_genome produces different weights from parent."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+        child = mutate_mlp_genome(parent, jax.random.PRNGKey(42), mlp_config)
+
+        flat_parent, _ = ravel_pytree(parent)
+        flat_child, _ = ravel_pytree(child)
+        assert not jnp.allclose(flat_parent, flat_child), \
+            "Mutation did not change any weights"
+
+    def test_mlp_mutation_clipping(self, mlp_config):
+        """All weights stay within +/-mlp_weight_clip after mutation."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        clip = mlp_config["mlp_weight_clip"]
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+
+        # Test from normal init
+        for i in range(50):
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"MLP genome exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+        # Test from boundary parent (weights near clip edge)
+        flat_parent, unflatten = ravel_pytree(parent)
+        boundary_parent = unflatten(jnp.full_like(flat_parent, clip - 0.001))
+        for i in range(50):
+            child = mutate_mlp_genome(boundary_parent, jax.random.PRNGKey(i + 1000), mlp_config)
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"Boundary mutation exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+    def test_capacity_util_linear_genome(self, mlp_config):
+        """A genome with tiny weights (tanh ~ linear) shows near-zero nonlinearity."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Scale weights down so tanh operates in linear regime
+        flat, unflatten = ravel_pytree(genome)
+        linear_genome = unflatten(flat * 0.001)
+
+        nonlinearity = compute_reward_nonlinearity(linear_genome, mlp_config)
+        assert nonlinearity < 0.05, \
+            f"Near-linear genome should have low nonlinearity, got {nonlinearity}"
+
+    def test_capacity_util_nonlinear_genome(self, mlp_config):
+        """A genome with large weights (tanh saturates) shows nonlinearity > 0.01."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Scale weights up to push tanh into saturation
+        flat, unflatten = ravel_pytree(genome)
+        nonlinear_genome = unflatten(flat * 10.0)
+
+        nonlinearity = compute_reward_nonlinearity(nonlinear_genome, mlp_config)
+        assert nonlinearity > 0.01, \
+            f"Large-weight genome should have nonlinearity > 0.01, got {nonlinearity}"
+
+    def test_mlp_reward_jit_vmap_compatible(self, mlp_config):
+        """compute_mlp_reward works under jax.jit and jax.vmap."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+        stimuli = jnp.array([1.0, 0.5, 0.3, 0.8])
+
+        # JIT: should compile and produce same result as eager
+        jitted = jax.jit(compute_mlp_reward)
+        r_eager = compute_mlp_reward(genome, stimuli)
+        r_jit = jitted(genome, stimuli)
+        assert jnp.allclose(r_eager, r_jit, atol=1e-6), \
+            f"JIT result {float(r_jit)} != eager {float(r_eager)}"
+
+        # vmap over a batch of stimuli
+        batch = jax.random.uniform(jax.random.PRNGKey(1), (16, 4))
+        vmapped = jax.vmap(lambda x: compute_mlp_reward(genome, x))
+        r_batch = vmapped(batch)
+        assert r_batch.shape == (16,), f"Expected (16,), got {r_batch.shape}"
+        assert jnp.all(jnp.isfinite(r_batch))
+
+        # vmap + jit combined
+        r_batch_jit = jax.jit(vmapped)(batch)
+        assert jnp.allclose(r_batch, r_batch_jit, atol=1e-6)
+
+    def test_mlp_mutation_preserves_pytree_structure(self, mlp_config):
+        """Mutated genome has identical PyTree structure to parent."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        from src.evolution import mutate_mlp_genome
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+        child = mutate_mlp_genome(parent, jax.random.PRNGKey(42), mlp_config)
+
+        # Same top-level keys
+        assert set(parent.keys()) == set(child.keys())
+        # Same layer keys
+        assert set(parent['params'].keys()) == set(child['params'].keys())
+        # Same shapes and dtypes per leaf
+        for layer in ['Dense_0', 'Dense_1', 'Dense_2']:
+            for param in ['kernel', 'bias']:
+                p = parent['params'][layer][param]
+                c = child['params'][layer][param]
+                assert p.shape == c.shape, \
+                    f"{layer}/{param} shape mismatch: {p.shape} vs {c.shape}"
+                assert p.dtype == c.dtype, \
+                    f"{layer}/{param} dtype mismatch: {p.dtype} vs {c.dtype}"
+
+        # Child genome is usable for forward pass (no structural error)
+        stimuli = jnp.array([0.5, 0.5, 0.5, 0.5])
+        r = compute_mlp_reward(child, stimuli)
+        assert jnp.isfinite(r)
+
+    def test_mlp_mutation_heavy_tails(self, mlp_config):
+        """MLP mutation uses t(df=2), not Gaussian — verify heavy tails.
+
+        Same logic as TestEvolution.test_mutate_genome_heavy_tails:
+        t(df=2) produces >8% of samples beyond +/-2*scale, vs ~4.6% for Gaussian.
+        """
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        parent = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(200):  # 200 * 121 = 24,200 samples
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.extend((np.array(flat_child) - np.array(flat_parent)).tolist())
+
+        deltas = np.array(deltas)
+        scale = mlp_config["mlp_mutation_scale"]
+        # Fraction beyond +/-2*scale: Gaussian ~4.6%, t(df=2) ~13.4%
+        beyond_2sigma = np.mean(np.abs(deltas) > 2 * scale)
+        assert beyond_2sigma > 0.08, (
+            f"MLP mutation appears Gaussian (heavy tail fraction={beyond_2sigma:.3f} < 0.08). "
+            f"Check that scipy.stats.t(df=2) is used, not np.random.normal()."
+        )
+
+    def test_mlp_mutation_unbiased_mean(self, mlp_config):
+        """Mean of MLP mutations should be near zero (unbiased)."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        parent = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(500):
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.append(np.array(flat_child) - np.array(flat_parent))
+
+        deltas = np.array(deltas)  # (500, 121)
+        mean_delta = np.mean(deltas)
+        assert abs(mean_delta) < 0.005, \
+            f"MLP mutation mean not near zero: {mean_delta:.6f}"
+
+    def test_mlp_genome_type_confusion(self, mlp_config):
+        """Passing wrong genome type to reward functions raises a clear error."""
+        from src.reward import init_genome, init_mlp_genome, compute_linear_reward, compute_mlp_reward
+
+        rng = jax.random.PRNGKey(0)
+        linear_genome = init_genome(rng, mlp_config)       # shape (4,)
+        mlp_genome = init_mlp_genome(rng, mlp_config)       # PyTree
+
+        # Linear genome → MLP function should fail (not a dict/PyTree)
+        with pytest.raises((KeyError, TypeError, AttributeError)):
+            compute_mlp_reward(linear_genome, jnp.ones(4))
+
+        # MLP genome → linear function should fail (dict indexed with int → KeyError)
+        with pytest.raises((KeyError, TypeError, IndexError, ValueError)):
+            compute_linear_reward(mlp_genome, n_eaten=1, motor_norm=0.5,
+                                  max_s_prey=0.3, max_s_pred=0.2)
+
+    def test_capacity_util_zero_weight_genome(self, mlp_config):
+        """All-zero genome produces constant output — nonlinearity should be 0."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Zero out all weights
+        flat, unflatten = ravel_pytree(genome)
+        zero_genome = unflatten(jnp.zeros_like(flat))
+
+        nonlinearity = compute_reward_nonlinearity(zero_genome, mlp_config)
+        assert jnp.isfinite(nonlinearity), "Zero genome produced NaN nonlinearity"
+        assert nonlinearity < 1e-6, \
+            f"Zero genome should have ~0 nonlinearity, got {nonlinearity}"
+
+    def test_mlp_genome_init_deterministic(self, mlp_config):
+        """Same rng_key produces identical genome — reproducibility guarantee."""
+        from src.reward import init_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        genome_a = init_mlp_genome(jax.random.PRNGKey(42), mlp_config)
+        genome_b = init_mlp_genome(jax.random.PRNGKey(42), mlp_config)
+
+        flat_a, _ = ravel_pytree(genome_a)
+        flat_b, _ = ravel_pytree(genome_b)
+        assert jnp.array_equal(flat_a, flat_b), "Same key should produce identical genome"
+
+        # Different key should produce different genome
+        genome_c = init_mlp_genome(jax.random.PRNGKey(99), mlp_config)
+        flat_c, _ = ravel_pytree(genome_c)
+        assert not jnp.array_equal(flat_a, flat_c), "Different keys should produce different genomes"
+
+    def test_mlp_mutation_sequential_drift(self, mlp_config):
+        """100 generations of chained mutation — weights stay clipped, genome stays usable."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        clip = mlp_config["mlp_weight_clip"]
+        genome = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+
+        for gen in range(100):
+            genome = mutate_mlp_genome(genome, jax.random.PRNGKey(gen), mlp_config)
+
+        # All weights still within clip bounds
+        flat, _ = ravel_pytree(genome)
+        assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+            f"After 100 generations, max weight = {float(jnp.max(jnp.abs(flat)))}"
+
+        # Genome still produces finite reward
+        r = compute_mlp_reward(genome, jnp.array([1.0, 0.5, 0.3, 0.8]))
+        assert jnp.isfinite(r), f"After 100 generations, reward is not finite: {r}"
+
+        # Weights should have drifted away from init (not stuck at zero)
+        assert float(jnp.std(flat)) > 0.001, \
+            "Weights did not drift after 100 generations of mutation"
 
 
 # ─── Lifecycle functions ───────────────────────────────────────────────────────

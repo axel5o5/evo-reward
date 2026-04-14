@@ -17,6 +17,7 @@ import math
 
 import jax
 import jax.numpy as jnp
+from jax.flatten_util import ravel_pytree
 import numpy as np
 from scipy.stats import t as t_dist
 
@@ -41,6 +42,33 @@ def mutate_genome(
     child = np.array(parent_genome) + delta
     child = np.clip(child, -100.0, 100.0)
     return jnp.array(child)
+
+
+def mutate_mlp_genome(parent_genome, rng_key, config):
+    """Mutate an MLP reward genome (Flax PyTree).
+
+    Flatten to 1D array, apply Student's t(df=2) noise per weight,
+    clip to ±mlp_weight_clip, unflatten back to PyTree.
+
+    Uses scipy.stats.t (same pattern as mutate_genome).
+    """
+    flat, unflatten_fn = ravel_pytree(parent_genome)
+
+    df = config.get("mutation_df", 2)
+    scale = config["mlp_mutation_scale"]
+    clip_val = config["mlp_weight_clip"]
+
+    seed = int(jax.random.randint(rng_key, shape=(), minval=0, maxval=2**31 - 1))
+    rng = np.random.default_rng(seed)
+
+    delta = t_dist(df=df, scale=scale).rvs(
+        size=flat.shape[0], random_state=rng
+    ).astype(np.float32)
+
+    child_flat = np.array(flat) + delta
+    child_flat = np.clip(child_flat, -clip_val, clip_val)
+
+    return unflatten_fn(jnp.array(child_flat))
 
 
 def spawn_offspring(

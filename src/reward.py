@@ -16,6 +16,7 @@ The 0.01 and 0.1 are fixed coefficients, not genome parameters.
 
 import jax
 import jax.numpy as jnp
+import flax.linen as nn
 
 
 def init_genome(rng_key, config: dict) -> jnp.ndarray:
@@ -48,13 +49,52 @@ def compute_linear_reward(
     return r
 
 
-# Extension stubs -- raise NotImplementedError in Phase 0
+# ─── MLP reward genome (Axis 1) ──────────────────────────────────────────────
+
+class RewardMLP(nn.Module):
+    """Small MLP reward network: 4 → hidden → hidden → 1.
+
+    The genome (Flax param PyTree) encodes this network's weights.
+    Architecture: input(4) → Dense(h, tanh) → Dense(h, tanh) → Dense(1, linear).
+    With h=8: 121 total parameters (40 + 72 + 9).
+    """
+    hidden_size: int = 8
+
+    @nn.compact
+    def __call__(self, stimuli):
+        x = nn.Dense(self.hidden_size)(stimuli)
+        x = nn.tanh(x)
+        x = nn.Dense(self.hidden_size)(x)
+        x = nn.tanh(x)
+        x = nn.Dense(1)(x)
+        return jnp.squeeze(x, axis=-1)
+
+
 def init_mlp_genome(rng_key, config):
-    raise NotImplementedError("Phase 2")
+    """Initialize MLP reward genome as a Flax parameter PyTree.
+
+    Uses Flax default init (lecun_normal kernel, zeros bias) which is
+    appropriate for tanh networks.
+    """
+    hidden = config["mlp_hidden_size"]
+    net = RewardMLP(hidden_size=hidden)
+    params = net.init(rng_key, jnp.zeros(4))
+    return params
 
 
 def compute_mlp_reward(genome, stimuli):
-    raise NotImplementedError("Phase 2")
+    """Forward pass through the MLP reward network.
+
+    Args:
+        genome: Flax parameter PyTree from init_mlp_genome.
+        stimuli: shape (4,) — [n_eaten, motor_norm, max_s_prey, max_s_pred].
+                 Raw values, no fixed coefficients applied.
+    Returns:
+        Scalar float32 reward.
+    """
+    hidden_size = genome['params']['Dense_0']['kernel'].shape[1]
+    net = RewardMLP(hidden_size=hidden_size)
+    return net.apply(genome, stimuli)
 
 
 def init_temporal_genome(rng_key, config):
