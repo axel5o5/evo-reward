@@ -7,7 +7,7 @@
     },
     {
       "name": "environment",
-      "lines": 937,
+      "lines": 1030,
       "file": "src/environment.py"
     },
     {
@@ -16,8 +16,38 @@
       "file": "src/evolution.py"
     },
     {
+      "name": "jax_evolution",
+      "lines": 151,
+      "file": "src/jax_evolution.py"
+    },
+    {
+      "name": "jax_food",
+      "lines": 206,
+      "file": "src/jax_food.py"
+    },
+    {
+      "name": "jax_lifecycle",
+      "lines": 225,
+      "file": "src/jax_lifecycle.py"
+    },
+    {
+      "name": "jax_ppo",
+      "lines": 174,
+      "file": "src/jax_ppo.py"
+    },
+    {
+      "name": "jax_sim",
+      "lines": 196,
+      "file": "src/jax_sim.py"
+    },
+    {
+      "name": "jax_state",
+      "lines": 386,
+      "file": "src/jax_state.py"
+    },
+    {
       "name": "lifecycle",
-      "lines": 387,
+      "lines": 442,
       "file": "src/lifecycle.py"
     },
     {
@@ -26,13 +56,18 @@
       "file": "src/metrics.py"
     },
     {
+      "name": "observations",
+      "lines": 376,
+      "file": "src/observations.py"
+    },
+    {
       "name": "policy",
       "lines": 127,
       "file": "src/policy.py"
     },
     {
       "name": "ppo",
-      "lines": 189,
+      "lines": 203,
       "file": "src/ppo.py"
     },
     {
@@ -53,6 +88,50 @@
     {
       "source": "evolution",
       "target": "environment"
+    },
+    {
+      "source": "jax_evolution",
+      "target": "policy"
+    },
+    {
+      "source": "jax_lifecycle",
+      "target": "jax_evolution"
+    },
+    {
+      "source": "jax_ppo",
+      "target": "policy"
+    },
+    {
+      "source": "jax_sim",
+      "target": "environment"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_food"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_lifecycle"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_ppo"
+    },
+    {
+      "source": "jax_sim",
+      "target": "observations"
+    },
+    {
+      "source": "jax_sim",
+      "target": "policy"
+    },
+    {
+      "source": "jax_state",
+      "target": "environment"
+    },
+    {
+      "source": "jax_state",
+      "target": "policy"
     },
     {
       "source": "lifecycle",
