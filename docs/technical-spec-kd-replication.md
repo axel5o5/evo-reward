@@ -40,12 +40,15 @@ Each agent has two sensor arrays:
 |-----------|-------|--------|
 | Count | 32 sensors | Section 3 |
 | Field of view | 120-degree forward arc | Section 3 |
-| Max range | 120 units | Appendix A |
+| Max range | 200 units | emevo code (`sensor_length = 200.0`); paper Appendix A says 120 — see D8 |
+| Channels per sensor | 4 (prey, predator, food, wall) | emevo code; winner-take-all per sensor — see D7 |
 | Output encoding | Inverse distance, scaled to [0, 1] | Section 3 |
 | Object types detected | Food, other agents (prey/predator), walls | Section 3 |
 | Reading formula | `s^k = 1` on contact, `s^k = 0` when no object in range | Section 3 |
 
-Each sensor reports the inverse distance to the **closest** object of any detectable type within its angular slice. The 32 sensors are distributed evenly across the 120° arc.
+Each sensor has **4 per-type channels** (prey, predator, food, wall). Within each sensor, only the channel for the closest detected object type gets a positive reading; others are set to -1.0 (winner-take-all). This produces a sensor array of shape (32, 4) = 128 values. The 32 sensors are distributed evenly across the 120° arc.
+
+> **Code vs. paper:** The paper Appendix A states max range = 120 units, but the emevo source (`config/env/20251122-predator-square.toml:12`) uses `sensor_length = 200.0`. We follow the code. See deviation D8 in `emevo-diff.md`.
 
 For the reward function, the relevant aggregation is `max_k s^{i,k}_{pred}` (maximum proximity sensor reading for predators) and `max_k s^{i,k}_{prey}` (maximum for conspecifics). This is the scalar fed into the reward.
 
@@ -60,14 +63,14 @@ For the reward function, the relevant aggregation is `max_k s^{i,k}_{pred}` (max
 ### 3.3 Full Observation Vector (Policy Input)
 
 The policy MLP receives, at every step:
-- All proximity sensor readings (32 values, each in [0,1])
-- All tactile sensor readings (18 values)
-- Agent's own angle / heading (1 value)
-- Agent's own velocity (1 or 2 values — scalar speed or (vx, vy))
-- Agent's own angular velocity (1 value)
-- Agent's own energy level (1 value)
+- Proximity sensor readings: 32 sensors × 4 channels = **128 values** (each in [-1, 1])
+- Tactile sensor readings: 4 types × 18 bins = **72 values** (binary contact per type per bin)
+- Agent's own velocity: **2 values** (vx, vy) — 2D, not scalar speed
+- Agent's own heading angle: 1 value
+- Agent's own angular velocity: 1 value
+- Agent's own energy level: 1 value
 
-**Total obs dimension: ~55–56 scalars.** The exact layout should follow K&D's open-source code at `github.com/oist/emevo`. Do not invent a different layout — the PPO hyperparameters are tuned to this obs dimensionality.
+**Total obs dimension: 205 scalars** (128 + 72 + 2 + 1 + 1 + 1). Verified against emevo source (`circle_foraging.py:740-748`). See deviation D7 in `emevo-diff.md`.
 
 ---
 
@@ -92,8 +95,8 @@ The policy MLP receives, at every step:
 
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Max food items `n_max` | 100 | Section 3 |
-| Food growth rate `g` | 0.02 | Section 3 |
+| Max food items `n_max` | 600 | emevo code (`n_max_foods = 600`); paper Appendix A says 100 — see D5 |
+| Food growth rate `g` | 0.5 items/step (linear) | emevo code (`food_num_fn = ["linear", 40, 0.5, 600]`) |
 | Regeneration rule | `n_{t+1} = min(n_t + g - n_t^{eaten}, n_max)` | Section 3 |
 | Spawn location | Random position in world | Section 3 |
 | Food regeneration trigger | When integer part of `n_t` exceeds current food count | Section 3 |
@@ -126,14 +129,14 @@ Where:
 
 | Parameter | Value | Applies to | Source |
 |-----------|-------|------------|--------|
-| `c_b` (prey basal metabolism) | 2.5 × 10⁻³ | Prey | Table 2 |
-| `c_a` (prey motor cost) | 1 × 10⁻⁴ | Prey | Table 2 |
-| `d_b` (predator basal metabolism) | 4 × 10⁻³ | Predator | Table 2 |
-| `d_a` (predator motor cost) | 5 × 10⁻⁵ | Predator | Table 2 |
+| `c_b` (prey basal metabolism) | 1.0 × 10⁻⁴ | Prey | emevo code (`basic_energy_consumption`) |
+| `c_a` (prey motor cost) | 2.5 × 10⁻⁶ | Prey | emevo code (`force_energy_consumption`) |
+| `d_b` (predator basal metabolism) | 4 × 10⁻³ | Predator | Table 2 (matches code) |
+| `d_a` (predator motor cost) | 5 × 10⁻⁵ | Predator | Table 2 (matches code) |
 
-**Note from paper:** "Because `0 < ‖f‖ < 114`, `c_a ‖a‖_j` is twice as large as `c_b` when the motor output is maximum. Also, predators consume about 10 times as much energy as prey." This is a useful sanity check on parameter values.
+> **Code vs. paper (prey only):** Paper Table 2 lists `c_b = 2.5×10⁻³` and `c_a = 1×10⁻⁴`, but the emevo source (`config/env/20251122-predator-square.toml:24-25`) uses `basic_energy_consumption = 1e-4` and `force_energy_consumption = 2.5e-6`. We follow the code. Predator values match between paper and code.
 
-Agents need to eat food at least once every 500–1000 steps to maintain energy (derived from the paper's statement that 0.002–0.003 energy is consumed per step at typical motor activity).
+**Note from paper:** "Because `0 < ‖f‖ < 114`, `c_a ‖a‖_j` is twice as large as `c_b` when the motor output is maximum. Also, predators consume about 10 times as much energy as prey." This sanity check applies to the paper's Table 2 values; the code values produce different ratios but are what the experiments actually used.
 
 ---
 
@@ -188,7 +191,7 @@ Where `ζ` shifts the inflection point (energy threshold for reproduction).
 - Reproduction is **asexual**
 - Offspring inherits parent's reward weights with mutation (see Section 9)
 - Offspring spawned at a random location sampled from a Gaussian centered on the parent
-- Parent loses a fraction `η` of its energy at reproduction (same η as predator digestion — **confirm in emevo source**)
+- Parent loses fraction `energy_share_ratio = 0.4` of its energy; child receives the same amount. (This is **not** the predator digestion rate η=0.6 — it is a separate parameter. Verified: `config/env/20251122-predator-square.toml:26` `energy_share_ratio = 0.4`.)
 - Offspring gets a **fresh, randomly initialized policy network** — no policy inheritance
 
 ### 7.4 Population Caps

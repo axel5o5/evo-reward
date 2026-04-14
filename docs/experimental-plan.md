@@ -135,7 +135,7 @@ config = {
     "coevolution_mode": "concurrent" | "alternating",
     "population_size": 80,
     "num_generations": 300,
-    "mutation_scale": 0.02,
+    "mutation_scale": 0.4,
 
     # Environment
     "world_size": 960,
@@ -219,7 +219,7 @@ Standardized plot functions that work on any run's `metrics.npz`:
 **Build (in this order):**
 
 1. JAX 2D environment: continuous world, food spawning, proximity sensors, collision detection. Borrow heavily from K&D's open-source code (github.com/oist/emevo). The environment is the same regardless of architecture mode.
-2. Continuous birth-death lifecycle: energy accumulation, hazard/birth functions, asexual reproduction with Cauchy mutation on reward genomes. This is the K&D-faithful lifecycle and should be built first.
+2. Continuous birth-death lifecycle: energy accumulation, hazard/birth functions, asexual reproduction with Student's t(df=2, scale=0.4) mutation on reward genomes. This is the K&D-faithful lifecycle and should be built first.
 3. Independent per-agent policy networks + PPO. Each agent gets its own MLP policy, trained against its own reward signal. This is the K&D-faithful policy mode.
 4. Shared policy mode: single policy network per species conditioned on reward genome. This is a separate code path behind the `policy_mode` config flag — the environment and lifecycle code are unchanged.
 5. Generational batching lifecycle: discrete generation loop (evaluate → select → mutate → repeat). Behind the `lifecycle_mode` config flag.

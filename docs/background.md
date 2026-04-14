@@ -32,7 +32,7 @@ The simulation is a continuous 2D world (960×960 units) with rigid-body physics
 
 **Death.** Agents die when energy drops to zero, or stochastically via a hazard function h(t,e) that increases with age and decreases with energy. This produces natural lifespans without a hard cutoff.
 
-**Reproduction.** Agents reproduce asexually with probability b(e) that increases with energy. Offspring inherit the parent's reward weights with Cauchy-distributed mutations (allowing occasional large jumps) and spawn nearby. The parent loses a fraction of its energy. Newborns get a fresh, randomly initialized policy network.
+**Reproduction.** Agents reproduce asexually with probability b(e) that increases with energy. Offspring inherit the parent's reward weights with Student's t(df=2, scale=0.4)-distributed mutations (allowing occasional large jumps) and spawn nearby. The parent loses a fraction of its energy. Newborns get a fresh, randomly initialized policy network.
 
 **No explicit fitness function.** This is important: nobody defines "fitness = total energy" or "fitness = number of offspring." Reproductive success *emerges* from the energy dynamics. An agent that evolves reward weights leading it to eat efficiently and avoid predators will naturally accumulate energy, reproduce more, and spread those reward weights. This is what the embodied evolution literature calls "implicit fitness" — the environment itself is the fitness function.
 
