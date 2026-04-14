@@ -3,6 +3,7 @@
     {
       "hash": "b69f9443",
       "message": "Initial commit",
+      "body": null,
       "date": "2026-04-03 09:55:08 -0400",
       "author": "axel browne",
       "phase": null,
@@ -11,6 +12,7 @@
     {
       "hash": "6713acb5",
       "message": "Rename project from 'evolved-reward' to 'reward-evo'",
+      "body": null,
       "date": "2026-04-03 09:56:59 -0400",
       "author": "axel browne",
       "phase": null,
@@ -19,6 +21,7 @@
     {
       "hash": "f13d0804",
       "message": "README",
+      "body": null,
       "date": "2026-04-03 10:00:39 -0400",
       "author": "axel browne",
       "phase": null,
@@ -27,6 +30,7 @@
     {
       "hash": "77086dd9",
       "message": "Initial documentation",
+      "body": null,
       "date": "2026-04-03 10:31:31 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -35,6 +39,7 @@
     {
       "hash": "48ad710c",
       "message": "Rename project from reward-evo to evo-reward",
+      "body": null,
       "date": "2026-04-03 10:50:56 -0400",
       "author": "axel browne",
       "phase": null,
@@ -43,6 +48,7 @@
     {
       "hash": "e8e29151",
       "message": "Delete .DS_Store",
+      "body": null,
       "date": "2026-04-03 10:51:32 -0400",
       "author": "axel browne",
       "phase": null,
@@ -51,6 +57,7 @@
     {
       "hash": "21c938eb",
       "message": "added documentation and a reading guide",
+      "body": null,
       "date": "2026-04-03 11:32:23 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -59,6 +66,7 @@
     {
       "hash": "e69695e4",
       "message": "Merge remote-tracking branch 'origin/main'",
+      "body": "Resolved: accepted remote deletion of .DS_Store (should not be tracked)",
       "date": "2026-04-03 11:33:59 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -67,6 +75,7 @@
     {
       "hash": "5964f2dd",
       "message": "Fix remaining reward-evo reference in README repo tree",
+      "body": null,
       "date": "2026-04-03 11:37:36 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -75,6 +84,7 @@
     {
       "hash": "1743ed11",
       "message": "[Phase 0] Resolve all 9 open questions in emevo-diff.md against emevo source",
+      "body": "Cloned emevo gecco2026 branch and verified all parameters against\nconfig/env/20251122-predator-square.toml (the 960\u00d7960 predator-prey config).\n\nKey findings that correct our previous assumptions:\n- obs_dim = 205, not 54 (per-type sensor channels: 32\u00d74 + 4\u00d718 + 2 + 3)\n- Velocity is 2D (vx, vy), not scalar speed\n- energy_share_ratio = 0.4, not 0.5\n- spawn_spread = 100.0, not 30.0\n- Initial energy = 100.0 for both species, not 20/260\n- Food capacity = 600 (body text correct), not 100 (Appendix A)\n- Sensor range = 200 units (code), not 120 (paper)\n- Network has 2 hidden layers, not 3\n- Actions mapped via sigmoid_scale, not hard clipping\n\nNew deviation entries: D7 (obs layout), D8 (sensor range), D9 (network\ndepth), D10 (action mapping). D5 reversed (food=600).",
       "date": "2026-04-09 10:38:46 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -83,6 +93,7 @@
     {
       "hash": "22790b9c",
       "message": "Add project scaffolding: AGENTS.md, docs, configs, scripts, tests",
+      "body": "Project setup for evo-reward replication of Kanagawa & Doya (2025):\n- AGENTS.md: coding agent instructions and gate sequence\n- docs/: technical spec, development roadmap, project understanding\n- scripts/: validate_replication.py stub\n- tests/: test_components.py stub\n- requirements.txt\n- .claude/settings.json",
       "date": "2026-04-09 10:40:41 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -91,6 +102,7 @@
     {
       "hash": "6e6f0346",
       "message": "[Phase 0] Update AGENTS.md with confirmed emevo values, add session 2 prompt",
+      "body": "Update AGENTS.md to reflect all corrections from the emevo source audit:\n- obs_dim = 205 with full 4-channel sensor layout\n- Key Numbers table now cites emevo source, not paper where they differ\n- Reward equation updated for sigmoid action mapping and channel-specific\n  sensor extraction\n- Observation vector layout rewritten for 205-dim structure\n- Policy described as 2 hidden layers (not 3)\n- Step 1 marked done, gate sequence updated\n\nAlso: session 2 prompt saved, development-roadmap.md policy description fixed.",
       "date": "2026-04-09 10:47:37 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -99,6 +111,7 @@
     {
       "hash": "12ec0377",
       "message": "[Phase 0] Implement environment.py and lifecycle.py, update test config to confirmed values",
+      "body": "Add src/environment.py with AgentState/WorldState data structures, 4-channel\nproximity sensors (32x4), 4-channel tactile sensors (4x18), sigmoid action\nmapping, world initialization, eating/capture detection, and placeholder\nphysics step. Add src/lifecycle.py with hazard h(t,e), birth b(e), energy\nupdates using confirmed code values (prey c_b=1e-4, c_a=2.5e-6),\nprocess_births_and_deaths, and food regeneration (max=600, growth=0.5/step).\n\nUpdate test fixture base_config and docs/interfaces.md config schema to match\nall confirmed emevo gecco2026 values: obs_dim=205, proximity_max_range=200,\nfood_max=600, energy_share_ratio=0.4, spawn_spread=100, policy_n_hidden_layers=2,\nsigmoid action mapping [-20, 80].\n\nAll 8 lifecycle tests pass: pytest tests/test_components.py -k lifecycle",
       "date": "2026-04-09 11:18:12 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -107,6 +120,7 @@
     {
       "hash": "7cf8da22",
       "message": "[Phase 0] Add __pycache__ and recursive .DS_Store to .gitignore, remove tracked .DS_Store",
+      "body": null,
       "date": "2026-04-09 11:19:14 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -115,6 +129,7 @@
     {
       "hash": "ba8a3b87",
       "message": "[Phase 0] Implement agents.py, reward.py, evolution.py, ppo.py \u2014 14/14 tests green",
+      "body": "Add reward genome (linear K&D equation with fixed 0.01/0.1 coefficients),\nmutation via Student's t(df=2, scale=0.4) with clip \u00b1100, observation vector\nconstruction (205-dim), stimulus extraction (max over 32 predator-channel\nsensors), spawn_offspring, and GAE computation.",
       "date": "2026-04-09 11:30:09 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -123,6 +138,7 @@
     {
       "hash": "ee5160cd",
       "message": "[Phase 0] Update AGENTS.md with current status through Session 3",
+      "body": null,
       "date": "2026-04-09 11:34:20 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -131,6 +147,7 @@
     {
       "hash": "891b937e",
       "message": "[Phase 0] Implement policy.py, ppo_update(), metrics.py \u2014 31/31 tests green",
+      "body": "Session 4: complete the remaining three modules for Phase 0.\n\n- policy.py: Flax PolicyNetwork (2 hidden layers, 64 tanh), shared trunk\n  with separate policy head (2 means + learned log_std) and value head (1).\n  sigmoid_scale maps raw output to [-20, 80]. init_policy, sample_action,\n  policy_forward implemented.\n- ppo.py: ppo_update() added \u2014 10 epochs, minibatch 256, clipped surrogate\n  (eps=0.2), entropy bonus (0.001), value loss (vf_coef=0.5), Adam (3e-4).\n  Reuses PolicyNetwork from policy.py (no architecture duplication).\n- metrics.py: MetricsLog dataclass with all interfaces.md fields as lists.\n  save_metrics (.npz), save_checkpoint (.pkl), load roundtrips verified.\n- Tests: added test_ppo_loss_decreases, test_metrics_save_load_roundtrip,\n  un-skipped test_metrics_log_structure and test_checkpoint_roundtrip.",
       "date": "2026-04-09 12:06:38 -0400",
       "author": "Axel Browne",
       "phase": "0",
@@ -139,6 +156,7 @@
     {
       "hash": "b69b2736",
       "message": "[Dashboard] Build full two-part dashboard: Streamlit results app + React conceptual site",
+      "body": "Streamlit (Part B): 9 pages \u2014 run overview, cross-run comparison, experiment matrix,\nhypothesis tracker (H1-H7), agent inspector, paper comparison, config editor with\nvalidation, experiment launcher (local + SSH), live monitor with auto-refresh.\n\nReact (Part A): 10 interactive pages \u2014 reward equation explorer with sliders,\n205-dim observation vector breakdown, simulation loop stepper, mutation distribution\nvisualizer (Gaussian vs t(df=2) vs Cauchy), agent lifecycle with hazard/birth calculators,\nD3 force-directed codebase map, searchable config reference, git timeline, deviation\ntracker, and markdown docs viewer.\n\nConfig infrastructure (Track C): validator with range hints for all 73 parameters,\ncategorical checks, cross-key consistency, and config diff utility.",
       "date": "2026-04-09 13:37:59 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -147,6 +165,7 @@
     {
       "hash": "edf00abb",
       "message": "[Dashboard] Add Vercel config and package-lock for deployment",
+      "body": null,
       "date": "2026-04-09 15:16:34 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -155,6 +174,7 @@
     {
       "hash": "24a9c50a",
       "message": "[Dashboard] Make extract_data.py non-fatal in build for Vercel deploy",
+      "body": "Vercel lacks pyyaml; committed JSON data files are used as fallback.",
       "date": "2026-04-09 15:22:57 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -163,6 +183,7 @@
     {
       "hash": "3e557d8d",
       "message": "[Dashboard] Add dark theme with toggle, dark as default",
+      "body": "- Dark mode enabled via Tailwind class strategy with localStorage persistence\n- Toggle in sidebar bottom; defaults to dark, respects saved preference\n- Inline script in index.html prevents white flash on load\n- All 10 React pages updated with dark: variants for backgrounds, text,\n  borders, tables, cards, SVG charts, and interactive elements\n- Custom CSS for dark scrollbars, range inputs, code blocks, and selection\n- D3 codebase graph detects theme for node fills",
       "date": "2026-04-09 15:40:57 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -171,6 +192,7 @@
     {
       "hash": "5e6ca1e0",
       "message": "[Dashboard] Add GitHub link to sidebar, link explorer from README",
+      "body": null,
       "date": "2026-04-09 15:42:22 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -179,6 +201,7 @@
     {
       "hash": "ca350d68",
       "message": "[Dashboard] Deploy docs to Vercel, fix module deps, add References page",
+      "body": "- Vite plugin copies docs/*.md into build output (PDFs excluded)\n- DocsViewer now works on Vercel \u2014 all 12 docs available including\n  annotated bibliography, reading guide, project description\n- Fix extract_data.py import parser: handle 'from src.X import' pattern\n  (was only matching 'from .X import'). Now finds 6 real edges vs 0.\n- New References page: 15 papers as searchable cards with category filters,\n  relevance annotations, and links to arXiv where available\n- .gitignore updated for generated public/docs/",
       "date": "2026-04-09 16:01:56 -0400",
       "author": "Axel Browne",
       "phase": null,
@@ -187,9 +210,172 @@
     {
       "hash": "c29fbd14",
       "message": "updated the codebase structure in README to read with the real repo name",
+      "body": null,
       "date": "2026-04-09 16:45:01 -0400",
       "author": "Axel Browne",
       "phase": null,
+      "session": null
+    },
+    {
+      "hash": "24177d2c",
+      "message": "[Dashboard] Fix DocsViewer markdown typography via @tailwindcss/typography",
+      "body": "Install @tailwindcss/typography plugin so prose-* classes actually render.\nUpgrade prose-sm \u2192 prose-base for more readable body text. Remove redundant\ninline overrides now handled by the plugin; keep code block and link color\ncustomizations.",
+      "date": "2026-04-10 10:00:40 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "42cd357c",
+      "message": "[Phase 0] Integrate phyjax2d, run_experiment.py, test_phase0.py; fix PPO JIT \u2014 43/43 tests green",
+      "body": "Sessions 5-6: Full integration layer and two critical performance fixes.\n\nCore changes:\n- environment.py: Replace step_physics() stub with real phyjax2d differential-drive\n  physics. JIT-compiled 5-sub-step loop (lax.scan). dt=0.1, damping=0.8/0.6,\n  5 sub-steps matching emevo gecco2026. Food excluded from phyjax2d (D11).\n  Fixed proximity sensor bin placement to center-based (D12).\n- scripts/run_experiment.py: Full 10-step simulation loop (AGENTS.md order).\n  Batched policy inference via vmap + power-of-2 padding to avoid JIT recompile\n  on every population change (D14). ~log2(max_pop) total compilations vs. one\n  per unique agent count.\n- tests/test_phase0.py: 11-test integration gate (world bounds, food regen,\n  sensor contact, energy dynamics, birth probability, offspring policy, checkpoint\n  roundtrip). All pass.\n- src/ppo.py: JIT-compile per-minibatch gradient step via module-level cache (D13).\n  Without this, jax.value_and_grad re-traces 40x per PPO update per agent;\n  with 45+ simultaneous updates at step 1024 this caused 30+ min before first log.\n  After fix: first compile 0.73s, subsequent calls 0.07s.\n- docs/emevo-diff.md: Added D11 (food not in phyjax2d), D12 (sensor bin centers),\n  D13 (PPO JIT), D14 (padded batch policy).",
+      "date": "2026-04-10 10:18:47 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "d9f09b2f",
+      "message": "[Phase 0] Optimize step loop: numpy rollout + param stack cache + jnp.asarray in PPO",
+      "body": "Three per-step performance improvements (no behavioral change):\n\n1. Rollout buffer now uses NumPy arrays instead of JAX. Each step previously\n   called buf.at[ptr].set() (creates a new JAX array) for 4 fields \u00d7 n_agents.\n   NumPy in-place assignment is ~20x faster (~1ms vs ~23ms at 45 agents).\n   ppo_update calls jnp.asarray() at the start to convert before JAX ops.\n\n2. Stacked policy params cache (_get_stacked_params / _update_param_slot).\n   Previously rebuilt jtu.tree_map stack from scratch every step (~51ms).\n   Now cached by agent-id tuple; rebuilt only when births/deaths occur.\n   After PPO update, only the changed agent's slot is updated via .at[].set().\n   Saves ~50ms on the ~99% of steps with no population change.\n\n3. Removed redundant get_observation + policy_forward in PPO trigger.\n   The computed last_value was discarded anyway (ppo.py hardcodes last_value=0.0).\n\nResult: 317ms/step \u2192 ~116ms/step measured at 45 agents (~8.6 steps/s in\nisolated benchmark); 4.4 steps/s measured in full loop at 87 agents (step 5000).\n25k smoke test projected ~1.5-2h vs original ~6h estimate.",
+      "date": "2026-04-10 10:48:33 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "716d4d18",
+      "message": "[Phase 0] Smoke test PASSED \u2014 25k steps, prey=106 pred=50 std(w_pred)=0.760",
+      "body": "25,000-step smoke test on 40 prey + 5 predators completes successfully:\n  - No crashes or NaN in 9621s (2.6 steps/s average)\n  - Both populations alive at final step: prey=106, pred=50 (pred capped at 50)\n  - std(w_pred) = 0.760 >> 0.05 threshold \u2014 reward weight evolution confirmed\n  - Food system functional: food=600 throughout\n  - Predator cap (50) correctly contained population explosion\n\nGate sequence: 43/43 tests green + smoke test PASS \u2192 Phase 1a is unblocked.\nNext: python scripts/run_experiment.py --config configs/baseline_faithful.yaml --seed 0",
+      "date": "2026-04-10 13:10:33 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "b8087438",
+      "message": "[Phase 0] Vectorize observation computation in JAX \u2014 6.4x speedup, GPU-ready",
+      "body": "Replace per-agent Python observation loop with a single JIT-compiled JAX call\nusing vmap over observers + scatter-min for sensor binning.\n\nNew file: src/observations.py\n  - compute_all_observations(): returns (max_agents, 205) for all agents at once\n  - _single_proximity_agents/food: vmap over observers, scatter-min into 32 bins\n  - _compute_wall_distances: fully vectorized raycast (no vmap needed)\n  - _winner_take_all: argmin across 4 channels + inverse distance encoding\n  - _single_tactile: vmap over observers, contact detection + bin assignment\n  - All pure JAX \u2014 same code runs on CPU and GPU\n\nModified: src/environment.py\n  - Added species/radii SoA arrays to physics dict (maintained on birth/death)\n  - Added extract_obs_state(): extracts fixed-shape JAX arrays for JIT functions\n  - Pads food_positions to (food_max, 2) with food_active mask\n\nModified: scripts/run_experiment.py\n  - Observation loop replaced with extract_obs_state + compute_all_observations\n  - Reward computation vectorized: single jnp.sum over all agents\n\nBenchmark (120 agents):\n  Old per-agent loop: 91.6ms\n  New vectorized:     14.3ms (extract_obs_state) + ~0ms (JIT-cached JAX)\n  Speedup:            6.4x on CPU; GPU: JAX part \u2192 ~0ms\n\nTests: 52 passed, 3 skipped (9 new vectorized obs tests + 43 existing)\nCorrectness: vectorized output matches reference within atol=1e-3",
+      "date": "2026-04-10 14:20:12 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "65a4167a",
+      "message": "[Phase 0] Fix extract_obs_state .at[].set() anti-pattern \u2014 14ms \u2192 3ms",
+      "body": "The energy loop was calling .at[slot].set() 150 times in a Python loop,\ncreating a new JAX array copy on each iteration. Fixed by collecting\nslots/values into Python lists first, then doing one batch\n.at[slots_array].set(values_array) call.",
+      "date": "2026-04-10 15:09:00 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "b45f7b1d",
+      "message": "[Phase 0] Vectorize check_eating() with NumPy broadcasting \u2014 200ms \u2192 0.4ms",
+      "body": "Replace nested prey\u00d7food (90K iterations at 150 agents) and predator\u00d7prey\n(7.5K iterations) Python loops with vectorized distance/angle computations\nusing NumPy broadcasting.\n\nKey changes:\n- Prey-food: compute (n_prey, n_food) distance matrix in one call,\n  vectorize contact + FOV checks, deduplicate via nearest-prey assignment\n  using np.argmin + np.bincount\n- Predator-prey: compute (n_pred, n_prey) distance matrix, vectorize\n  mouth range + angle checks, deduplicate via nearest-predator assignment\n- Deduplication uses \"nearest valid agent\" instead of \"first in list order\"\n  (scientifically equivalent \u2014 iteration order was arbitrary anyway)\n\n52 passed, 3 skipped.",
+      "date": "2026-04-10 15:10:54 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "6ae7d442",
+      "message": "[Phase 0] Vectorize update_energies() \u2014 eliminate per-agent JAX\u2192Python conversions",
+      "body": "Extract energies/species/action_norms into numpy arrays in one pass, compute\nenergy deltas with np.where (prey vs predator formula), write back in one pass.\n\nEliminates: float(jnp.linalg.norm(action)) per agent (was JAX dispatch overhead),\nper-agent species branching, per-agent update_energy_prey/predator calls.\n52 passed, 3 skipped.",
+      "date": "2026-04-10 15:12:28 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "de34aec0",
+      "message": "[Phase 0] Vectorize process_births_and_deaths() hazard/birth probabilities",
+      "body": "Add _batch_hazard_prob() and _batch_birth_prob() that compute probabilities\nfor all agents at once using numpy broadcasting, replacing per-agent\nmath.exp calls in Python loops.\n\nDeath: hazard_prob was called 150x per step with math.exp (Python stdlib).\nNow: one np.exp call on (150,) arrays. Same for birth_prob.\n\nSpawn_offspring still runs per-birth (creates AgentState objects), but\nthere are typically only 5-25 births/step so this is fast.\n52 passed, 3 skipped.",
+      "date": "2026-04-10 15:14:20 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "203fd4bf",
+      "message": "[Phase 0] Add SimState JAX pytree + conversion bridge (jax_state.py)",
+      "body": "First step of fully-JAX simulation rewrite. SimState is a flax.struct\ndataclass containing all simulation state as fixed-size JAX arrays:\n\n- Agent SoA: is_active, species, agent_ids, ages, energies, reward_weights\n  (all max_agents=500)\n- Policy: stacked params + optimizer states (each leaf max_agents \u00d7 param_shape)\n- Rollout: obs/actions/rewards/etc (max_agents \u00d7 1024 \u00d7 dim)\n- Food: positions + active mask (food_max=600)\n- Physics: phyjax2d stated + solver (already JAX pytrees)\n- Meta: rng_key, step counter, next_agent_id\n\nTwo creation paths:\n- init_simstate(config, rng_key): pure JAX initialization from scratch\n- worldstate_to_simstate(world, config): bridge from old WorldState for testing\n\nSimState is a proper JAX pytree (161 leaves) \u2014 can be passed through\njax.jit, jax.lax.scan, etc. Old code is completely untouched.\n\n52 passed, 3 skipped.",
+      "date": "2026-04-10 17:12:49 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "19a1c102",
+      "message": "[Phase 0] Add pure-JAX mutation + offspring spawning (jax_evolution.py)",
+      "body": "Eliminates scipy dependency for Student's t sampling. Uses:\n  t(df=2) = Normal(0,1) / sqrt(-2\u00b7log(Uniform) / 2)\nVerified: tail fraction >8% beyond 2*scale (matching K&D spec).\n\n- sample_students_t(): general JAX Student's t sampler\n- mutate_genome_jax(): genome mutation, clip \u00b1100\n- spawn_offspring_jax(): operates directly on SimState arrays,\n  writes child position/angle/genome/energy/policy into new_slot\n\nAll pure JAX, JIT-compatible. No scipy, no Python objects.\n52 passed, 3 skipped.",
+      "date": "2026-04-10 17:15:19 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "6680c38e",
+      "message": "[Phase 0] Add JIT-compiled eating + food management (jax_food.py)",
+      "body": "Pure JAX eating detection and food lifecycle operating on SimState arrays.\n\n- check_eating_jax(): pairwise distance broadcasting for prey-food (A\u00d7F)\n  and predator-prey (A\u00d7A) detection. Returns fixed-shape arrays instead\n  of dicts/sets. Deduplication via nearest-agent assignment.\n  JIT-compiled: 1.2ms per call vs ~200ms for old Python loop version.\n\n- remove_eaten_food_jax(): single boolean mask operation on food_active\n\n- regenerate_food_jax(): lax.scan over max_regen_per_step iterations,\n  each finding first inactive food slot and placing random food.\n\nAll pure JAX, JIT-compatible. 52 passed, 3 skipped.",
+      "date": "2026-04-10 17:19:15 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "9dfe413e",
+      "message": "[Phase 0] Add JIT-compiled lifecycle \u2014 energy, death, birth (jax_lifecycle.py)",
+      "body": "Pure JAX energy updates and birth/death processing on SimState arrays.\n\n- update_energies_jax(): vectorized energy delta using jnp.where for\n  species branching. Predator food gain via gather from caught prey energies.\n\n- process_births_and_deaths_jax(): vectorized hazard/birth probability\n  computation, lax.scan over max_births_per_step=20 for spawning.\n  Deaths set is_active=False; births call spawn_offspring_jax and\n  track population caps within the scan.\n\nAll pure JAX. 52 passed, 3 skipped.",
+      "date": "2026-04-10 17:22:05 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "5c8ec5b3",
+      "message": "[Phase 0] Add JIT-compiled per-agent PPO update (jax_ppo.py)",
+      "body": "Uses vmap over all agent slots with lax.cond for conditional execution:\nagents with full rollout buffers (ptr >= 1024) get a complete PPO update,\nothers are no-ops. Inner loop uses lax.fori_loop for epochs \u00d7 minibatches.\n\nVerified:\n- Agent with full buffer: params updated, ptr reset to 0\n- Agent with empty buffer: params unchanged\n- First compile: 1.3s, subsequent calls: <1ms\n- 52 passed, 3 skipped",
+      "date": "2026-04-10 17:25:41 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "4d14b608",
+      "message": "[Phase 0] Add unified sim_step_core \u2014 JIT-compiled steps 1-9 (jax_sim.py)",
+      "body": "Single JIT-compiled function covering the full simulation step except PPO:\n  1. Vectorized observations (existing compute_all_observations)\n  2. Batched policy sampling (vmap over all slots)\n  3. Rollout buffer writes (JAX .at[].set)\n  4. Physics step (phyjax2d via lax.scan)\n  5. Eating detection (pairwise broadcast)\n  6. Reward computation (vectorized)\n  7. Energy updates\n  8. Birth/death processing (vectorized probs + lax.scan spawning)\n  9. Food regeneration\n\nPPO (step 10) is returned separately \u2014 called from Python only for\nagents with full rollout buffers. This avoids the vmap+lax.cond cost\nof tracing both PPO branches for all 500 slots on every step.\n\nVerified: 100 steps, no NaN, population growing (birth occurred),\nfood regenerating, energy correctly decaying. ~3 steps/s on CPU\nat 13 active agents / 500 total slots.\n\n52 passed, 3 skipped.",
+      "date": "2026-04-10 17:48:54 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "982f8fdd",
+      "message": "[Phase 0] Add JAX experiment runner (scripts/run_experiment_jax.py)",
+      "body": "New runner using SimState + JIT-compiled sim_step_core:\n- sim_step_core (steps 1-9) inside JIT \u2014 obs, policy, physics, eating,\n  rewards, energy, births/deaths, food regen\n- PPO (step 10) called from Python only when agents have full buffers\n- Same CLI interface: --config, --seed, --max-steps, --out-dir\n- Checkpoint saves key arrays (reward_weights, energies, species, etc.)\n- Logging: population counts, food, step rate, std(w_pred)\n\n52 passed, 3 skipped.",
+      "date": "2026-04-10 17:52:59 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "71ab1920",
+      "message": "[Phase 0] Update AGENTS.md with Session 7 \u2014 fully-JAX rewrite complete",
+      "body": "Document all 7 new JAX modules:\n  jax_state.py, jax_evolution.py, jax_food.py, jax_lifecycle.py,\n  jax_ppo.py, jax_sim.py, run_experiment_jax.py\n\n52 tests pass. Next: GPU test on Vast.ai, then Phase 1a.",
+      "date": "2026-04-10 17:54:19 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
+      "session": null
+    },
+    {
+      "hash": "3cabe4d0",
+      "message": "[Phase 0] Add analysis/dashboards.py \u2014 3 plotting functions for post-hoc analysis",
+      "body": "Tested on 25k smoke test metrics.npz. Ready for full 10M run output.",
+      "date": "2026-04-14 09:45:56 -0400",
+      "author": "Axel Browne",
+      "phase": "0",
       "session": null
     }
   ]

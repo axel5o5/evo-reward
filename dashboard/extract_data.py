@@ -205,9 +205,12 @@ def extract_sim_loop():
 
 def extract_git_timeline():
     """Parse git log into a timeline of project milestones."""
+    # Use record separator to reliably split multi-line bodies
+    SEP = "---COMMIT---"
+    fmt = f"%H|%s|%ai|%an|%b{SEP}"
     try:
         result = subprocess.run(
-            ["git", "log", "--format=%H|%s|%ai|%an", "--all", "--reverse"],
+            ["git", "log", f"--format={fmt}", "--all", "--reverse"],
             capture_output=True, text=True, cwd=PROJECT_ROOT,
         )
         if result.returncode != 0:
@@ -216,13 +219,21 @@ def extract_git_timeline():
         return {"commits": []}
 
     commits = []
-    for line in result.stdout.strip().split("\n"):
-        if not line:
+    for block in result.stdout.split(SEP):
+        block = block.strip()
+        if not block:
             continue
-        parts = line.split("|", 3)
+        # First line contains hash|subject|date|author|body-start
+        # Body may span multiple lines
+        parts = block.split("|", 4)
         if len(parts) < 4:
             continue
-        hash_, message, date, author = parts
+        hash_, message, date, author = parts[0], parts[1], parts[2], parts[3]
+        body = parts[4].strip() if len(parts) > 4 else ""
+        # Strip Co-Authored-By lines from body
+        body_lines = [l for l in body.splitlines()
+                      if not l.strip().startswith("Co-Authored-By:")]
+        body = "\n".join(body_lines).strip()
 
         # Detect session/phase tags
         phase_match = re.match(r"\[Phase (\d+)\]", message)
@@ -231,6 +242,7 @@ def extract_git_timeline():
         commits.append({
             "hash": hash_[:8],
             "message": message,
+            "body": body or None,
             "date": date.strip(),
             "author": author.strip(),
             "phase": phase_match.group(1) if phase_match else None,

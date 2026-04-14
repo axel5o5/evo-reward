@@ -10,6 +10,7 @@ const PHASE_COLORS: Record<string, { bg: string; border: string; text: string }>
 
 export default function SessionTimeline() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [filterPhase, setFilterPhase] = useState<string | "all">("all");
 
   const commits = useMemo(() => {
@@ -86,21 +87,40 @@ export default function SessionTimeline() {
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
         {commits.map((commit, idx) => {
           const isPhase = !!commit.phase;
+          const isExpanded = expandedIdx === idx;
+          const hasBody = !!(commit as Record<string, unknown>).body;
           const colors = commit.phase ? PHASE_COLORS[commit.phase] || { bg: "bg-gray-50 dark:bg-gray-800", text: "text-gray-600 dark:text-gray-400" } : { bg: "", text: "" };
           return (
-            <div key={commit.hash} className={`flex items-center px-3 py-2 border-b border-gray-100 dark:border-gray-800 text-sm ${
+            <div key={commit.hash} className={`border-b border-gray-100 dark:border-gray-800 text-sm ${
               isPhase ? colors.bg : idx % 2 === 0 ? "bg-white dark:bg-gray-950" : "bg-gray-50/50 dark:bg-gray-900/50"
             }`}>
-              <div className="font-mono text-xs text-gray-400 dark:text-gray-500 w-20 shrink-0">{commit.hash}</div>
-              <div className="flex-1 text-gray-800 dark:text-gray-200">
-                {isPhase && commit.phase && (
-                  <span className={`inline-block px-1.5 py-0.5 text-[10px] rounded mr-2 ${colors.bg} ${colors.text} border ${PHASE_COLORS[commit.phase]?.border || "border-gray-200 dark:border-gray-600"}`}>
-                    Phase {commit.phase}
-                  </span>
-                )}
-                {commit.message}
+              <div
+                className={`flex items-center px-3 py-2 ${hasBody ? "cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-800/50" : ""}`}
+                onClick={() => hasBody && setExpandedIdx(isExpanded ? null : idx)}
+              >
+                <div className="font-mono text-xs text-gray-400 dark:text-gray-500 w-20 shrink-0">{commit.hash}</div>
+                <div className="flex-1 text-gray-800 dark:text-gray-200">
+                  {isPhase && commit.phase && (
+                    <span className={`inline-block px-1.5 py-0.5 text-[10px] rounded mr-2 ${colors.bg} ${colors.text} border ${PHASE_COLORS[commit.phase]?.border || "border-gray-200 dark:border-gray-600"}`}>
+                      Phase {commit.phase}
+                    </span>
+                  )}
+                  {commit.message}
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-4">
+                  <div className="text-xs text-gray-400 dark:text-gray-500">{commit.date.split(" ")[0]}</div>
+                  {hasBody && (
+                    <span className={`text-gray-400 dark:text-gray-500 text-xs transition-transform ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 shrink-0 ml-4">{commit.date.split(" ")[0]}</div>
+              {isExpanded && hasBody && (
+                <div className="px-3 pb-3 pl-24">
+                  <pre className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-mono leading-relaxed bg-gray-50 dark:bg-gray-800/50 rounded p-3">
+                    {(commit as Record<string, unknown>).body as string}
+                  </pre>
+                </div>
+              )}
             </div>
           );
         })}

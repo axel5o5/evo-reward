@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const DOCS_FILES = [
   { name: "background.md", label: "Background" },
@@ -77,6 +78,7 @@ export default function DocsViewer() {
                 prose-th:bg-gray-50 dark:prose-th:bg-gray-800
                 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
                     a: ({ href, children, ...props }) => {
                       if (href && href.endsWith(".md") && !href.startsWith("http")) {
