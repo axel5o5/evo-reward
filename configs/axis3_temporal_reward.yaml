@@ -1,0 +1,136 @@
+# Axis 3: Temporal Reward Context Window
+# Based on baseline_faithful.yaml — only reward genome changes.
+# All other parameters identical to K&D faithful replication.
+#
+# The baseline uses an instantaneous reward: r(t) = w . stimuli(t)
+# Axis 3 replaces this with a temporal MLP: r(t) = MLP_theta(stimuli(t-k:t))
+# where theta (~945 params) is the heritable genome operating over a window
+# of the last k stimulus vectors.
+#
+# Architecture: input(k*4) -> Dense(16, tanh) -> Dense(16, tanh) -> Dense(1, linear)
+# Parameter count: (40*16+16) + (16*16+16) + (16*1+1) = 656 + 272 + 17 = 945
+#
+# Temporal mutation scale (0.005) is smaller than MLP's (0.01) because:
+# - More parameters (945 vs 121) means aggregate perturbation is larger.
+# - Aggregate L2 perturbation ~ sqrt(945) * 0.005 = 0.154, comparable to MLP's sqrt(121) * 0.01 = 0.11.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis3_temporal_reward"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "temporal"       # temporal MLP reward genome — Axis 3 extension
+social_obs:         "position_only"  # no heading/velocity of neighbors
+policy_type:        "mlp"            # feedforward MLP — K&D faithful
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960
+total_steps:        10_240_000
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150
+predator_initial:   10
+prey_cap:           450
+predator_cap:       50
+
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.6
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_deg:         60.0
+predator_mouth_range_min:   40.0
+predator_mouth_range_max:   80.0
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        2.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.1
+zeta_b_prey:        10.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (Temporal — Axis 3) ──────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# Temporal-specific genome params:
+reward_context_window:    10         # k: number of timesteps in the rolling window
+temporal_hidden_size:     16         # hidden units per layer in temporal reward MLP
+temporal_mutation_scale:  0.005      # Student's t scale for temporal weight mutation
+temporal_weight_clip:     5.0        # clip temporal weights to [-5, 5] after mutation
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+checkpoint_interval_steps:  25_000
+log_interval_steps:         10_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

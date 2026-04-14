@@ -9,6 +9,12 @@ Axis 1: Reward nonlinearity — measures how much of the MLP's nonlinear
 Axis 2: Social observation utilization — estimates mutual information
   between the social observation block (conspecific heading/speed) and
   the agent's action. Near zero = agent ignores the social channel.
+
+Axis 3: Temporal utilization — autocorrelation and sensitivity ratio
+  measuring whether the temporal reward window is being used.
+
+Axis 4: LSTM utilization — hidden state entropy and ablation delta
+  measuring whether the LSTM memory is meaningfully used.
 """
 
 import jax
@@ -143,3 +149,116 @@ def compute_social_obs_utilization(
             mi_values.append(mi)
 
     return float(np.mean(mi_values)) if mi_values else 0.0
+
+
+# ---------------------------------------------------------------------------
+# Axis 3: Temporal reward utilization
+# ---------------------------------------------------------------------------
+
+def compute_temporal_utilization(reward_signals, k):
+    """Measure temporal utilization of the reward function.
+
+    Two metrics:
+    1. Autocorrelation of r(t) at lags 1 through k.
+       High autocorrelation = reward integrates over time (prediction-error-like).
+       Near zero = reward ignores temporal structure.
+
+    2. Sensitivity ratio: how much the reward depends on recent vs. old observations.
+       Estimated from the autocorrelation decay pattern. Ratio > 1 means recent
+       observations are weighted more heavily.
+
+    Args:
+        reward_signals: 1D numpy array of reward values r(0), r(1), ..., r(T).
+        k: int, the context window size.
+
+    Returns:
+        dict with:
+            "autocorrelation": array of shape (k,) — autocorrelation at lags 1..k
+            "sensitivity_ratio": float — ratio of short-lag to long-lag autocorrelation
+    """
+    reward_signals = np.asarray(reward_signals, dtype=np.float64)
+    T = len(reward_signals)
+
+    if T < k + 1:
+        return {
+            "autocorrelation": np.zeros(k),
+            "sensitivity_ratio": 1.0,
+        }
+
+    mean = np.mean(reward_signals)
+    var = np.var(reward_signals)
+    if var < 1e-12:
+        return {
+            "autocorrelation": np.zeros(k),
+            "sensitivity_ratio": 1.0,
+        }
+
+    centered = reward_signals - mean
+    autocorr = np.zeros(k)
+    for lag in range(1, k + 1):
+        autocorr[lag - 1] = np.mean(centered[:T - lag] * centered[lag:]) / var
+
+    # Sensitivity ratio: mean autocorrelation at short lags (1..k//3)
+    # vs long lags (2k//3..k). High ratio = recency bias.
+    short_end = max(1, k // 3)
+    long_start = max(short_end, 2 * k // 3)
+    short_mean = np.mean(np.abs(autocorr[:short_end]))
+    long_mean = np.mean(np.abs(autocorr[long_start:]))
+    sensitivity_ratio = float(short_mean / (long_mean + 1e-8))
+
+    return {
+        "autocorrelation": autocorr,
+        "sensitivity_ratio": sensitivity_ratio,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Axis 4: LSTM utilization
+# ---------------------------------------------------------------------------
+
+def compute_lstm_utilization(hidden_trajectories):
+    """Measure how much of the LSTM's representational capacity is used.
+
+    Two metrics:
+    1. Mean hidden entropy: per-dimension entropy of h_t (discretized into bins).
+       High = hidden state explores its range richly.
+       Low = hidden state is static or collapsed.
+
+    2. Ablation delta: L2 distance between hidden state and zeros, averaged.
+       High = LSTM is actively using its hidden state.
+
+    Args:
+        hidden_trajectories: numpy array of shape (T, hidden_dim) — the h component
+            of the LSTM hidden state over a trajectory.
+
+    Returns:
+        dict with:
+            "mean_hidden_entropy": float — mean entropy per dimension (nats)
+            "ablation_delta": float — mean L2 norm of hidden state
+    """
+    h = np.asarray(hidden_trajectories, dtype=np.float64)
+    T, hidden_dim = h.shape
+
+    if T < 2:
+        return {"mean_hidden_entropy": 0.0, "ablation_delta": 0.0}
+
+    # Per-dimension entropy
+    n_bins = min(20, max(5, T // 10))
+    entropies = np.zeros(hidden_dim)
+    for d in range(hidden_dim):
+        col = h[:, d]
+        if np.std(col) < 1e-10:
+            entropies[d] = 0.0
+            continue
+        entropies[d] = _binned_entropy(col, n_bins)
+
+    mean_entropy = float(np.mean(entropies))
+
+    # Ablation delta: mean L2 norm of hidden state
+    norms = np.linalg.norm(h, axis=1)
+    ablation_delta = float(np.mean(norms))
+
+    return {
+        "mean_hidden_entropy": mean_entropy,
+        "ablation_delta": ablation_delta,
+    }

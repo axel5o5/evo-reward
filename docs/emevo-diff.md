@@ -318,6 +318,34 @@ Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-pad
 
 ---
 
+### D16: Temporal reward context window (Axis 3)
+
+**emevo:** Reward function is instantaneous: `r(t) = w . stimuli(t)`.
+
+**Ours:** When `reward_type = "temporal"`, the reward function operates over a rolling window of the last k stimulus vectors: `r(t) = MLP_θ(stimuli(t-k:t))`. Architecture: input(k*4) → Dense(16, tanh) → Dense(16, tanh) → Dense(1). With k=10: 945 parameters per genome. The obs_buffer (rolling window) is per-agent state, initialized to zeros at birth and shifted each step.
+
+**Reason:** Axis 3 experimental extension. Allows the reward to encode temporal patterns (e.g., fear of an approaching predator whose sensor signal is rising) rather than just instantaneous stimuli. Doya (2002) predicts this should converge toward prediction-error-like reward structures.
+
+**Risk:** None for baseline replication. Extension config only.
+
+**Discovered:** Phase 2, Axis 3 implementation (Session 10).
+
+---
+
+### D17: LSTM policy (Axis 4)
+
+**emevo:** Policy is a feedforward MLP (2 hidden layers, 64 units, tanh).
+
+**Ours:** When `policy_type = "lstm"`, the policy uses an LSTM cell: obs(205) → LSTM(64) → Dense(64, tanh) → policy/value heads. ~73,477 parameters. The LSTM hidden state (c, h) persists across timesteps within one agent's lifetime and is reset to zeros at every birth. It is NOT inherited — it is lifetime state, not genome. PPO training uses truncated BPTT with 128-step chunks (8 chunks per 1024-step rollout).
+
+**Reason:** Axis 4 experimental extension. The 2×2 of (temporal reward × LSTM policy) is a key experimental comparison: FF+instant (K&D baseline), FF+temporal (richer signal), LSTM+instant (memory actor), LSTM+temporal (memory + anticipation).
+
+**Risk:** None for baseline replication. Extension config only.
+
+**Discovered:** Phase 2, Axis 4 implementation (Session 10).
+
+---
+
 ## Differences That Are NOT Deviations
 
 These look like differences but are not, because they don't affect the science:

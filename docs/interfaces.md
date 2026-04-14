@@ -38,8 +38,17 @@ class AgentState:
                                    #                 w_pred = other predators
 
     # Policy — NOT inherited, reset fresh at every birth
-    policy_params:     PyTree      # Flax parameter tree for this agent's MLP
+    policy_params:     PyTree      # Flax parameter tree for this agent's MLP or LSTM
     policy_opt_state:  PyTree      # Adam optimizer state
+
+    # Temporal reward buffer (Axis 3) — reset to zeros at birth
+    obs_buffer:     jnp.ndarray   # shape (k, 4), float32 — rolling stimuli window
+                                   # k = config["reward_context_window"] (default 1)
+                                   # Each row = [n_eaten, motor_norm, max_s_prey, max_s_pred]
+
+    # LSTM hidden state (Axis 4) — NOT inherited, reset to zeros at birth
+    lstm_hidden:    jnp.ndarray   # shape (2, lstm_hidden_size), float32 — packed (c, h)
+                                   # This is LIFETIME STATE, not genome.
 
     # PPO rollout buffer — reset at birth, filled over N=1024 steps
     rollout:        RolloutBuffer
@@ -647,9 +656,17 @@ CONFIG_SCHEMA = {
     "experiment_name":           str,
     "policy_mode":               Literal["independent", "shared"],
     "lifecycle_mode":            Literal["continuous", "generational"],
-    "reward_type":               Literal["linear", "mlp"],
+    "reward_type":               Literal["linear", "mlp", "temporal"],
     "social_obs":                Literal["position_only", "position_heading_velocity"],
     "policy_type":               Literal["mlp", "lstm"],
+    # Temporal reward (Axis 3) — only used when reward_type == "temporal"
+    "reward_context_window":     int,      # 10 — rolling window of stimulus vectors
+    "temporal_hidden_size":      int,      # 16 — hidden units per layer
+    "temporal_mutation_scale":   float,    # 0.005 — Student's t scale
+    "temporal_weight_clip":      float,    # 5.0 — clip temporal genome ±5
+    # LSTM policy (Axis 4) — only used when policy_type == "lstm"
+    "lstm_hidden_size":          int,      # 64 — LSTM cell hidden dimension
+    "lstm_chunk_length":         int,      # 128 — truncated BPTT chunk size
     "coevolution_mode":          Literal["concurrent", "alternating"],
     # World
     "world_size":                int,      # 960

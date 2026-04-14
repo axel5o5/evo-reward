@@ -97,9 +97,49 @@ def compute_mlp_reward(genome, stimuli):
     return net.apply(genome, stimuli)
 
 
+# ─── Temporal reward genome (Axis 3) ────────────────────────────────────────
+
+class TemporalRewardMLP(nn.Module):
+    """MLP reward network over a rolling window of stimuli.
+
+    input(k*4) → Dense(h, tanh) → Dense(h, tanh) → Dense(1, linear).
+    With k=10, h=16: 945 total parameters (656 + 272 + 17).
+    """
+    hidden_size: int = 16
+
+    @nn.compact
+    def __call__(self, flat_window):
+        x = nn.Dense(self.hidden_size)(flat_window)
+        x = nn.tanh(x)
+        x = nn.Dense(self.hidden_size)(x)
+        x = nn.tanh(x)
+        x = nn.Dense(1)(x)
+        return jnp.squeeze(x, axis=-1)
+
+
 def init_temporal_genome(rng_key, config):
-    raise NotImplementedError("Phase 2")
+    """Initialize temporal reward genome as a Flax parameter PyTree.
+
+    Architecture: input(k*4) → Dense(h, tanh) → Dense(h, tanh) → Dense(1).
+    """
+    k = config["reward_context_window"]
+    hidden = config["temporal_hidden_size"]
+    net = TemporalRewardMLP(hidden_size=hidden)
+    params = net.init(rng_key, jnp.zeros(k * 4))
+    return params
 
 
 def compute_temporal_reward(genome, obs_window):
-    raise NotImplementedError("Phase 2")
+    """Forward pass through temporal reward MLP.
+
+    Args:
+        genome: Flax parameter PyTree from init_temporal_genome.
+        obs_window: shape (k, 4) — rolling window of stimulus vectors.
+                    Each row is [n_eaten, motor_norm, max_s_prey, max_s_pred].
+    Returns:
+        Scalar float32 reward.
+    """
+    hidden_size = genome['params']['Dense_0']['kernel'].shape[1]
+    net = TemporalRewardMLP(hidden_size=hidden_size)
+    flat = obs_window.reshape(-1)
+    return net.apply(genome, flat)

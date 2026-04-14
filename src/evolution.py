@@ -71,6 +71,31 @@ def mutate_mlp_genome(parent_genome, rng_key, config):
     return unflatten_fn(jnp.array(child_flat))
 
 
+def mutate_temporal_genome(parent_genome, rng_key, config):
+    """Mutate a temporal reward genome (Flax PyTree).
+
+    Same pattern as mutate_mlp_genome: flatten to 1D, apply Student's t(df=2)
+    noise per weight, clip to ±temporal_weight_clip, unflatten.
+    """
+    flat, unflatten_fn = ravel_pytree(parent_genome)
+
+    df = config.get("mutation_df", 2)
+    scale = config["temporal_mutation_scale"]
+    clip_val = config["temporal_weight_clip"]
+
+    seed = int(jax.random.randint(rng_key, shape=(), minval=0, maxval=2**31 - 1))
+    rng = np.random.default_rng(seed)
+
+    delta = t_dist(df=df, scale=scale).rvs(
+        size=flat.shape[0], random_state=rng
+    ).astype(np.float32)
+
+    child_flat = np.array(flat) + delta
+    child_flat = np.clip(child_flat, -clip_val, clip_val)
+
+    return unflatten_fn(jnp.array(child_flat))
+
+
 def spawn_offspring(
     parent: AgentState,
     new_id: int,
