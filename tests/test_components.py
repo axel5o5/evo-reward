@@ -34,6 +34,7 @@ def base_config():
         "n_tactile_sensors": 18,
         "n_tactile_channels": 4,
         "tactile_spacing_deg": 20.0,
+        "social_obs": "position_only",       # baseline — no social channels
         "obs_dim": 205,                     # CONFIRMED: 128+72+2+1+1+1
         "food_max": 600,                    # CONFIRMED: n_max_foods=600
         "food_initial": 40,
@@ -105,6 +106,17 @@ def mlp_config(base_config):
         "mlp_hidden_size": 8,
         "mlp_mutation_scale": 0.01,
         "mlp_weight_clip": 10.0,
+    }
+
+
+@pytest.fixture
+def social_config(base_config):
+    """Config for social observation tests (Axis 2)."""
+    return {
+        **base_config,
+        "social_obs": "position_heading_velocity",
+        "obs_dim": 215,
+        "n_social_neighbors": 5,
     }
 
 
@@ -477,6 +489,237 @@ class TestMLPRewardGenome:
             "Weights did not drift after 100 generations of mutation"
 
 
+# ─── Social observation (Axis 2) ─────────────────────────────────────────────
+
+class TestSocialObservation:
+    """Tests for social observation extension (heading + speed of conspecifics)."""
+
+    def _make_small_world(self, config, n_prey=5, n_pred=0):
+        """Create a small world for social obs tests."""
+        from src.environment import init_world
+        cfg = {
+            **config,
+            "prey_initial": n_prey,
+            "predator_initial": n_pred,
+            "food_initial": 10,
+        }
+        rng = jax.random.PRNGKey(123)
+        return init_world(cfg, rng), cfg
+
+    def test_social_obs_shape_position_only(self, base_config):
+        """get_observation returns (205,) when social_obs = position_only."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(base_config, n_prey=3, n_pred=1)
+        agent = world.agents[0]
+        obs = get_observation(world, agent.agent_id, cfg)
+        assert obs.shape == (205,), f"Expected (205,), got {obs.shape}"
+
+    def test_social_obs_shape_social(self, social_config):
+        """get_observation returns (215,) when social_obs = position_heading_velocity."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=6, n_pred=1)
+        agent = world.agents[0]  # a prey
+        obs = get_observation(world, agent.agent_id, cfg)
+        assert obs.shape == (215,), f"Expected (215,), got {obs.shape}"
+
+    def test_social_obs_zero_padding(self, social_config):
+        """When fewer than n_social_neighbors conspecifics visible, trailing entries are zero."""
+        from src.agents import get_observation
+        # 1 prey + only predators => 0 conspecifics for the prey
+        world, cfg = self._make_small_world(social_config, n_prey=1, n_pred=3)
+        prey = [a for a in world.agents if a.species == 0][0]
+        obs = get_observation(world, prey.agent_id, cfg)
+        assert obs.shape == (215,)
+        social_block = np.array(obs[205:215])
+        np.testing.assert_array_equal(
+            social_block, np.zeros(10),
+            err_msg="Social block should be all zeros when no conspecifics visible"
+        )
+
+    def test_social_obs_closest_first(self, social_config):
+        """First neighbor entry corresponds to the closest conspecific."""
+        from src.agents import get_observation
+        from src.environment import AgentState, init_world
+        # Create world with 3 prey at known positions
+        world, cfg = self._make_small_world(social_config, n_prey=3, n_pred=0)
+        agents = [a for a in world.agents if a.species == 0]
+        observer = agents[0]
+
+        # Place agents at controlled positions (all within range 200)
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+        observer.angle = 0.0
+
+        agents[1].position = jnp.array([480.0, 530.0])  # distance 50 (closest)
+        agents[1].velocity = jnp.array([3.0, 4.0])       # speed = 5.0
+        agents[1].angle = 1.5
+
+        agents[2].position = jnp.array([480.0, 600.0])  # distance 120 (farther)
+        agents[2].velocity = jnp.array([0.0, 2.0])       # speed = 2.0
+        agents[2].angle = -0.5
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # First neighbor (closest, dist=50): heading=1.5, speed=5.0
+        assert abs(social_block[0] - 1.5) < 1e-5, \
+            f"First neighbor heading should be 1.5, got {social_block[0]}"
+        assert abs(social_block[1] - 5.0) < 1e-5, \
+            f"First neighbor speed should be 5.0, got {social_block[1]}"
+
+        # Second neighbor (dist=120): heading=-0.5, speed=2.0
+        assert abs(social_block[2] - (-0.5)) < 1e-5, \
+            f"Second neighbor heading should be -0.5, got {social_block[2]}"
+        assert abs(social_block[3] - 2.0) < 1e-5, \
+            f"Second neighbor speed should be 2.0, got {social_block[3]}"
+
+        # Remaining slots (3rd-5th) should be zero-padded
+        np.testing.assert_array_equal(
+            social_block[4:10], np.zeros(6),
+            err_msg="Slots 3-5 should be zero-padded (only 2 conspecifics)"
+        )
+
+    def test_social_obs_no_change_to_baseline(self, base_config, social_config):
+        """First 205 dims of social obs match baseline obs exactly (regression)."""
+        from src.agents import get_observation
+        # Use same seed and config for identical worlds
+        from src.environment import init_world
+        rng = jax.random.PRNGKey(77)
+        baseline_cfg = {
+            **base_config,
+            "prey_initial": 5,
+            "predator_initial": 2,
+            "food_initial": 10,
+        }
+        social_cfg = {
+            **social_config,
+            "prey_initial": 5,
+            "predator_initial": 2,
+            "food_initial": 10,
+        }
+        world_baseline = init_world(baseline_cfg, rng)
+        world_social = init_world(social_cfg, rng)
+
+        for agent_b, agent_s in zip(world_baseline.agents, world_social.agents):
+            obs_baseline = get_observation(world_baseline, agent_b.agent_id, baseline_cfg)
+            obs_social = get_observation(world_social, agent_s.agent_id, social_cfg)
+
+            assert obs_baseline.shape == (205,)
+            assert obs_social.shape == (215,)
+
+            # First 205 dims must match exactly
+            np.testing.assert_allclose(
+                np.array(obs_social[:205]),
+                np.array(obs_baseline),
+                atol=1e-6,
+                err_msg=f"Baseline dims differ for agent {agent_b.agent_id}"
+            )
+
+    def test_social_obs_predator_species_isolation(self, social_config):
+        """Predators observe only other predators, not prey."""
+        from src.agents import get_observation
+        # 1 predator + 5 prey, all close together — predator should see 0 conspecifics
+        world, cfg = self._make_small_world(social_config, n_prey=5, n_pred=1)
+        predator = [a for a in world.agents if a.species == 1][0]
+        # Move all agents close so they're within range
+        for a in world.agents:
+            a.position = jnp.array([480.0, 480.0]) + jax.random.uniform(
+                jax.random.PRNGKey(a.agent_id), shape=(2,), minval=-10.0, maxval=10.0
+            )
+        obs = get_observation(world, predator.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+        # Only 1 predator total, so 0 conspecifics — all zeros
+        np.testing.assert_array_equal(
+            social_block, np.zeros(10),
+            err_msg="Predator should see 0 conspecifics (only prey nearby)"
+        )
+
+    def test_social_obs_more_than_n_conspecifics(self, social_config):
+        """When >N conspecifics visible, only the 5 closest are included."""
+        from src.agents import get_observation
+        # 8 prey total — observer + 7 conspecifics, all within range
+        world, cfg = self._make_small_world(social_config, n_prey=8, n_pred=0)
+        agents = world.agents
+        observer = agents[0]
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        # Place 7 conspecifics at increasing distances
+        for i, a in enumerate(agents[1:], start=1):
+            a.position = jnp.array([480.0, 480.0 + float(i) * 20.0])  # 20, 40, ..., 140
+            a.velocity = jnp.array([float(i), 0.0])  # speed = i
+            a.angle = float(i) * 0.1
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # Should contain the 5 closest (agents 1-5, distances 20-100)
+        for k in range(5):
+            expected_heading = float(k + 1) * 0.1
+            expected_speed = float(k + 1)
+            assert abs(social_block[2 * k] - expected_heading) < 1e-5, \
+                f"Neighbor {k} heading: expected {expected_heading}, got {social_block[2*k]}"
+            assert abs(social_block[2 * k + 1] - expected_speed) < 1e-5, \
+                f"Neighbor {k} speed: expected {expected_speed}, got {social_block[2*k+1]}"
+
+    def test_social_obs_boundary_at_max_range(self, social_config):
+        """Conspecific at exactly max_range (200 units) is included."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=2, n_pred=0)
+        observer = world.agents[0]
+        neighbor = world.agents[1]
+
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        # Place neighbor at exactly max_range distance
+        max_range = float(cfg["proximity_max_range"])  # 200.0
+        neighbor.position = jnp.array([480.0, 480.0 + max_range])  # dist = 200.0 exactly
+        neighbor.velocity = jnp.array([1.0, 0.0])  # speed = 1.0
+        neighbor.angle = 0.5
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # Should be included (dist <= max_range)
+        assert abs(social_block[0] - 0.5) < 1e-5, \
+            f"Neighbor at exactly max_range should be included, heading={social_block[0]}"
+        assert abs(social_block[1] - 1.0) < 1e-5, \
+            f"Neighbor at exactly max_range should be included, speed={social_block[1]}"
+
+        # Now move just beyond max_range
+        neighbor.position = jnp.array([480.0, 480.0 + max_range + 0.01])
+        obs2 = get_observation(world, observer.agent_id, cfg)
+        social_block2 = np.array(obs2[205:215])
+
+        # Should be excluded (dist > max_range)
+        np.testing.assert_array_equal(
+            social_block2, np.zeros(10),
+            err_msg="Neighbor just beyond max_range should be excluded"
+        )
+
+    def test_social_obs_velocity_none_safety(self, social_config):
+        """Social obs handles conspecific with velocity=None without crashing."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=2, n_pred=0)
+        observer = world.agents[0]
+        neighbor = world.agents[1]
+
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        neighbor.position = jnp.array([480.0, 500.0])  # within range
+        neighbor.velocity = None  # edge case
+        neighbor.angle = 1.0
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        assert obs.shape == (215,)
+        social_block = np.array(obs[205:215])
+        # heading should be 1.0, speed should be 0.0 (None velocity -> zeros)
+        assert abs(social_block[0] - 1.0) < 1e-5
+        assert abs(social_block[1] - 0.0) < 1e-5
+
+
 # ─── Lifecycle functions ───────────────────────────────────────────────────────
 
 class TestLifecycle:
@@ -833,6 +1076,61 @@ class TestMetrics:
             np.array([[1.1, -2.2, 3.3, -4.4], [-0.5, 0.5, -0.5, 0.5]],
                      dtype=np.float32),
         )
+
+    def test_trajectory_save_load_roundtrip(self, base_config, tmp_path):
+        """Trajectory fields survive save/load when save_trajectories is on."""
+        from src.metrics import (
+            MetricsLog, save_metrics, load_metrics, record_trajectory_step,
+        )
+        log = MetricsLog()
+        # Fill required scalar fields so save doesn't fail on empty
+        log.steps.append(1000)
+        log.prey_population.append(100)
+        log.predator_population.append(10)
+        log.prey_mean_energy.append(50.0)
+        log.predator_mean_energy.append(80.0)
+        for prefix in ["prey", "pred"]:
+            for stat in ["mean", "std"]:
+                for w in ["w_eat", "w_act", "w_prey", "w_pred"]:
+                    getattr(log, f"{prefix}_{stat}_{w}").append(0.5)
+        log.capture_rate.append(0.1)
+        log.food_consumption_rate.append(0.2)
+
+        config = {**base_config, "experiment_name": "test_traj", "save_trajectories": True}
+
+        # Record a few trajectory steps
+        obs1 = np.random.randn(215).astype(np.float32)
+        obs2 = np.random.randn(215).astype(np.float32)
+        act1 = np.array([10.0, -5.0], dtype=np.float32)
+        act2 = np.array([-3.0, 7.0], dtype=np.float32)
+
+        record_trajectory_step(log, obs1, act1, agent_id=0, config=config)
+        record_trajectory_step(log, obs2, act2, agent_id=1, config=config)
+
+        assert len(log.trajectory_obs) == 2
+        assert len(log.trajectory_actions) == 2
+        assert len(log.trajectory_agent_ids) == 2
+
+        save_metrics(log, config, seed=0, out_dir=str(tmp_path))
+        loaded = load_metrics(str(tmp_path / "test_traj" / "seed_0" / "metrics.npz"))
+
+        assert len(loaded.trajectory_obs) == 2
+        assert len(loaded.trajectory_actions) == 2
+        assert loaded.trajectory_agent_ids == [0, 1]
+        np.testing.assert_allclose(loaded.trajectory_obs[0], obs1, atol=1e-6)
+        np.testing.assert_allclose(loaded.trajectory_actions[1], act2, atol=1e-6)
+
+    def test_trajectory_not_saved_when_disabled(self, base_config):
+        """record_trajectory_step is a no-op when save_trajectories is False."""
+        from src.metrics import MetricsLog, record_trajectory_step
+        log = MetricsLog()
+        config = {**base_config, "save_trajectories": False}
+        obs = np.zeros(205, dtype=np.float32)
+        act = np.zeros(2, dtype=np.float32)
+
+        record_trajectory_step(log, obs, act, agent_id=0, config=config)
+        assert len(log.trajectory_obs) == 0
+        assert len(log.trajectory_actions) == 0
 
 
 # ─── Config validation ────────────────────────────────────────────────────────

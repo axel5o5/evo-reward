@@ -200,19 +200,30 @@ obs_dim: 205   # CONFIRMED: 128 + 72 + 2 + 1 + 1 + 1
 ### Extension: Social Observation (`social_obs: position_heading_velocity`)
 
 Appended after the baseline block. Baseline indices do not change.
+Implemented in Session 9 (Axis 2).
 
 ```
-Index       Field                       Notes
-─────────────────────────────────────────────────────────────
-205         conspecific_1_heading       radians [-π, π], 0-padded if fewer
-206         conspecific_1_speed         ‖v‖, 0-padded if fewer
-207         conspecific_2_heading
-208         conspecific_2_speed
-...         up to N_max_neighbors pairs, zero-padded
-─────────────────────────────────────────────────────────────
+Index   Field                    Shape  Range       Notes
+──────────────────────────────────────────────────────────────────────
+205     conspecific_1_heading    (1,)   [-π, π]     Closest conspecific, 0 if <1 visible
+206     conspecific_1_speed      (1,)   [0, ~10]    ‖v‖ of closest conspecific
+207     conspecific_2_heading    (1,)   [-π, π]     2nd closest
+208     conspecific_2_speed      (1,)   [0, ~10]
+209     conspecific_3_heading    (1,)   [-π, π]     3rd closest
+210     conspecific_3_speed      (1,)   [0, ~10]
+211     conspecific_4_heading    (1,)   [-π, π]     4th closest
+212     conspecific_4_speed      (1,)   [0, ~10]
+213     conspecific_5_heading    (1,)   [-π, π]     5th closest
+214     conspecific_5_speed      (1,)   [0, ~10]
+──────────────────────────────────────────────────────────────────────
+obs_dim = 215  (205 + 5 × 2)
 ```
 
-**This extension is NOT built in Phase 0.** The baseline layout is designed so extensions only append — never insert into existing indices.
+**Visibility:** conspecific must be within `proximity_max_range` (200 units) Euclidean distance.
+**Sorting:** closest first (ascending Euclidean distance from observer center to center).
+**Padding:** zeros for missing neighbors (fewer than `n_social_neighbors` conspecifics visible).
+**Config:** `social_obs: "position_heading_velocity"`, `n_social_neighbors: 5`, `obs_dim: 215`.
+**Conspecific:** same species only (prey sees prey, predator sees predator).
 
 ---
 

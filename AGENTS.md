@@ -322,6 +322,14 @@ Session 8 (partial):
      plot_population_dynamics: K&D Fig 6 style (prey/predator pop over time)
      plot_reward_kde: K&D Fig 8/12 style (w_prey vs w_pred scatter, checkpoint or fallback)
   ⏳ Phase 1a: needs GPU — ~46 days on CPU Mac, ~10-12h on A100
+Session 9 complete: Axis 2 — Social behavioral observation
+  ✅ src/agents.py — get_observation() extended with social_obs branch (heading + speed of N closest conspecifics)
+  ✅ src/observations.py — vectorized JAX path extended with _single_social_obs via vmap
+  ✅ configs/axis2_social_obs.yaml — social_obs: position_heading_velocity, obs_dim: 215, n_social_neighbors: 5
+  ✅ analysis/capacity_util.py — compute_social_obs_utilization() binned MI estimator
+  ✅ src/metrics.py — optional trajectory saving (save_trajectories flag, off by default)
+  ✅ tests: 5 social obs tests pass, 51/51 total green (3 skipped), 9/9 vectorized obs green
+  ✅ D15 documented in emevo-diff.md, interfaces.md updated with finalized social obs layout
 Next task: Run Phase 1a on GPU, then validate_replication.py, then launch seeds 1-4.
 
 ---

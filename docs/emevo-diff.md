@@ -302,6 +302,22 @@ Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-pad
 
 ---
 
+### [D15] Social observation: heading and speed of conspecifics (Axis 2 extension)
+
+**Component:** `agents.py`, `observations.py`
+
+**emevo:** No social observation. Agents perceive conspecifics only through proximity sensor readings (distance/direction). No information about what a conspecific is doing (heading, speed).
+
+**Ours:** When `social_obs = "position_heading_velocity"`, append 10 dims to the observation vector: heading and speed of the 5 closest conspecifics (same species) within proximity range (200 units). obs_dim = 215.
+
+**Reason:** Axis 2 experimental extension. Tests whether richer social information changes evolved reward functions or enables coordinated behavior. The baseline (`social_obs = "position_only"`) remains identical to K&D.
+
+**Risk:** None for baseline replication. Extension configs only affect Axis 2 experiments.
+
+**Discovered:** Phase 2, Axis 2 implementation (Session 9).
+
+---
+
 ## Differences That Are NOT Deviations
 
 These look like differences but are not, because they don't affect the science:
