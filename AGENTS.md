@@ -316,7 +316,13 @@ Session 7 complete: Fully-JAX simulation rewrite
   ✅ Vectorized observations, check_eating, update_energies in original code
   ✅ 52/52 tests green, 3 skipped
   Verified: 100 steps no NaN, population dynamics active, food regen, energy decay
-Next task: GPU test on Vast.ai, then Phase 1a with run_experiment_jax.py.
+Session 8 (partial):
+  ✅ analysis/dashboards.py — 3 plotting functions implemented and tested on 25k smoke metrics
+     plot_reward_trajectories: K&D Fig 7 style (mean±std, 4 subplots per weight)
+     plot_population_dynamics: K&D Fig 6 style (prey/predator pop over time)
+     plot_reward_kde: K&D Fig 8/12 style (w_prey vs w_pred scatter, checkpoint or fallback)
+  ⏳ Phase 1a: needs GPU — ~46 days on CPU Mac, ~10-12h on A100
+Next task: Run Phase 1a on GPU, then validate_replication.py, then launch seeds 1-4.
 
 ---
 
