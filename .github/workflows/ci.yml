@@ -41,7 +41,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -U "jax[cpu]"
           pip install -r requirements.txt
+          pip install pytest-cov
 
-      - name: Run test suite
-        run: pytest -x -q
-        timeout-minutes: 10
+      - name: Run fast test suite
+        run: pytest -x -q -m "not slow" --cov=src --cov-report=term-missing --cov-report=xml
+        timeout-minutes: 15
+
+      - name: Run slow test suite (main only)
+        if: github.ref == 'refs/heads/main' && matrix.os == 'ubuntu-latest'
+        run: pytest -q -m "slow" --cov=src --cov-append --cov-report=term-missing --cov-report=xml
+        timeout-minutes: 20
+
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage.xml
+          if-no-files-found: ignore

@@ -328,6 +328,7 @@ source ~/evo-env/bin/activate
 cd ~/evo-reward
 python scripts/run_experiment_jax.py \
   --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/gcp_l4.yaml \
   --seed 0
 ```
 
@@ -340,6 +341,7 @@ paper target is 5):
 for seed in 0 1 2 3 4; do
   python scripts/run_experiment_jax.py \
     --config configs/baseline_faithful.yaml \
+    --runtime configs/runtime/gcp_l4.yaml \
     --seed $seed
 done
 ```

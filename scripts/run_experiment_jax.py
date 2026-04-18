@@ -133,27 +133,44 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
         # --- Logging ---
         if (step + 1) % log_interval == 0:
             jax.block_until_ready(sim_state.step)
-            n_prey = int(jnp.sum((sim_state.species == 0) & sim_state.is_active))
-            n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
+            prey_mask = (sim_state.species == 0) & sim_state.is_active
+            pred_mask = (sim_state.species == 1) & sim_state.is_active
+            n_prey = int(jnp.sum(prey_mask))
+            n_pred = int(jnp.sum(pred_mask))
             n_food = int(jnp.sum(sim_state.food_active))
+
             elapsed = time.time() - start_time
             steps_done = (step + 1) - start_step
             sps = steps_done / elapsed if elapsed > 0 else 0.0
 
-            # Reward weight stats
-            prey_active = (sim_state.species == 0) & sim_state.is_active
-            if jnp.any(prey_active):
-                prey_w = sim_state.reward_weights[prey_active]
-                std_w = float(jnp.std(prey_w[:, 3]))
-            else:
-                std_w = 0.0
+            # Energy — mean across living agents (sanity check for population health)
+            any_active = bool(jnp.any(sim_state.is_active))
+            mean_energy = (
+                float(jnp.mean(sim_state.energies[sim_state.is_active]))
+                if any_active else 0.0
+            )
 
-            print(f"Step {step+1:>8d}/{total_steps} | "
-                  f"prey={n_prey:>3d} pred={n_pred:>2d} | "
-                  f"food={n_food:>3d} | "
-                  f"{sps:.1f} steps/s | "
-                  f"elapsed={elapsed:.0f}s | "
-                  f"std(w_pred)={std_w:.3f}")
+            # Reward weights — mean ± std of the two science-critical weights
+            # across prey (w_pred = fear, w_prey = social affiliation).
+            # reward_weights layout: [w_eat, w_act, w_prey, w_pred]
+            if n_prey > 0:
+                prey_w = sim_state.reward_weights[prey_mask]
+                wpd_mean = float(jnp.mean(prey_w[:, 3]))
+                wpd_std = float(jnp.std(prey_w[:, 3]))
+                wpy_mean = float(jnp.mean(prey_w[:, 2]))
+                wpy_std = float(jnp.std(prey_w[:, 2]))
+            else:
+                wpd_mean = wpd_std = wpy_mean = wpy_std = 0.0
+
+            print(
+                f"Step {step+1:>8d}/{total_steps} | "
+                f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
+                f"E={mean_energy:>5.1f} | "
+                f"w_pred={wpd_mean:+.2f}±{wpd_std:.2f} "
+                f"w_prey={wpy_mean:+.2f}±{wpy_std:.2f} | "
+                f"{sps:.1f} sps | "
+                f"{elapsed:.0f}s"
+            )
 
         # --- Checkpointing ---
         if (step + 1) % ckpt_interval == 0:
@@ -180,20 +197,46 @@ def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed):
     rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
 
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_RUNTIME_CONFIG = os.path.join(_REPO_ROOT, "configs", "runtime", "default.yaml")
+
+
+def _load_yaml(path: str) -> dict:
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run evo-reward experiment (JAX)")
-    parser.add_argument("--config", required=True, help="Path to YAML config file")
+    parser.add_argument("--config", required=True,
+                        help="Path to YAML science config (physics, reward, PPO params)")
+    parser.add_argument("--runtime", default=DEFAULT_RUNTIME_CONFIG,
+                        help="Path to YAML runtime config (checkpoint / log cadence). "
+                             "Defaults to configs/runtime/default.yaml.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--out-dir", default="results")
+    parser.add_argument("--checkpoint-interval", type=int, default=None,
+                        help="Override checkpoint_interval_steps from --runtime yaml")
+    parser.add_argument("--log-interval", type=int, default=None,
+                        help="Override log_interval_steps from --runtime yaml")
     parser.add_argument("--resume", action="store_true",
                         help="Resume from latest checkpoint in the seed's output dir")
     parser.add_argument("--resume-from", default=None,
                         help="Resume from an explicit checkpoint path (overrides --resume auto-detect)")
     args = parser.parse_args()
 
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
+    # Science config is the base; runtime overlays (runtime wins on conflict);
+    # CLI flags win over runtime. Science configs should not define ops keys
+    # anymore — but if they do, runtime still takes precedence.
+    config = _load_yaml(args.config)
+    runtime = _load_yaml(args.runtime)
+    config.update(runtime)
+
+    if args.checkpoint_interval is not None:
+        config["checkpoint_interval_steps"] = args.checkpoint_interval
+    if args.log_interval is not None:
+        config["log_interval_steps"] = args.log_interval
 
     run_experiment_jax(
         config, args.seed, args.max_steps, args.out_dir,

@@ -149,9 +149,9 @@ action_clip_low:    -20.0            # CONFIRMED: min_force = -20.0
 action_clip_high:   80.0             # CONFIRMED: max_force = 80.0
 action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
-checkpoint_interval_steps:  100_000  # save full SimState every 100k steps (~30-100MB compressed, last 3 kept)
-log_interval_steps:         10_000   # log metrics every 10k steps
+# Logging cadence (checkpoint_interval_steps, log_interval_steps) lives
+# in configs/runtime/*.yaml — those values do not affect the experiment
+# result, only save/log frequency.
 
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 # Run separately per seed. K&D used 5 seeds for the main results.

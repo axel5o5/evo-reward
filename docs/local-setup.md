@@ -79,14 +79,30 @@ stick with `jax[cpu]`.
 
 ### Run Phase 1a locally
 
-The Mac won't hit L4 throughput (~1400 steps/s); expect 100–300 steps/s
-depending on your chip. A 10.24M-step run translates to roughly:
+**Honest reality check.** Measured rate on an M4 MacBook Pro:
+~3 steps/s steady state (including PPO updates after step 1024). L4
+does ~237 steps/s, ~80× faster. A full 10.24M-step run at 3 steps/s is
+roughly:
 
-| Chip          | Approximate wall clock |
-| ------------- | ---------------------- |
-| M1            | 4–7 days               |
-| M2 / M3       | 3–5 days               |
-| M4 Pro / Max  | 2–3 days               |
+| Chip                    | Approximate wall clock |
+| ----------------------- | ---------------------- |
+| M4 Pro / Max (measured) | ~40 days               |
+| M2 / M3 (estimated)     | ~50–70 days            |
+| M1 (estimated)          | ~70–100 days           |
+
+The Mac is not a realistic venue for a full Phase 1a run. Useful local
+modes:
+
+1. **Smoke test** (a few thousand steps, minutes) — validates the code
+   works end-to-end on your machine.
+2. **Short validation** (100K–500K steps, 9–45 hours) — enough to see
+   reward weights start drifting; catches bugs without paying for the
+   full run.
+3. **Cross-device staging** — start a run locally, hand off a
+   checkpoint to GCP or Lambda Labs to finish faster. See "Migrating a
+   run between devices" below.
+4. **Background run with no deadline** — just let it run for weeks.
+   Viable if you genuinely don't need results soon.
 
 Run inside a `tmux` so the process survives lid-close, SSH disconnects,
 terminal crashes:
@@ -97,21 +113,33 @@ tmux new -s phase1a
 source .venv/bin/activate
 python scripts/run_experiment_jax.py \
   --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
   --seed 0
 ```
 
 Detach with `Ctrl-b d`. Reattach with `tmux attach -t phase1a`.
 
+The `--runtime configs/runtime/mac.yaml` overlay tunes checkpoint and
+log cadence for a laptop running at ~3 steps/s: checkpoints every
+5000 steps (~28 min wall-clock) and log lines every 100 steps
+(~33 sec wall-clock). The log cadence is deliberately chatty — useful
+for watching population dynamics and catching issues like NaN / mass
+agent death early. Without `--runtime`, the runner uses
+`configs/runtime/default.yaml` (10K / 1K — a middle ground). To tweak
+a single invocation without editing yaml, pass `--checkpoint-interval`
+or `--log-interval` directly.
+
 ### Recovering from interruption
 
-The runner checkpoints every 100K steps (~30–100MB each compressed,
-grows as rollout buffers fill up; last 3 kept) into
+The Mac runtime profile checkpoints every 25K steps (~30–100MB each
+compressed, grows as rollout buffers fill up; last 3 kept) into
 `results/baseline_faithful/seed_0/checkpoints/`. If the process
 dies — for any reason — you can resume from the latest checkpoint:
 
 ```
 python scripts/run_experiment_jax.py \
   --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
   --seed 0 \
   --resume
 ```
@@ -126,6 +154,7 @@ If you want to pin to a specific checkpoint:
 ```
 python scripts/run_experiment_jax.py \
   --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
   --seed 0 \
   --resume-from results/baseline_faithful/seed_0/checkpoints/step_05000000.npz
 ```

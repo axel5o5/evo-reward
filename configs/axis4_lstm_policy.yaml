@@ -125,9 +125,7 @@ action_clip_low:    -20.0
 action_clip_high:   80.0
 action_mapping:     "sigmoid"
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
-checkpoint_interval_steps:  25_000
-log_interval_steps:         10_000
+# Logging cadence lives in configs/runtime/*.yaml.
 
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 seed:               0
