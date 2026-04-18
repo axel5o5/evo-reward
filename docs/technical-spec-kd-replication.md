@@ -262,7 +262,7 @@ Where `δ` is sampled from a **Student's t-distribution with 2 degrees of freedo
 δ ~ t(df=2, scale=0.4)
 ```
 
-This is heavy-tailed (Cauchy-like), enabling occasional large jumps in reward space. The clip to [-100, 100] prevents numerical instability but is rarely active in practice.
+This is heavy-tailed (heavier than Gaussian, lighter than Cauchy/t(df=1)), enabling occasional large jumps in reward space. The clip to [-100, 100] prevents numerical instability but is rarely active in practice.
 
 **Critical note:** The paper says "Student's t-distribution with 2 degrees of freedom and a scale of 0.4." This is NOT a Gaussian. Use `scipy.stats.t(df=2, scale=0.4)` or equivalent. Earlier project documents say "Cauchy" — the t(df=2) is close but not identical to Cauchy (t with df=1). Use t(df=2) as specified in the paper.
 
