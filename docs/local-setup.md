@@ -133,6 +133,36 @@ python scripts/run_experiment_jax.py \
 Without `--resume`, the runner refuses to start if checkpoints already
 exist — this prevents accidental overwrite of an in-progress run.
 
+### Migrating a run between devices
+
+Checkpoints are plain compressed `.npz` files with no device-specific
+content, so you can hand off a run between Mac, Pi, and GCP L4 freely.
+Copy the latest checkpoint to the same relative path on the target
+machine and resume as normal:
+
+```
+# Example: Mac -> GCP L4
+gcloud compute scp --tunnel-through-iap --zone=us-central1-b \
+  --project=evo-reward \
+  results/baseline_faithful/seed_0/checkpoints/step_02000000.npz \
+  evo-reward-gpu:~/evo-reward/results/baseline_faithful/seed_0/checkpoints/
+
+# On the GCP VM:
+python scripts/run_experiment_jax.py \
+  --config configs/baseline_faithful.yaml --seed 0 --resume
+```
+
+Two caveats:
+
+- **Same config and git sha required.** The load path reconstructs the
+  pytree from a fresh template; a shape mismatch raises an error.
+- **Cross-device resume is not bit-identical.** GPU and CPU produce
+  slightly different floating-point results for some ops, so the post-
+  resume trajectory will drift from what would have happened on the
+  original device. This does not affect Phase 1a's emergent outcome —
+  the fear + affiliation result is robust to tiny FP noise — but
+  strict bit-identity only holds when you stay on one device.
+
 ---
 
 ## Raspberry Pi setup (smoke test only)
