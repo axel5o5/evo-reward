@@ -150,7 +150,7 @@ action_clip_high:   80.0             # CONFIRMED: max_force = 80.0
 action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
-checkpoint_interval_steps:  25_000   # save checkpoint every 25k steps
+checkpoint_interval_steps:  100_000  # save full SimState every 100k steps (~30-100MB compressed, last 3 kept)
 log_interval_steps:         10_000   # log metrics every 10k steps
 
 # ─── Reproducibility ─────────────────────────────────────────────────────────

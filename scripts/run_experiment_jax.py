@@ -9,6 +9,7 @@ only for agents with full rollout buffers, avoiding vmap+lax.cond overhead.
 Usage:
   python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0
   python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0 --max-steps 50000
+  python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0 --resume
 """
 
 import argparse
@@ -28,35 +29,67 @@ from src.environment import _build_physics
 from src.jax_state import SimState, init_simstate
 from src.jax_sim import build_sim_step
 from src.jax_ppo import build_ppo_update_fn
+from src.jax_checkpoint import (
+    save_simstate,
+    load_simstate,
+    find_latest_checkpoint,
+    rotate_checkpoints,
+    checkpoint_path,
+)
 
 
-def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
+CHECKPOINTS_TO_KEEP = 3
+
+
+def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
+                       resume=False, resume_from=None):
     """Main simulation loop using SimState + JIT-compiled sim_step_core."""
     total_steps = max_steps if max_steps is not None else config["total_steps"]
     rollout_steps = config["rollout_steps"]
     log_interval = config.get("log_interval_steps", 10_000)
-    ckpt_interval = config.get("checkpoint_interval_steps", 25_000)
+    ckpt_interval = config.get("checkpoint_interval_steps", 100_000)
     max_agents = config["prey_cap"] + config["predator_cap"]
+    exp_name = config.get("experiment_name", "unnamed")
+
+    ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
 
     # Build physics space and sim_step
     space, _ = _build_physics(config)
     sim_step_core, ppo_update_fn = build_sim_step(config, space)
 
-    # Initialize state
+    # Initialize state (also serves as the deserialization template)
     rng_key = jax.random.PRNGKey(seed)
     sim_state = init_simstate(config, rng_key)
+
+    # Resume handling
+    latest = find_latest_checkpoint(ckpt_dir)
+    if resume or resume_from is not None:
+        path = resume_from or latest
+        if path is None:
+            sys.exit(
+                f"--resume requested but no checkpoint found in {ckpt_dir}. "
+                f"Run without --resume to start fresh."
+            )
+        sim_state = load_simstate(path, sim_state)
+        print(f"Resumed from {path} at step {int(sim_state.step)}")
+    elif latest is not None:
+        sys.exit(
+            f"Checkpoints already exist in {ckpt_dir}.\n"
+            f"  Use --resume to continue from {latest}, or\n"
+            f"  delete the checkpoint dir to start fresh."
+        )
 
     n_prey = int(jnp.sum((sim_state.species == 0) & sim_state.is_active))
     n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
     n_food = int(jnp.sum(sim_state.food_active))
 
-    print(f"Starting experiment (JAX runner): {config.get('experiment_name', 'unnamed')}")
+    print(f"Starting experiment (JAX runner): {exp_name}")
     print(f"  Seed: {seed}, Steps: {total_steps}")
     print(f"  Prey: {n_prey}, Predators: {n_pred}, Food: {n_food}")
     print(f"  Max agents: {max_agents}, Rollout steps: {rollout_steps}")
     print()
 
-    # Warmup JIT
+    # Warmup JIT (always advances step by 1, whether fresh or resumed)
     print("Compiling sim_step_core (first call)...")
     t_compile_start = time.time()
     sim_state = sim_step_core(sim_state)
@@ -66,8 +99,9 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
     print()
 
     start_time = time.time()
+    start_step = int(sim_state.step)
 
-    for step in range(1, total_steps):
+    for step in range(start_step, total_steps):
         # --- Steps 1-9: JIT-compiled core ---
         sim_state = sim_step_core(sim_state)
 
@@ -103,7 +137,8 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
             n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
             n_food = int(jnp.sum(sim_state.food_active))
             elapsed = time.time() - start_time
-            sps = (step + 1) / elapsed
+            steps_done = (step + 1) - start_step
+            sps = steps_done / elapsed if elapsed > 0 else 0.0
 
             # Reward weight stats
             prey_active = (sim_state.species == 0) & sim_state.is_active
@@ -122,40 +157,27 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
 
         # --- Checkpointing ---
         if (step + 1) % ckpt_interval == 0:
-            _save_checkpoint_jax(sim_state, config, seed, out_dir)
+            _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
 
     # Final save
     jax.block_until_ready(sim_state.step)
-    _save_checkpoint_jax(sim_state, config, seed, out_dir)
+    _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
 
     elapsed = time.time() - start_time
-    print(f"\nDone. {total_steps} steps in {elapsed:.1f}s ({total_steps/elapsed:.1f} steps/s)")
+    steps_done = total_steps - start_step
+    print(f"\nDone. {steps_done} steps this invocation in {elapsed:.1f}s "
+          f"({steps_done/elapsed:.1f} steps/s). Final step: {total_steps}")
 
     return sim_state
 
 
-def _save_checkpoint_jax(sim_state, config, seed, out_dir):
-    """Save SimState checkpoint."""
-    exp_name = config.get("experiment_name", "unnamed")
-    ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
-    os.makedirs(ckpt_dir, exist_ok=True)
-
+def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed):
+    """Save full SimState and rotate old checkpoints."""
     step = int(sim_state.step)
-    path = os.path.join(ckpt_dir, f"step_{step:08d}.npz")
-
-    # Save key arrays (not full pytree — too large)
-    active = np.array(sim_state.is_active)
-    np.savez_compressed(
-        path,
-        step=step,
-        is_active=active,
-        species=np.array(sim_state.species),
-        energies=np.array(sim_state.energies),
-        ages=np.array(sim_state.ages),
-        reward_weights=np.array(sim_state.reward_weights),
-        food_active=np.array(sim_state.food_active),
-        food_internal=float(sim_state.food_internal),
-    )
+    path = checkpoint_path(out_dir, exp_name, seed, step)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    save_simstate(sim_state, path)
+    rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
 
 
 def main():
@@ -164,12 +186,19 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--out-dir", default="results")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from latest checkpoint in the seed's output dir")
+    parser.add_argument("--resume-from", default=None,
+                        help="Resume from an explicit checkpoint path (overrides --resume auto-detect)")
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
 
-    run_experiment_jax(config, args.seed, args.max_steps, args.out_dir)
+    run_experiment_jax(
+        config, args.seed, args.max_steps, args.out_dir,
+        resume=args.resume, resume_from=args.resume_from,
+    )
 
 
 if __name__ == "__main__":
