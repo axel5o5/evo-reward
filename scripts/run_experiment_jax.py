@@ -109,82 +109,95 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     start_time = time.time()
     start_step = int(sim_state.step)
 
+    # PPO readiness is batched every PPO_CHECK_EVERY steps to amortize the
+    # host<->device sync (np.array(sim_state.rollout_ptrs) blocks the Python
+    # loop on GPU completion). The tradeoff: when an agent's rollout fills
+    # (ptrs reaches rollout_steps=1024), subsequent sim_step_core calls clip
+    # the write index to slot rollout_steps-1 (jax_sim.py:123), so the final
+    # slot may get overwritten by up to (PPO_CHECK_EVERY - 1) later observations
+    # before PPO fires. At PPO_CHECK_EVERY=10 and rollout_steps=1024 that's
+    # ~0.1% of the rollout. Override with env var for exact-timing comparison.
+    PPO_CHECK_EVERY = int(os.environ.get("EVO_PPO_CHECK_EVERY", "10"))
+
+    def _maybe_fire_ppo(state):
+        """Pull rollout_ptrs+is_active, fire PPO for any ready agents."""
+        ptrs = np.array(state.rollout_ptrs)
+        active = np.array(state.is_active)
+        ready_mask = (ptrs >= rollout_steps) & active
+        ready_slots = np.where(ready_mask)[0]
+        if len(ready_slots) == 0:
+            return state
+        rng, ppo_key = jax.random.split(state.rng_key)
+        ppo_rngs = jax.random.split(ppo_key, max_agents)
+        new_params, new_opt, new_ptrs = ppo_update_fn(
+            state.policy_params, state.policy_opt_states,
+            state.rollout_obs, state.rollout_actions,
+            state.rollout_log_probs, state.rollout_rewards,
+            state.rollout_values, state.rollout_dones,
+            state.rollout_ptrs, state.is_active, ppo_rngs,
+        )
+        return state.replace(
+            policy_params=new_params,
+            policy_opt_states=new_opt,
+            rollout_ptrs=new_ptrs,
+            rng_key=rng,
+        )
+
+    def _log_progress(state, step):
+        jax.block_until_ready(state.step)
+        prey_mask = (state.species == 0) & state.is_active
+        pred_mask = (state.species == 1) & state.is_active
+        n_prey = int(jnp.sum(prey_mask))
+        n_pred = int(jnp.sum(pred_mask))
+        n_food = int(jnp.sum(state.food_active))
+        elapsed = time.time() - start_time
+        steps_done = (step + 1) - start_step
+        sps = steps_done / elapsed if elapsed > 0 else 0.0
+        any_active = bool(jnp.any(state.is_active))
+        mean_energy = (
+            float(jnp.mean(state.energies[state.is_active]))
+            if any_active else 0.0
+        )
+        if n_prey > 0:
+            prey_w = state.reward_weights[prey_mask]
+            wpd_mean = float(jnp.mean(prey_w[:, 3]))
+            wpd_std = float(jnp.std(prey_w[:, 3]))
+            wpy_mean = float(jnp.mean(prey_w[:, 2]))
+            wpy_std = float(jnp.std(prey_w[:, 2]))
+        else:
+            wpd_mean = wpd_std = wpy_mean = wpy_std = 0.0
+        print(
+            f"Step {step+1:>8d}/{total_steps} | "
+            f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
+            f"E={mean_energy:>5.1f} | "
+            f"w_pred={wpd_mean:+.2f}±{wpd_std:.2f} "
+            f"w_prey={wpy_mean:+.2f}±{wpy_std:.2f} | "
+            f"{sps:.1f} sps | "
+            f"{elapsed:.0f}s"
+        )
+
     for step in range(start_step, total_steps):
         # --- Steps 1-9: JIT-compiled core ---
         sim_state = sim_step_core(sim_state)
 
-        # --- Step 10: PPO update (Python-side, only for ready agents) ---
-        ptrs = np.array(sim_state.rollout_ptrs)
-        active = np.array(sim_state.is_active)
-        ready_mask = (ptrs >= rollout_steps) & active
-        ready_slots = np.where(ready_mask)[0]
-
-        if len(ready_slots) > 0:
-            rng, ppo_key = jax.random.split(sim_state.rng_key)
-            ppo_rngs = jax.random.split(ppo_key, max_agents)
-
-            new_params, new_opt, new_ptrs = ppo_update_fn(
-                sim_state.policy_params, sim_state.policy_opt_states,
-                sim_state.rollout_obs, sim_state.rollout_actions,
-                sim_state.rollout_log_probs, sim_state.rollout_rewards,
-                sim_state.rollout_values, sim_state.rollout_dones,
-                sim_state.rollout_ptrs, sim_state.is_active, ppo_rngs,
-            )
-
-            sim_state = sim_state.replace(
-                policy_params=new_params,
-                policy_opt_states=new_opt,
-                rollout_ptrs=new_ptrs,
-                rng_key=rng,
-            )
+        # --- Step 10: PPO update (batched) ---
+        if (step + 1) % PPO_CHECK_EVERY == 0:
+            sim_state = _maybe_fire_ppo(sim_state)
 
         # --- Logging ---
         if (step + 1) % log_interval == 0:
-            jax.block_until_ready(sim_state.step)
-            prey_mask = (sim_state.species == 0) & sim_state.is_active
-            pred_mask = (sim_state.species == 1) & sim_state.is_active
-            n_prey = int(jnp.sum(prey_mask))
-            n_pred = int(jnp.sum(pred_mask))
-            n_food = int(jnp.sum(sim_state.food_active))
-
-            elapsed = time.time() - start_time
-            steps_done = (step + 1) - start_step
-            sps = steps_done / elapsed if elapsed > 0 else 0.0
-
-            # Energy — mean across living agents (sanity check for population health)
-            any_active = bool(jnp.any(sim_state.is_active))
-            mean_energy = (
-                float(jnp.mean(sim_state.energies[sim_state.is_active]))
-                if any_active else 0.0
-            )
-
-            # Reward weights — mean ± std of the two science-critical weights
-            # across prey (w_pred = fear, w_prey = social affiliation).
-            # reward_weights layout: [w_eat, w_act, w_prey, w_pred]
-            if n_prey > 0:
-                prey_w = sim_state.reward_weights[prey_mask]
-                wpd_mean = float(jnp.mean(prey_w[:, 3]))
-                wpd_std = float(jnp.std(prey_w[:, 3]))
-                wpy_mean = float(jnp.mean(prey_w[:, 2]))
-                wpy_std = float(jnp.std(prey_w[:, 2]))
-            else:
-                wpd_mean = wpd_std = wpy_mean = wpy_std = 0.0
-
-            print(
-                f"Step {step+1:>8d}/{total_steps} | "
-                f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
-                f"E={mean_energy:>5.1f} | "
-                f"w_pred={wpd_mean:+.2f}±{wpd_std:.2f} "
-                f"w_prey={wpy_mean:+.2f}±{wpy_std:.2f} | "
-                f"{sps:.1f} sps | "
-                f"{elapsed:.0f}s"
-            )
+            _log_progress(sim_state, step)
 
         # --- Checkpointing ---
         if (step + 1) % ckpt_interval == 0:
+            # Fire any pending PPO so the checkpoint reflects the correct
+            # post-update state (ptrs reset etc.) rather than a mid-batch
+            # stale view.
+            sim_state = _maybe_fire_ppo(sim_state)
             _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
 
-    # Final save
+    # Final flush: fire any pending PPO, then save
+    sim_state = _maybe_fire_ppo(sim_state)
     jax.block_until_ready(sim_state.step)
     _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
 
