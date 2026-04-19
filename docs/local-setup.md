@@ -61,21 +61,21 @@ python -c "import jax; print(jax.devices())"
 
 On Apple Silicon CPU: `[CpuDevice(id=0)]`.
 
-### Optional: JAX Metal for Apple Silicon
+### Optional: JAX Metal for Apple Silicon — does NOT work (as of 2026-04)
 
-`jax-metal` uses the Mac's GPU via Metal, which is faster than CPU but
-has known compatibility gaps. As of 2026 it supports most basic ops but
-not every primitive the sim uses, so the code may fall back to CPU
-silently. Only try this if you're comfortable debugging missing-op
-errors.
+We tried `jax-metal` 0.1.1 with JAX 0.9.2 on an M4 Pro. Metal is
+detected (`[METAL(id=0)]`), but `phyjax2d`'s `ShapeDict` initializer
+calls `jnp.empty(0)`, which triggers a `convert_element_type` code
+path Metal doesn't implement:
 
 ```
-pip install jax-metal
+jax.errors.JaxRuntimeError: UNIMPLEMENTED: default_memory_space is not supported.
 ```
 
-If it works, `jax.devices()` will show `[METAL(id=0)]`. If the sim
-crashes with `NotImplementedError` on a specific lax op, uninstall and
-stick with `jax[cpu]`.
+The failure happens inside `init_simstate(...)`, before the first
+sim step — there's no workaround at the runner level. Skip
+`jax-metal` until either phyjax2d stops using `empty` or jax-metal
+ships support for that op. Stick with `pip install -U "jax[cpu]"`.
 
 ### Run Phase 1a locally
 
@@ -256,9 +256,10 @@ Pi's only validation role — don't try to train.
 silently. On Pi, run `pip install --no-binary :all: phyjax2d` to force
 a source build and get a clearer error trace.
 
-**`RuntimeError: Backend 'metal' ... failed to initialize`** — `jax-metal`
-is installed but the op graph uses something Metal doesn't implement.
-`pip uninstall jax-metal && pip install -U "jax[cpu]"`.
+**`UNIMPLEMENTED: default_memory_space is not supported`** — `jax-metal`
+is installed and active, but our workload hits a primitive Metal
+doesn't implement (see "Optional: JAX Metal" above — this path is a
+known dead end for now). `pip uninstall jax-metal`.
 
 **Tests pass but `run_experiment_jax.py` is wildly slow** — Python may
 be falling back to 32-bit NumPy on an old libopenblas build. On Mac:
