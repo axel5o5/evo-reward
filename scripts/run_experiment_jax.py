@@ -17,6 +17,14 @@ import os
 import sys
 import time
 
+# Enable CPU-friendly XLA optimizations (harmless on GPU — flags are ignored
+# by the non-CPU backend). Must be set before `import jax` so XLA picks them
+# up at client init. Override by exporting XLA_FLAGS before invoking.
+os.environ.setdefault(
+    "XLA_FLAGS",
+    "--xla_cpu_enable_fast_math=true --xla_cpu_use_thunk_runtime=true",
+)
+
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
