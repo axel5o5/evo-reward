@@ -1,0 +1,17 @@
+# Runtime profile for GCP L4 spot/preemptible VMs.
+#
+# Spot VMs can be preempted at any time (GCP reclaims the hardware)
+# and the VM is STOPPED with 30 sec warning. The cost is ~70% cheaper
+# than on-demand but you pay for it in unpredictability.
+#
+# Cadence is tuned so that a preemption loses at most ~1 minute of
+# training work on average:
+#   - checkpoint every 25k steps (~1.75 min at 237 steps/s on L4)
+#   - log every 5k steps (~21 sec)
+#
+# Save overhead with --runtime gcp_l4_spot.yaml is ~3% of wall clock —
+# the user opted in to trade a small slowdown for preemption resilience.
+# See docs/gcp-spot.md for the full recipe.
+
+checkpoint_interval_steps: 25_000
+log_interval_steps:        5_000

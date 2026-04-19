@@ -100,6 +100,7 @@ evo-reward/
 Two setup runbooks cover the realistic venues for Phase 1a:
 
 - **[docs/gcp-setup.md](docs/gcp-setup.md)** — provisioning a GCP Compute Engine VM with an L4 GPU (~12h / ~$8.50 per seed). Covers quota requests, Cloud NAT + IAP SSH for projects that forbid external IPs on VMs, and the full training invocation.
+- **[docs/gcp-spot.md](docs/gcp-spot.md)** — cheaper spot/preemptible L4 path (~60–70% off, ~$3–6 per seed). Trade: occasional preemptions that `--resume` absorbs. Addendum to `gcp-setup.md` — reuses steps 1–6.
 - **[docs/local-setup.md](docs/local-setup.md)** — running on a Mac (measured ~3 steps/s on M4 — useful for smoke tests and cross-device staging, not realistic for full runs) and on a Raspberry Pi (smoke-test only). Includes the `--resume` flow for surviving interruptions and handing checkpoints between devices.
 
 Runtime cadences (checkpoint/log frequency) live in `configs/runtime/*.yaml` and are passed separately from the science config, so the same experiment can run with different ops settings on different hardware:
