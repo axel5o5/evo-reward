@@ -84,8 +84,8 @@ The policy MLP receives, at every step:
 
 ### Predator hunting prey
 
-- Predators hunt by initiating contact within a **mouth range** (the "medium" default is a 60-degree arc, range 40–80 units — see Figure 3)
-- Default mouth range for baseline experiment: **medium (60°)**
+- Predators hunt by initiating contact within a **mouth range**. K&D define three mouth geometries (Figure 3): **small**, **medium** (60° arc, 40–80 unit range), and **large**. The three are used as distinct experimental conditions — K&D's "environmental sensitivity" finding (larger mouths → stronger evolved prey fear) is produced by running all three.
+- **Our replication uses the medium condition only.** The small/large conditions are out of scope for Phase 1a; see `experimental-plan.md` for scope rationale.
 - Energy gain per prey caught: determined by digestion rate `η` — predators gain approximately 6–10 energy units per catch (see energy update equation, Section 3)
 - Predators **cannot** eat food items
 

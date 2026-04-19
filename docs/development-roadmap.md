@@ -74,6 +74,8 @@ See `tests/test_phase0.py` — automated checks listed in the Testing section be
 
 **Deliverable:** Plots matching K&D Figures 6, 7, and 8 (population dynamics, reward weight trajectories, reward weight KDE scatter). These are generated automatically by `analysis/dashboards.py`.
 
+**Scope note — predator lethality sweep omitted:** K&D run three mouth-size conditions (small/medium/large, Figure 3) and report that larger mouths → stronger evolved fear. Phase 1a uses the **medium** condition only. The small/large conditions are treated as an optional post-Phase-1a follow-up, not a blocker for the gate above. Do not claim reproduction of K&D's environmental-sensitivity finding from medium-only data.
+
 **If replication fails:** Stop. Do not proceed to Phase 1b. Debug using the K&D open-source code (`github.com/oist/emevo`) as ground truth — run their code on the same seed and compare step-by-step. The most likely failure modes, in order:
 1. PPO not converging (agents not learning to eat) — check learning rate, rollout length
 2. Evolution not running (weights not drifting) — check mutation scale, birth/death rates

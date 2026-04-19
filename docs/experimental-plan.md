@@ -257,6 +257,8 @@ Standardized plot functions that work on any run's `metrics.npz`:
 
 **Compute cost:** ~10–24 hours (1–2 runs at K&D's ~10–12 hours per run).
 
+**Scoped out — predator lethality sweep:** K&D run three predator mouth-size conditions (small/medium/large, Figure 3) and report that larger mouths produce stronger evolved fear in prey. Phase 1a uses the **medium** condition only. Replicating the full sweep would ~3× the compute cost and is not required for the Phase 1a gate (which evaluates absolute thresholds on `w_pred`, `w_prey`, `w_eat`, not cross-condition gradients). If we want to claim we reproduced K&D's environmental-sensitivity finding, the small + large conditions should be added as a follow-up — feasible as a single-seed sweep after the main result lands.
+
 ### Phase 1b: Simplification validation and architectural comparison
 
 **Goal:** Test how shared policy affects K&D's core dynamics. This is not just validation — it's a controlled experiment testing H1–H3 and H5–H7 (see "Architectural choices as a scientific contribution" above).
