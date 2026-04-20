@@ -12,6 +12,7 @@ type VM = {
   runtime_hours_current: number | null;
   hourly_rate_usd: number | null;
   estimated_current_run_usd: number | null;
+  labels: Record<string, string>;     // { experiment, phase, seed }
 };
 
 type Checkpoints = {
@@ -32,6 +33,27 @@ type Costs = {
   month_to_date_usd: number | null;
 };
 
+type WeightPair = [number, number];  // [mean, std]
+
+type Training = {
+  experiment_name: string;
+  seed: number;
+  step: number;
+  total_steps: number;
+  progress_frac: number;
+  sps: number;
+  eta_hours: number | null;
+  population: {
+    prey?: number; pred?: number; food?: number; mean_energy?: number;
+  };
+  reward_weights: {
+    prey?: Record<string, WeightPair>;
+    pred?: Record<string, WeightPair>;
+  };
+  progress_file_age_hours: number;
+  evolution_detected: boolean;
+};
+
 type WorkerError = { stage: string; message: string };
 
 type Payload = {
@@ -40,9 +62,16 @@ type Payload = {
   vm: VM;
   checkpoints: Checkpoints;
   costs: Costs;
-  training: unknown | null;
+  training: Training | null;
   errors: WorkerError[];
 };
+
+// Static link to the config file on GitHub's main branch. The VM's
+// experiment label matches configs/<experiment>.yaml by convention.
+const GH_REPO_URL = "https://github.com/axel5o5/evo-reward";
+function configUrlFor(experiment: string): string {
+  return `${GH_REPO_URL}/blob/main/configs/${experiment}.yaml`;
+}
 
 // Default to the Vercel proxy route (api/status.ts), which reads from
 // the private gcp-status branch with a server-side PAT. Local dev can
@@ -58,6 +87,7 @@ const FIXTURE: Payload = {
     name: "evo-reward-gpu", status: "UNKNOWN", zone: null, machine_type: null,
     provisioning: "UNKNOWN", created_at: null, last_started_at: null,
     runtime_hours_current: null, hourly_rate_usd: null, estimated_current_run_usd: null,
+    labels: {},
   },
   checkpoints: {
     bucket: "evo-reward-ckpts", count: 0,
@@ -97,7 +127,7 @@ function statusClasses(status: string): string {
 }
 
 function Card({ title, children, footer }: {
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
@@ -134,6 +164,11 @@ function VMCard({ vm }: { vm: VM }) {
   const provLabel = vm.provisioning === "SPOT" ? "spot" :
                     vm.provisioning === "STANDARD" ? "on-demand" :
                     vm.provisioning.toLowerCase();
+  const experiment = vm.labels.experiment;
+  const phase = vm.labels.phase;
+  const seed = vm.labels.seed;
+  const hasRunIdentity = !!(experiment || phase || seed);
+
   return (
     <Card title="VM">
       <div className="flex items-center gap-2 mb-3">
@@ -145,11 +180,130 @@ function VMCard({ vm }: { vm: VM }) {
           <span className="text-xs text-gray-500 dark:text-gray-400">({provLabel})</span>
         )}
       </div>
+
+      {hasRunIdentity && (
+        <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800 text-xs">
+          <div className="text-gray-500 dark:text-gray-400 mb-1">Run</div>
+          <div className="font-mono text-gray-900 dark:text-gray-100">
+            {experiment || "?"}
+            {phase && <span className="text-gray-400"> · phase {phase}</span>}
+            {seed !== undefined && <span className="text-gray-400"> · seed {seed}</span>}
+          </div>
+          {experiment && (
+            <a
+              href={configUrlFor(experiment)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
+            >
+              configs/{experiment}.yaml ↗
+            </a>
+          )}
+        </div>
+      )}
+
       <Row label="Zone" value={vm.zone || "—"} />
       <Row label="Machine" value={vm.machine_type || "—"} />
       <Row label="Runtime (current)" value={hoursToDuration(vm.runtime_hours_current)} />
       <Row label="Hourly rate" value={vm.hourly_rate_usd != null ? `$${vm.hourly_rate_usd.toFixed(3)}/h` : "—"} />
       <Row label="Current run cost" value={usd(vm.estimated_current_run_usd)} />
+    </Card>
+  );
+}
+
+function WeightLine({
+  label, pair, wantSign, note,
+}: {
+  label: string;
+  pair: WeightPair | undefined;
+  wantSign?: "+" | "-" | null;
+  note: string;
+}) {
+  if (!pair) return null;
+  const [m, s] = pair;
+  let tone = "text-gray-500 dark:text-gray-500";
+  if (wantSign === "+") tone = m > 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400";
+  else if (wantSign === "-") tone = m < 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400";
+  return (
+    <div className="flex justify-between text-xs font-mono py-0.5">
+      <span className="text-gray-600 dark:text-gray-400 w-14">{label}</span>
+      <span className="w-20 text-right text-gray-900 dark:text-gray-100">
+        {m >= 0 ? "+" : ""}{m.toFixed(3)} ± {s.toFixed(3)}
+      </span>
+      <span className={`flex-1 pl-3 text-[10px] ${tone}`}>{note}</span>
+    </div>
+  );
+}
+
+function TrainingCard({ t }: { t: Training }) {
+  const pct = (t.progress_frac * 100);
+  const pop = t.population;
+  const prey = t.reward_weights.prey;
+  const pred = t.reward_weights.pred;
+  const fresh = t.progress_file_age_hours < 0.2;
+
+  return (
+    <Card
+      title={
+        <span>
+          Training
+          {t.evolution_detected && (
+            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 normal-case">
+              evolution detected
+            </span>
+          )}
+        </span>
+      }
+      footer={`progress.json age: ${hoursToDuration(t.progress_file_age_hours)}${fresh ? "" : " — may be stale"}`}
+    >
+      <div className="mb-3">
+        <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+          <span>Step {t.step.toLocaleString()} / {t.total_steps.toLocaleString()}</span>
+          <span className="font-mono">{pct.toFixed(2)}%</span>
+        </div>
+        <div className="h-2 rounded bg-gray-200 dark:bg-gray-800 overflow-hidden">
+          <div
+            className="h-full bg-blue-500 dark:bg-blue-600 transition-all"
+            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+          />
+        </div>
+      </div>
+
+      <Row
+        label="Rate"
+        value={<span>{t.sps.toFixed(1)} sps
+          {t.eta_hours != null && (
+            <span className="text-gray-400 ml-1">· ETA {hoursToDuration(t.eta_hours)}</span>
+          )}
+        </span>}
+      />
+      {pop && (
+        <Row
+          label="Population"
+          value={<span>prey {pop.prey ?? "—"} · pred {pop.pred ?? "—"} · food {pop.food ?? "—"} · E {pop.mean_energy?.toFixed(1) ?? "—"}</span>}
+          mono={false}
+        />
+      )}
+
+      {prey && (
+        <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prey reward weights</div>
+          <WeightLine label="w_eat"  pair={prey.eat}  wantSign="+" note="food reward (want >0)" />
+          <WeightLine label="w_act"  pair={prey.act}  wantSign={null} note="K&D: consistently >0" />
+          <WeightLine label="w_prey" pair={prey.prey} wantSign="+" note="social affiliation (want >0)" />
+          <WeightLine label="w_pred" pair={prey.pred} wantSign="-" note="fear (want <0)" />
+        </div>
+      )}
+
+      {pred && (
+        <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Predator reward weights</div>
+          <WeightLine label="w_eat"  pair={pred.eat}  wantSign="+" note="food reward (want >0)" />
+          <WeightLine label="w_act"  pair={pred.act}  wantSign={null} note="varies ± by seed" />
+          <WeightLine label="w_prey" pair={pred.prey} wantSign="+" note="prey attraction (want >0)" />
+          <WeightLine label="w_pred" pair={pred.pred} wantSign="+" note="social (K&D strongest finding)" />
+        </div>
+      )}
     </Card>
   );
 }
@@ -495,6 +649,17 @@ export default function GcpMonitor() {
             <CheckpointsCard c={payload.checkpoints} />
             <CostsCard costs={payload.costs} />
           </div>
+
+          {payload.training ? (
+            <div className="mt-6">
+              <TrainingCard t={payload.training} />
+            </div>
+          ) : (
+            <div className="mt-6 p-4 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+              No training progress reported yet. The runner writes <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> every log interval; the gcs-sync sidecar pushes it to GCS every 5 min. Expect this card to appear within a few minutes of training starting.
+            </div>
+          )}
+
           <div className="mt-6 max-w-md">
             <ControlPanel vmStatus={payload.vm.status} />
           </div>

@@ -13,6 +13,8 @@ Usage:
 """
 
 import argparse
+import datetime
+import json
 import os
 import sys
 import time
@@ -154,6 +156,11 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             rng_key=rng,
         )
 
+    # Progress file lands next to checkpoints so the gcs-sync sidecar picks
+    # it up for free. Dashboard monitor reads this via the GCS API so it
+    # can show training progress without SSHing the VM.
+    progress_file = os.path.join(out_dir, exp_name, f"seed_{seed}", "progress.json")
+
     def _log_progress(state, step):
         """Persist time-series metrics and print a one-line progress summary."""
         jax.block_until_ready(state.step)
@@ -195,6 +202,44 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             f"{sps:.1f} sps | "
             f"{elapsed:.0f}s"
         )
+
+        # Mirror the same values to progress.json. Atomic replace (write +
+        # rename) so the gcs-sync sidecar never catches a half-written file.
+        progress_payload = {
+            "updated_at": datetime.datetime.now(datetime.timezone.utc)
+                .isoformat(timespec="seconds"),
+            "experiment_name": exp_name,
+            "seed": int(seed),
+            "step": int(step + 1),
+            "total_steps": int(total_steps),
+            "sps": float(sps),
+            "elapsed_seconds": float(elapsed),
+            "population": {
+                "prey": int(n_prey),
+                "pred": int(n_pred),
+                "food": int(n_food),
+                "mean_energy": float(mean_energy),
+            },
+            "reward_weights": {
+                "prey": {
+                    "eat":  [float(py_eat_m),  float(py_eat_s)],
+                    "act":  [float(py_act_m),  float(py_act_s)],
+                    "prey": [float(py_prey_m), float(py_prey_s)],
+                    "pred": [float(py_pred_m), float(py_pred_s)],
+                },
+                "pred": {
+                    "eat":  [float(pd_eat_m),  float(pd_eat_s)],
+                    "act":  [float(pd_act_m),  float(pd_act_s)],
+                    "prey": [float(pd_prey_m), float(pd_prey_s)],
+                    "pred": [float(pd_pred_m), float(pd_pred_s)],
+                },
+            },
+        }
+        os.makedirs(os.path.dirname(progress_file), exist_ok=True)
+        tmp = progress_file + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(progress_payload, f, indent=2)
+        os.replace(tmp, progress_file)
 
     for step in range(start_step, total_steps):
         # --- Steps 1-9: JIT-compiled core ---

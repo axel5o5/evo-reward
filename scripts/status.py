@@ -421,8 +421,18 @@ def render(args):
         tail = "\n".join(log_text.splitlines()[-args.log:])
         print(c(tail, C_DIM))
 
-    print(f"\n{c('watch:  gcloud compute ssh ' + VM_NAME + ' --zone=' + zone + ' --tunnel-through-iap --command=\"tail -f ~/phase1a.log\"', C_DIM)}")
-    print(f"{c('attach: gcloud compute ssh ' + VM_NAME + ' --zone=' + zone + ' --tunnel-through-iap -- -t \"tmux attach -t phase1a\"', C_DIM)}")
+    # Avoid backslashes inside the f-string expression — rejected by
+    # Python < 3.12 (allowed from PEP 701). Build the strings up front.
+    watch_cmd = (
+        'watch:  gcloud compute ssh ' + VM_NAME + ' --zone=' + zone
+        + ' --tunnel-through-iap --command="tail -f ~/phase1a.log"'
+    )
+    attach_cmd = (
+        'attach: gcloud compute ssh ' + VM_NAME + ' --zone=' + zone
+        + ' --tunnel-through-iap -- -t "tmux attach -t phase1a"'
+    )
+    print("\n" + c(watch_cmd, C_DIM))
+    print(c(attach_cmd, C_DIM))
 
 
 def main():

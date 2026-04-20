@@ -39,6 +39,28 @@ class VMInfo:
     runtime_hours_current: float | None   # since last_started_at (only if RUNNING)
     hourly_rate_usd: float | None
     estimated_current_run_usd: float | None
+    labels: dict[str, str]         # from spot_orchestrator: experiment, phase, seed
+
+
+@dataclasses.dataclass
+class TrainingState:
+    """Populated from gs://<bucket>/results/<experiment>/seed_<N>/progress.json.
+
+    The runner writes this at every log interval (see _log_progress in
+    scripts/run_experiment_jax.py). The gcs-sync sidecar rsyncs it to
+    the bucket every 5 min, so it lags behind real training by 0-5 min.
+    """
+    experiment_name: str
+    seed: int
+    step: int
+    total_steps: int
+    progress_frac: float            # step / total_steps
+    sps: float
+    eta_hours: float | None
+    population: dict                # {prey, pred, food, mean_energy}
+    reward_weights: dict            # {prey: {eat/act/prey/pred: [m, s]}, pred: ...}
+    progress_file_age_hours: float  # how stale the file is on disk
+    evolution_detected: bool        # max|mean| > 0.2 (init std × 2)
 
 
 @dataclasses.dataclass
@@ -145,6 +167,7 @@ def describe_vm(
             created_at=None, last_started_at=None,
             runtime_hours_current=None,
             hourly_rate_usd=None, estimated_current_run_usd=None,
+            labels={},
         )
 
     inst, zone = found
@@ -166,6 +189,7 @@ def describe_vm(
         runtime_hours_current=runtime,
         hourly_rate_usd=rate,
         estimated_current_run_usd=est,
+        labels=dict(inst.labels or {}),
     )
 
 
@@ -202,6 +226,95 @@ def probe_checkpoints(project_id: str, bucket: str, credentials) -> CheckpointSt
         latest_step=latest_step if latest_step >= 0 else None,
         latest_age_hours=age_hours,
         total_gb=round(total_bytes / 1e9, 4),
+    )
+
+
+def probe_training(
+    project_id: str,
+    bucket: str,
+    experiment_name: str | None,
+    seed: str | None,
+    credentials,
+) -> TrainingState | None:
+    """Read the latest progress.json for the given run from GCS.
+
+    If experiment_name/seed are given (from VM labels), fetch the exact
+    file at results/<experiment_name>/seed_<seed>/progress.json. Otherwise
+    scan the bucket for any progress.json and take the freshest.
+
+    Returns None if no progress file exists or if it can't be parsed.
+    """
+    from google.cloud import storage
+    client = storage.Client(project=project_id, credentials=credentials)
+    b = client.bucket(bucket)
+
+    blob = None
+    if experiment_name and seed is not None:
+        candidate = b.blob(f"results/{experiment_name}/seed_{seed}/progress.json")
+        if candidate.exists():
+            blob = candidate
+
+    if blob is None:
+        # Fallback: take the most recently updated progress.json anywhere
+        # under results/. Useful when labels aren't set yet.
+        best_mtime = None
+        for it in b.list_blobs(prefix="results/"):
+            if not it.name.endswith("/progress.json"):
+                continue
+            if best_mtime is None or it.updated > best_mtime:
+                best_mtime = it.updated
+                blob = it
+
+    if blob is None:
+        return None
+
+    import json as _json
+    raw = blob.download_as_bytes()
+    try:
+        data = _json.loads(raw)
+    except _json.JSONDecodeError:
+        return None
+
+    step = int(data.get("step", 0))
+    total = int(data.get("total_steps", 1))
+    sps = float(data.get("sps", 0.0))
+    progress_frac = step / total if total > 0 else 0.0
+    remaining = max(total - step, 0)
+    eta_hours = remaining / sps / 3600.0 if sps > 0 else None
+
+    # Evolution gate from validate_replication.py: max|mean| > 2x init std (0.1).
+    rw = data.get("reward_weights") or {}
+    all_means = []
+    for species_block in rw.values():
+        if not isinstance(species_block, dict):
+            continue
+        for pair in species_block.values():
+            if isinstance(pair, (list, tuple)) and len(pair) >= 1:
+                try:
+                    all_means.append(abs(float(pair[0])))
+                except (TypeError, ValueError):
+                    continue
+    evolution_detected = bool(all_means) and max(all_means) > 0.2
+
+    age_h: float | None = None
+    if blob.updated is not None:
+        age_h = round(
+            (dt.datetime.now(dt.timezone.utc) - blob.updated).total_seconds() / 3600.0,
+            3,
+        )
+
+    return TrainingState(
+        experiment_name=data.get("experiment_name", ""),
+        seed=int(data.get("seed", 0)),
+        step=step,
+        total_steps=total,
+        progress_frac=round(progress_frac, 5),
+        sps=round(sps, 3),
+        eta_hours=round(eta_hours, 2) if eta_hours is not None else None,
+        population=data.get("population") or {},
+        reward_weights=rw,
+        progress_file_age_hours=age_h if age_h is not None else 0.0,
+        evolution_detected=evolution_detected,
     )
 
 
@@ -267,7 +380,8 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         vm = VMInfo(name=vm_name, status="UNKNOWN", zone=None, machine_type=None,
                     provisioning="UNKNOWN", created_at=None, last_started_at=None,
                     runtime_hours_current=None,
-                    hourly_rate_usd=None, estimated_current_run_usd=None)
+                    hourly_rate_usd=None, estimated_current_run_usd=None,
+                    labels={})
 
     # GCS checkpoints
     try:
@@ -276,6 +390,19 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         errors.append(WorkerError("checkpoints", str(e)))
         ckpt = CheckpointState(bucket=gcs_cfg.get("bucket", ""), count=0,
                                latest_step=None, latest_age_hours=None, total_gb=None)
+
+    # Training progress (from progress.json in the bucket)
+    training: TrainingState | None = None
+    try:
+        training = probe_training(
+            project_id,
+            gcs_cfg["bucket"],
+            vm.labels.get("experiment") if vm.labels else None,
+            vm.labels.get("seed") if vm.labels else None,
+            creds,
+        )
+    except Exception as e:
+        errors.append(WorkerError("training", str(e)))
 
     # Billing
     billing_actual = billing_as_of = mtd = None
@@ -325,7 +452,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         "vm": dataclasses.asdict(vm),
         "checkpoints": dataclasses.asdict(ckpt),
         "costs": dataclasses.asdict(costs),
-        "training": None,   # future: populated from gs://.../progress.json
+        "training": dataclasses.asdict(training) if training else None,
         "errors": [dataclasses.asdict(e) for e in errors],
     }
 
@@ -360,26 +487,40 @@ def _synthetic_payload() -> dict[str, Any]:
         "project_id": "evo-reward",
         "vm": {
             "name": "evo-reward-gpu", "status": "RUNNING", "zone": "us-central1-a",
-            "machine_type": "g2-standard-8", "provisioning": "SPOT",
+            "machine_type": "g2-standard-8", "provisioning": "STANDARD",
             "created_at": "2026-04-18T12:00:00+00:00",
             "last_started_at": "2026-04-20T02:00:00+00:00",
             "runtime_hours_current": 6.5,
-            "hourly_rate_usd": 0.28, "estimated_current_run_usd": 1.82,
+            "hourly_rate_usd": 0.85, "estimated_current_run_usd": 5.52,
+            "labels": {"experiment": "baseline_faithful", "phase": "1a", "seed": "0"},
         },
         "checkpoints": {
             "bucket": "evo-reward-ckpts", "count": 41, "latest_step": 410_000,
             "latest_age_hours": 0.08, "total_gb": 2.31,
         },
         "costs": {
-            "compute_current_run": 1.82,
-            "nat_since_active": 10.56,   # ~240h × $0.044
+            "compute_current_run": 5.52,
+            "nat_since_active": 2.50,
             "storage_current": 0.03,
-            "live_estimate_total": 12.41,
-            "billing_actual_usd": 8.91,
-            "billing_as_of": "2026-04-19T00:00:00+00:00",
-            "month_to_date_usd": 41.30,
+            "live_estimate_total": 8.05,
+            "billing_actual_usd": None,
+            "billing_as_of": None,
+            "month_to_date_usd": None,
         },
-        "training": None,
+        "training": {
+            "experiment_name": "baseline_faithful", "seed": 0,
+            "step": 410_000, "total_steps": 10_240_000, "progress_frac": 0.04,
+            "sps": 34.5, "eta_hours": 79.2,
+            "population": {"prey": 180, "pred": 12, "food": 258, "mean_energy": 131.8},
+            "reward_weights": {
+                "prey": {"eat": [0.12, 0.15], "act": [0.05, 0.18],
+                         "prey": [0.00, 0.35], "pred": [-0.04, 0.47]},
+                "pred": {"eat": [0.08, 0.12], "act": [0.02, 0.19],
+                         "prey": [0.03, 0.24], "pred": [0.10, 0.21]},
+            },
+            "progress_file_age_hours": 0.08,
+            "evolution_detected": False,
+        },
         "errors": [],
     }
 

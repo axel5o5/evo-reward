@@ -31,10 +31,49 @@ Pieces: [scripts/gcp_monitor.py](../../scripts/gcp_monitor.py),
 
 | Source | Signal |
 |---|---|
-| Compute Engine API | `evo-reward-gpu` status, zone, machine, SPOT vs STANDARD, runtime |
-| Cloud Storage API | `gs://evo-reward-ckpts` — checkpoint count, latest step, last-saved age, bucket size |
+| Compute Engine API | `evo-reward-gpu` status, zone, machine, SPOT vs STANDARD, runtime, **labels (experiment / phase / seed)** |
+| Cloud Storage API | `gs://evo-reward-ckpts` — checkpoint count, latest step, last-saved age, bucket size, **progress.json** |
 | Config (static) | Hourly pricing, NAT rate, `nat_active_since` timestamp |
 | BigQuery (optional) | Billing export for authoritative cost, ~24h lag |
+
+### VM labels = run identity
+
+`spot_orchestrator.py` sets these on VM creation so the dashboard knows
+what's running:
+
+| Label | Source | Example |
+|---|---|---|
+| `experiment` | `experiment_name` from the config YAML | `baseline_faithful` |
+| `phase` | orchestrator `--phase` flag (default `1a`) | `1a` |
+| `seed` | orchestrator `--seed` flag | `0` |
+
+The monitor uses `labels.experiment` + `labels.seed` to find the right
+`progress.json` under `results/<experiment>/seed_<N>/` — so swapping
+experiments (e.g. baseline → axis1) automatically picks up the correct
+training stream without config changes.
+
+### progress.json schema
+
+The runner writes it at every `log_interval_steps` (5-10k steps, ~2-5
+min of wall-clock). Same numbers `status.py` parses from the log line:
+
+```json
+{
+  "experiment_name": "baseline_faithful",
+  "seed": 0,
+  "step": 115000,
+  "total_steps": 10240000,
+  "sps": 25.2,
+  "population": {"prey": 450, "pred": 50, "food": 600, "mean_energy": 179.6},
+  "reward_weights": {
+    "prey": {"eat": [0.09, 0.86], "act": [0.09, 1.12], "prey": [0.03, 0.75], "pred": [0.07, 0.87]},
+    "pred": {"eat": [-0.14, 0.88], "act": [0.17, 0.97], "prey": [0.45, 2.36], "pred": [0.22, 3.82]}
+  }
+}
+```
+
+The gcs-sync sidecar rsyncs `results/` to `gs://evo-reward-ckpts/` every
+5 min, so progress lags real training by 0-5 min.
 
 ## One-time setup
 
