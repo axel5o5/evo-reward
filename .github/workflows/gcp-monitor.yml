@@ -74,11 +74,14 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
 
       # ----- Run worker ---------------------------------------------------
+      # Write outside the checked-out repo so `git checkout -B gcp-status`
+      # below doesn't trip on an untracked local file colliding with the
+      # tracked file on the target branch.
       - name: Poll project
         run: |
           python scripts/gcp_monitor.py \
             --config scripts/gcp_monitor_config.yaml \
-            --out gcp-status.json
+            --out "$RUNNER_TEMP/gcp-status.json"
 
       # ----- Publish ------------------------------------------------------
       - name: Publish to gcp-status branch
@@ -98,7 +101,7 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          mv gcp-status.json ./gcp-status.json 2>/dev/null || true
+          cp "$RUNNER_TEMP/gcp-status.json" ./gcp-status.json
           git add gcp-status.json
           if git diff --staged --quiet; then
             echo "No changes; skipping commit."

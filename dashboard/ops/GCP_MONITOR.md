@@ -45,8 +45,14 @@ source scripts/gcloud-env.sh
 gcloud services enable \
   compute.googleapis.com \
   storage.googleapis.com \
-  bigquery.googleapis.com
+  bigquery.googleapis.com \
+  iamcredentials.googleapis.com
 ```
+
+(The last one — `iamcredentials` — is needed by Workload Identity
+Federation to mint impersonated tokens. Omitting it produces a
+`SERVICE_DISABLED` error on every monitor run, visible as a yellow
+banner on the dashboard.)
 
 ### 2. Give the worker read-only access
 
