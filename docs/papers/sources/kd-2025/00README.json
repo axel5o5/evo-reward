@@ -1,0 +1,149 @@
+{
+   "sources" : [
+      {
+         "usage" : "toplevel",
+         "filename" : "main.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/birth.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/cum-default.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/cum-pit.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/damage-count.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/default-scatter-seed1.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/extinction-lm-seed4.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-act.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-chase.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-follow.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-iso.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-pop.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-size.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/group-traveld.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/hazard.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/kde-delta-n.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/kde-mouth.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/mouth.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/nn-rl.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/obs-env-2.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/obs_death_place.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/pit-population.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/pop-extinction.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/population-zoom.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/population.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/pp-zoom.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/ppenv-square.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/predator-L-pop-w.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/prey.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/simulation-pp.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/tree-seed-1.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/tree-seed-2.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/tree-seed-3.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/tree-seed-4.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "resources/tree-seed-5.pdf"
+      }
+   ],
+   "spec_version" : 1,
+   "texlive_version" : "2025",
+   "process" : {
+      "compiler" : "pdflatex"
+   }
+}

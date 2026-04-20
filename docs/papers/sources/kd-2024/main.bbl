@@ -1,0 +1,139 @@
+\begin{thebibliography}{}
+
+\bibitem[Berridge and Kringelbach, 2015]{berridgePleasureSystemsBrain2015}
+Berridge, K.~C. and Kringelbach, M.~L. (2015).
+\newblock Pleasure {{Systems}} in the {{Brain}}.
+\newblock {\em Neuron}, 86(3):646--664.
+
+\bibitem[Berridge et~al., 2009]{berridgeDissectingComponentsReward2009}
+Berridge, K.~C., Robinson, T.~E., and Aldridge, J.~W. (2009).
+\newblock Dissecting components of reward: `liking', `wanting', and learning.
+\newblock {\em Current Opinion in Pharmacology}, 9(1):65--73.
+
+\bibitem[Bradbury et~al., 2018]{jax2018github}
+Bradbury, J., Frostig, R., Hawkins, P., Johnson, M.~J., Leary, C., Maclaurin,
+  D., Necula, G., Paszke, A., Vander{P}las, J., Wanderman-{M}ilne, S., and
+  Zhang, Q. (2018).
+\newblock {JAX}: composable transformations of {P}ython+{N}um{P}y programs.
+
+\bibitem[Bredeche et~al., 2018]{bredecheEmbodiedEvolutionCollective2018}
+Bredeche, N., Haasdijk, E., and Prieto, A. (2018).
+\newblock Embodied {{Evolution}} in {{Collective Robotics}}: {{A Review}}.
+\newblock {\em Frontiers in Robotics and AI}, 5.
+
+\bibitem[Catto, 2005]{catto2005iterative}
+Catto, E. (2005).
+\newblock Iterative dynamics with temporal coherence.
+\newblock In {\em Game developer conference}, volume~2.
+
+\bibitem[Elfwing and Doya, 2014]{elfwingEmergencePolymorphicMating2014}
+Elfwing, S. and Doya, K. (2014).
+\newblock Emergence of {{Polymorphic Mating Strategies}} in {{Robot Colonies}}.
+\newblock {\em PLOS ONE}, 9(4):e93622.
+
+\bibitem[Elfwing et~al., 2005]{elfwingBiologicallyInspiredEmbodied2005}
+Elfwing, S., Uchibe, E., Doya, K., and Christensen, H. (2005).
+\newblock Biologically inspired embodied evolution of survival.
+\newblock In {\em 2005 {{IEEE Congress}} on {{Evolutionary Computation}}},
+  volume~3, pages 2210--2216 Vol. 3.
+
+\bibitem[Elfwing et~al., 2011]{elfwingDarwinianEmbodiedEvolution2011}
+Elfwing, S., Uchibe, E., Doya, K., and Christensen, H.~I. (2011).
+\newblock Darwinian embodied evolution of the learning ability for survival.
+\newblock {\em Adaptive Behavior}, 19(2):101--120.
+
+\bibitem[Freeman et~al., 2021]{brax2021github}
+Freeman, C.~D., Frey, E., Raichuk, A., Girgin, S., Mordatch, I., and Bachem, O.
+  (2021).
+\newblock Brax - a differentiable physics engine for large scale rigid body
+  simulation.
+
+\bibitem[Gompertz, 1825]{gompertzXXIVNatureFunction1825}
+Gompertz, B. (1825).
+\newblock {{XXIV}}. {{On}} the nature of the function expressive of the law of
+  human mortality, and on a new mode of determining the value of life
+  contingencies. {{In}} a letter to {{Francis Baily}}, {{Esq}}. {{F}}. {{R}}.
+  {{S}}. \&c.
+\newblock {\em Philosophical Transactions of the Royal Society of London},
+  115:513--583.
+
+\bibitem[Hamon et~al., 2023]{hamonEcoevolutionaryDynamicsNonepisodic2023}
+Hamon, G., Nisioti, E., and {Moulin-Frier}, C. (2023).
+\newblock Eco-evolutionary {{Dynamics}} of {{Non-episodic Neuroevolution}} in
+  {{Large Multi-agent Environments}}.
+\newblock In {\em Proceedings of the {{Companion Conference}} on {{Genetic}}
+  and {{Evolutionary Computation}}}, {{GECCO}} '23 {{Companion}}, pages
+  143--146, New York, NY, USA. Association for Computing Machinery.
+
+\bibitem[Hinton and Nowlan, 1987]{hintonHowLearningCan1987}
+Hinton, G.~E. and Nowlan, S.~J. (1987).
+\newblock How {{Learning Can Guide Evolution}}.
+
+\bibitem[Kirkwood, 2015]{kirkwoodDecipheringDeathCommentary2015}
+Kirkwood, T. B.~L. (2015).
+\newblock Deciphering death: A commentary on {{Gompertz}} (1825) `{{On}} the
+  nature of the function expressive of the law of human mortality, and on a new
+  mode of determining the value of life contingencies'.
+\newblock {\em Philosophical Transactions of the Royal Society B: Biological
+  Sciences}, 370(1666):20140379.
+
+\bibitem[Niekum et~al., 2011]{niekumEvolutionRewardFunctions2011}
+Niekum, S., Spector, L., and Barto, A. (2011).
+\newblock Evolution of reward functions for reinforcement learning.
+\newblock In {\em Proceedings of the 13th Annual Conference Companion on
+  {{Genetic}} and Evolutionary Computation}, {{GECCO}} '11, pages 177--178, New
+  York, NY, USA. Association for Computing Machinery.
+
+\bibitem[Nolfi and Floreano, 2004]{nolfiEvolutionaryRoboticsBiology2004}
+Nolfi, S. and Floreano, D. (2004).
+\newblock {\em Evolutionary {{Robotics}}: {{The Biology}}, {{Intelligence}},
+  and {{Technology}} of {{Self-Organizing Machines}}}.
+
+\bibitem[Schulman et~al., 2017]{schulmanProximalPolicyOptimization2017}
+Schulman, J., Wolski, F., Dhariwal, P., Radford, A., and Klimov, O. (2017).
+\newblock Proximal {{Policy Optimization Algorithms}}.
+
+\bibitem[Schultz, 2015]{schultzNeuronalRewardDecision2015}
+Schultz, W. (2015).
+\newblock Neuronal {{Reward}} and {{Decision Signals}}: {{From Theories}} to
+  {{Data}}.
+\newblock {\em Physiological Reviews}, 95(3):853--951.
+
+\bibitem[Singh et~al., 2009]{singhWhereRewardsCome2009}
+Singh, S., Lewis, R.~L., and Barto, A.~G. (2009).
+\newblock Where {{Do Rewards Come From}}?
+\newblock {\em Proceedings of the annual conference of the cognitive science
+  society}.
+
+\bibitem[Sutton and Barto, 2018]{suttonReinforcementLearningIntroduction2018}
+Sutton, R.~S. and Barto, A.~G. (2018).
+\newblock {\em Reinforcement Learning: An Introduction}.
+\newblock Adaptive Computation and Machine Learning Series. The MIT Press,
+  Cambridge, Massachusetts, second edition edition.
+
+\bibitem[Todorov et~al., 2012]{todorov2012mujoco}
+Todorov, E., Erez, T., and Tassa, Y. (2012).
+\newblock Mujoco: A physics engine for model-based control.
+\newblock In {\em 2012 IEEE/RSJ International Conference on Intelligent Robots
+  and Systems}, pages 5026--5033. IEEE.
+
+\bibitem[Watson et~al., 2002]{watsonEmbodiedEvolutionDistributing2002}
+Watson, R.~A., Ficici, S.~G., and Pollack, J.~B. (2002).
+\newblock Embodied {{Evolution}}: {{Distributing}} an evolutionary algorithm in
+  a population of robots.
+\newblock {\em Robotics and Autonomous Systems}, 39(1):1--18.
+
+\bibitem[Yoshida et~al., 2024]{yoshidaEmergenceIntegratedBehaviors2024}
+Yoshida, N., Daikoku, T., Nagai, Y., and Kuniyoshi, Y. (2024).
+\newblock Emergence of integrated behaviors through direct optimization for
+  homeostasis.
+\newblock {\em Neural Networks}, 177:106379.
+
+\bibitem[Zheng et~al., 2020]{zhengWhatCanLearned2020}
+Zheng, Z., Oh, J., Hessel, M., Xu, Z., Kroiss, M., Hasselt, H.~V., Silver, D.,
+  and Singh, S. (2020).
+\newblock What {{Can Learned Intrinsic Rewards Capture}}?
+\newblock In {\em Proceedings of the 37th {{International Conference}} on
+  {{Machine Learning}}}, pages 11436--11446. PMLR.
+
+\end{thebibliography}
