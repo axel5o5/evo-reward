@@ -354,11 +354,30 @@ Save every 25,000 steps (approximately). Each checkpoint: `{step}_{seed}.pkl` co
 
 A run is considered a successful replication if, by step 10 million:
 
+**Core findings (K&D §4.2, default = medium mouth + Δn=0.5):**
+
 1. **Fear emerges:** Mean `w_pred` for prey is **negative** across at least 3 of 5 seeds.
+   - K&D explicitly observe **bimodality** — seeds 2 & 4 can evolve *positive* `w_pred` (the "P2 lineage") without being failures. Positive-`w_pred` seeds are expected to show concurrently strong positive `w_prey` (sociality compensates for lack of fear).
 2. **Social affiliation emerges:** Mean `w_prey` for prey is **positive** across at least 3 of 5 seeds.
-3. **Food reward is positive:** Mean `w_eat` for both species is **positive** across all seeds (this is the easiest to replicate).
-4. **Population oscillations visible:** Prey and predator population time series show Lotka-Volterra-like coupled oscillations with period ~1 million steps.
-5. **No extinction:** Neither species goes extinct in any seed.
+   - Same bimodal caveat — in seeds where `w_pred` is positive, `w_prey` may be near-zero instead of strongly positive.
+3. **Food reward is positive for prey:** Mean `w_eat` for prey is **positive** across all 5 seeds. Universal per K&D §4.2: "significantly positive."
+4. **Prey motor reward is positive:** Mean `w_act` for prey is **positive** across all 5 seeds. K&D §4.2: "consistently positive, suggesting a selective advantage for continuous movement or exploration."
+
+**Predator-side findings (K&D §4.2, same condition):**
+
+5. **Predator food reward is positive:** Mean `w_eat` for predators is **positive** in at least 3 of 5 seeds under medium mouth. K&D §4.3 shows this is mouth-size-sensitive: strongly positive for small mouths, positive-but-modest at medium, can be negative at large mouths (sustainability mechanism). Only the medium case applies to us.
+6. **Predator social reward is positive:** Mean `w_pred` (for predators — this weights observing *other predators*) is positive in at least 3 of 5 seeds. K&D §4.2: "evolved almost positively" because following conspecifics leads to prey-rich regions.
+7. **Predator prey-attraction is positive in most seeds:** Mean `w_prey` (for predators — weights observing *prey*) is positive in at least 3 of 5 seeds. Expected near-zero in seeds where the prey population evolved positive `w_pred` (K&D notes this coupling — prey approaching predators reduces selection pressure on predators' prey-visual preference).
+
+**No explicit sign expectation:**
+
+- Predator `w_act` is explicitly bimodal in K&D §4.2 ("evolved either positive or negative values in different simulation runs"). Record its distribution but don't gate on sign.
+
+**Environmental criteria:**
+
+8. **Population oscillations visible:** Prey and predator population time series show Lotka-Volterra-like coupled oscillations with period ~1 million steps. K&D §4.2, Figure 4.
+9. **Steady-state populations near K&D defaults:** Average prey ≈ 349, average predator ≈ 23 (K&D Table 1). A large persistent gap (e.g. population pinned at `prey_cap=450` or `predator_cap=50`) indicates either insufficient cap headroom or a dynamics bug — flag for investigation.
+10. **No extinction:** Neither species goes extinct in any seed. K&D excluded 1 of 6 large-mouth runs from §4.3 analysis on this basis; we use the same rule even though we don't run large-mouth.
 
 **Quantitative reference from paper:** Prey evolved ~473–501 generations, predators ~47–59 generations over 10.24 million steps under default conditions. Generation count is a useful sanity check on lifecycle dynamics.
 

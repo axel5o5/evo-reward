@@ -278,30 +278,37 @@ function TrainingCard({ t }: { t: Training }) {
         </span>}
       />
       {pop && (
-        <Row
-          label="Population"
-          value={<span>prey {pop.prey ?? "—"} · pred {pop.pred ?? "—"} · food {pop.food ?? "—"} · E {pop.mean_energy?.toFixed(1) ?? "—"}</span>}
-          mono={false}
-        />
+        <>
+          <Row
+            label="Population"
+            value={<span>prey {pop.prey ?? "—"} · pred {pop.pred ?? "—"} · food {pop.food ?? "—"} · E {pop.mean_energy?.toFixed(1) ?? "—"}</span>}
+            mono={false}
+          />
+          {(pop.prey === 450 || pop.pred === 50) && (
+            <div className="text-[10px] text-amber-600 dark:text-amber-400 pl-1 -mt-1 pb-1" title="K&D Table 1 steady-state: ~349 prey, ~23 predators. Populations pinned at caps indicate oscillations haven't developed yet — expected before ~3M steps, concerning after.">
+              at cap (K&D steady-state: ~349 prey / ~23 pred)
+            </div>
+          )}
+        </>
       )}
 
       {prey && (
         <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prey reward weights</div>
-          <WeightLine label="w_eat"  pair={prey.eat}  wantSign="+" note="food reward (want >0)" />
-          <WeightLine label="w_act"  pair={prey.act}  wantSign={null} note="K&D: consistently >0" />
-          <WeightLine label="w_prey" pair={prey.prey} wantSign="+" note="social affiliation (want >0)" />
-          <WeightLine label="w_pred" pair={prey.pred} wantSign="-" note="fear (want <0)" />
+          <WeightLine label="w_eat"  pair={prey.eat}  wantSign="+" note="food reward — universal >0" />
+          <WeightLine label="w_act"  pair={prey.act}  wantSign="+" note="consistently >0 (K&D §4.2)" />
+          <WeightLine label="w_prey" pair={prey.prey} wantSign="+" note="social affiliation — >0 in 3/5 seeds" />
+          <WeightLine label="w_pred" pair={prey.pred} wantSign={null} note="fear — bimodal: <0 in 3/5 (fear), >0 in 2/5 (sociality compensates)" />
         </div>
       )}
 
       {pred && (
         <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Predator reward weights</div>
-          <WeightLine label="w_eat"  pair={pred.eat}  wantSign="+" note="food reward (want >0)" />
-          <WeightLine label="w_act"  pair={pred.act}  wantSign={null} note="varies ± by seed" />
-          <WeightLine label="w_prey" pair={pred.prey} wantSign="+" note="prey attraction (want >0)" />
-          <WeightLine label="w_pred" pair={pred.pred} wantSign="+" note="social (K&D strongest finding)" />
+          <WeightLine label="w_eat"  pair={pred.eat}  wantSign="+" note="prey-eating reward — >0 medium mouth" />
+          <WeightLine label="w_act"  pair={pred.act}  wantSign={null} note="bimodal ± by seed" />
+          <WeightLine label="w_prey" pair={pred.prey} wantSign="+" note="prey attraction — >0 most seeds, near 0 if prey.w_pred>0" />
+          <WeightLine label="w_pred" pair={pred.pred} wantSign="+" note="social (follow conspecifics to prey-rich regions)" />
         </div>
       )}
     </Card>
