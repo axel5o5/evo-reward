@@ -12,6 +12,38 @@ steps change.
 
 ---
 
+## ⚠ When spot works — and when it doesn't
+
+**Lessons from the April 2026 Phase 1a seed 0 run.** Spot capacity for
+L4s was persistently contested across all 9 zones we rotate through.
+Observed failure pattern:
+
+- ~6 consecutive spot VMs were preempted within 10–15 min of creation
+- None survived long enough to save a checkpoint to GCS
+- All training progress from each attempt was lost
+- Eventually fell back to `--on-demand` for guaranteed forward progress
+  (~3× the cost)
+
+**Decision rule for any future run.** Start with spot if budget matters,
+but watch the first VM closely. If it's preempted within 15 min of
+creation, that's a strong signal capacity is contested — switch to
+on-demand rather than bleeding time on retries.
+
+```bash
+# One-liner to switch: kill the spot orchestrator, relaunch on-demand.
+# GCS-backed checkpoints carry over automatically.
+pkill -f spot_orchestrator
+caffeinate -d -i python3 scripts/spot_orchestrator.py --seed 0 --on-demand
+```
+
+The cost numbers below assume spot actually survives multi-hour runs.
+In contested-capacity periods, the true cost can exceed on-demand
+because you pay for repeated provisioning without forward progress.
+See [docs/monitoring.md](monitoring.md#telling-if-spot-isnt-going-to-work)
+for what "contested capacity" looks like from the orchestrator logs.
+
+---
+
 ## Cost comparison (single seed of Phase 1a, ~12h nominal)
 
 | Path | $/hr | Typical wall clock | Compute | NAT | **Total** |

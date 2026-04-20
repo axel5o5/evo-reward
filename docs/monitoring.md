@@ -199,6 +199,25 @@ orchestrator rotates through. Options: (a) wait and re-check in 10-30
 minutes — capacity rotates; (b) switch to `--on-demand` if you need
 certainty.
 
+### "all zones stockout" but on-demand also fails — check SSD quota
+
+If the orchestrator reports stockout across all zones even with
+`--on-demand`, that's almost certainly not a capacity issue. The
+orchestrator logs an `↳ <error summary>` line under each failed
+zone attempt — look for `SSD quota exceeded`. Each `g2-standard-8`
++ 200GB boot disk counts 200GB against the per-region
+`SSD_TOTAL_GB` quota (default 250GB), so one orphaned disk from a
+previously deleted VM is enough to block every new create in that
+region.
+
+```bash
+# Inventory disks and look for ones not attached to a current VM:
+gcloud compute disks list --format='table(name,zone.basename(),sizeGb,status,users.basename())'
+
+# Delete any orphan (no USERS value):
+gcloud compute disks delete <name> --zone=<zone> --quiet
+```
+
 ### Preemption right after provision
 
 Spot VMs are especially vulnerable in the first 15 min of life.
@@ -208,6 +227,35 @@ the very first attempt, so a cycle of "get VM → provision → preempt
 → re-poll" can happen multiple times. Each cycle is ~10 min and
 costs < $0.15. If it happens 5+ times in a row, that's a signal spot
 capacity is contested and you might want `--on-demand`.
+
+### Telling if spot isn't going to work
+
+If any of the following happen, give up on spot and switch to
+`--on-demand`:
+
+- **Preemption within 15 min** of first VM creation, repeatedly. In
+  a healthy spot market, VMs typically live hours; repeated very-early
+  preemption means capacity is contested.
+- **No checkpoint has landed in GCS** after ≥2 preemption cycles
+  (visible via `python3 scripts/status.py`: "no checkpoints yet" even
+  after the VM has been up and retrying for 30+ min). That means each
+  preemption wipes all progress, and retrying spot just spends
+  provisioning time with no forward motion.
+- **Orchestrator log shows the same zone repeatedly rotating through
+  stockouts** even after the persistent-stockout fallback (delete+
+  recreate in a new zone) kicks in. That's GCP-wide L4 demand
+  pressure, not your problem.
+
+Switching is a one-liner:
+
+```bash
+pkill -f spot_orchestrator
+caffeinate -d -i python3 scripts/spot_orchestrator.py --seed 0 --on-demand
+```
+
+GCS-backed checkpoints from the spot attempts carry over to the
+on-demand VM, so training resumes from wherever the last spot attempt
+got to (if anywhere).
 
 ### VM shows RUNNING but `gcloud ssh` hangs
 
