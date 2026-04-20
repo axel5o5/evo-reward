@@ -44,6 +44,7 @@ from src.jax_checkpoint import (
     rotate_checkpoints,
     checkpoint_path,
 )
+from src import jax_metrics
 
 
 CHECKPOINTS_TO_KEEP = 3
@@ -60,6 +61,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     exp_name = config.get("experiment_name", "unnamed")
 
     ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
+    metrics_file = jax_metrics.metrics_path(out_dir, exp_name, seed)
 
     # Build physics space and sim_step
     space, _ = _build_physics(config)
@@ -80,12 +82,21 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             )
         sim_state = load_simstate(path, sim_state)
         print(f"Resumed from {path} at step {int(sim_state.step)}")
+        # Also restore time-series metrics so the saved trajectory is continuous.
+        if os.path.exists(metrics_file):
+            metrics_log = jax_metrics.load(metrics_file)
+            print(f"Restored metrics history: {len(metrics_log.steps)} log points")
+        else:
+            metrics_log = jax_metrics.JaxMetrics()
+            print("Warning: checkpoint found but no metrics.npz — starting fresh metrics")
     elif latest is not None:
         sys.exit(
             f"Checkpoints already exist in {ckpt_dir}.\n"
             f"  Use --resume to continue from {latest}, or\n"
             f"  delete the checkpoint dir to start fresh."
         )
+    else:
+        metrics_log = jax_metrics.JaxMetrics()
 
     n_prey = int(jnp.sum((sim_state.species == 0) & sim_state.is_active))
     n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
@@ -144,11 +155,15 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
         )
 
     def _log_progress(state, step):
+        """Persist time-series metrics and print a one-line progress summary."""
         jax.block_until_ready(state.step)
-        prey_mask = (state.species == 0) & state.is_active
-        pred_mask = (state.species == 1) & state.is_active
-        n_prey = int(jnp.sum(prey_mask))
-        n_pred = int(jnp.sum(pred_mask))
+
+        # Authoritative values go into the persisted metrics log first.
+        jax_metrics.record(metrics_log, state)
+
+        # Extract what we need for the progress line from the just-appended entry.
+        n_prey = metrics_log.prey_population[-1]
+        n_pred = metrics_log.predator_population[-1]
         n_food = int(jnp.sum(state.food_active))
         elapsed = time.time() - start_time
         steps_done = (step + 1) - start_step
@@ -158,14 +173,10 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             float(jnp.mean(state.energies[state.is_active]))
             if any_active else 0.0
         )
-        if n_prey > 0:
-            prey_w = state.reward_weights[prey_mask]
-            wpd_mean = float(jnp.mean(prey_w[:, 3]))
-            wpd_std = float(jnp.std(prey_w[:, 3]))
-            wpy_mean = float(jnp.mean(prey_w[:, 2]))
-            wpy_std = float(jnp.std(prey_w[:, 2]))
-        else:
-            wpd_mean = wpd_std = wpy_mean = wpy_std = 0.0
+        wpd_mean = metrics_log.prey_mean_w_pred[-1]
+        wpd_std = metrics_log.prey_std_w_pred[-1]
+        wpy_mean = metrics_log.prey_mean_w_prey[-1]
+        wpy_std = metrics_log.prey_std_w_prey[-1]
         print(
             f"Step {step+1:>8d}/{total_steps} | "
             f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
@@ -195,11 +206,15 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             # stale view.
             sim_state = _maybe_fire_ppo(sim_state)
             _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+            os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+            jax_metrics.save(metrics_log, metrics_file)
 
     # Final flush: fire any pending PPO, then save
     sim_state = _maybe_fire_ppo(sim_state)
     jax.block_until_ready(sim_state.step)
     _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+    os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+    jax_metrics.save(metrics_log, metrics_file)
 
     elapsed = time.time() - start_time
     steps_done = total_steps - start_step
