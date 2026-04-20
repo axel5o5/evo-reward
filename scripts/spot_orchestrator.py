@@ -169,7 +169,37 @@ def try_create(zone, spot=True):
     if ok:
         print(f"{now()} ✅ capacity in {zone} ({provisioning})", flush=True)
         ensure_nat(zone)
+    elif out:
+        # Surface the actual failure reason — stockout is common, but so
+        # are quota issues and other errors that need human action.
+        summary = _summarize_error(out)
+        if summary:
+            print(f"{now()}   ↳ {summary}", flush=True)
     return ok
+
+
+def _summarize_error(gcloud_output: str) -> str:
+    """Pull the most useful one-line summary out of a gcloud error dump."""
+    text = gcloud_output.lower()
+    if "stockout" in text or "does not have enough resources" in text:
+        return "stockout (zone out of capacity)"
+    if "ssd_total_gb" in text or "ssd quota" in text:
+        return "SSD quota exceeded — delete old VMs/disks in this region"
+    if "quota" in text:
+        # Try to extract the quota name
+        for line in gcloud_output.splitlines():
+            if "quota" in line.lower() and "exceeded" in line.lower():
+                return line.strip()[:160]
+        return "quota exceeded (see full gcloud output for detail)"
+    if "permission" in text:
+        return "permission denied"
+    if "already exists" in text:
+        return "VM with this name already exists"
+    # Fallback: last non-empty line, truncated
+    for line in reversed(gcloud_output.splitlines()):
+        if line.strip():
+            return line.strip()[:160]
+    return ""
 
 
 def poll_for_capacity(spot=True):
