@@ -269,7 +269,10 @@ def upload_repo(zone, seed, config, runtime):
         print(f"{now()} scp tar failed: {out.strip()[-300:]}", flush=True)
         return False
 
-    # Write phase1a retry loop script with interpolated args
+    # Write phase1a retry loop script with interpolated args.
+    # python -u + stdbuf forces line-buffered output so we see progress
+    # lines in phase1a.log in real time instead of waiting for a 4KB
+    # block buffer to fill.
     loop_script = f"""#!/bin/bash
 source ~/evo-env/bin/activate
 cd ~/evo-reward
@@ -280,10 +283,10 @@ while true; do
   else
     RESUME=""
   fi
-  python scripts/run_experiment_jax.py \\
+  stdbuf -oL -eL python -u scripts/run_experiment_jax.py \\
     --config {config} \\
     --runtime {runtime} \\
-    --seed {seed} $RESUME 2>&1 | tee -a ~/phase1a.log
+    --seed {seed} $RESUME 2>&1 | stdbuf -oL tee -a ~/phase1a.log
   rc=$?
   if [ $rc -eq 0 ]; then
     echo "[phase1a] completed at $(date)" | tee -a ~/phase1a.log
