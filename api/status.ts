@@ -2,9 +2,12 @@
 // gcp-status branch using a server-side GitHub PAT, and returns it to
 // the browser. Avoids exposing the token to the client.
 //
-// Needed because raw.githubusercontent.com refuses unauthenticated reads
-// from private repos (returns 404). The monitor workflow publishes to
-// the same branch either way; this route just adds auth.
+// Uses the Contents API (api.github.com) rather than raw.githubusercontent.com.
+// raw.* is served via Fastly with ~5 min per-POP caching, which caused the
+// dashboard to silently show stale data for up to 5 min after a monitor
+// publish — Vercel's iad1 region hit a different POP than the user's
+// browser, so freshness diverged by vantage point. The Contents API
+// isn't Fastly-cached; served direct from api.github.com.
 //
 // Required env vars (shared with /api/action):
 //   GH_DISPATCH_TOKEN   fine-grained PAT with Contents: Read on this repo
@@ -40,9 +43,18 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     return;
   }
 
-  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${STATUS_BRANCH}/${STATUS_FILE}`;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${STATUS_FILE}?ref=${STATUS_BRANCH}`;
   const r = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // The "raw" media type returns the file body directly rather than
+      // the usual metadata+base64 envelope. Smaller payload, no decode.
+      Accept: "application/vnd.github.raw+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    // Belt-and-suspenders: instruct undici not to reuse any cached
+    // response, even though Node fetch doesn't cache by default.
+    cache: "no-store",
   });
 
   if (!r.ok) {
@@ -61,7 +73,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const body = await r.text();
   res.setHeader("Content-Type", "application/json");
   // Short edge cache so N dashboard clients share a single GitHub fetch
-  // per 20s window; reduces GitHub API rate-limit pressure on the PAT.
-  res.setHeader("Cache-Control", "public, s-maxage=20, stale-while-revalidate=30");
+  // per 10s window; reduces rate-limit pressure on the PAT.
+  // Kept tight since monitor publishes can land any time.
+  res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=20");
   res.send(body);
 }
