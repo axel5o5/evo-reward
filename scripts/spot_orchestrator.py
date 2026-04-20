@@ -52,7 +52,12 @@ POLL_INTERVAL = 600          # 10 min between capacity polls
 MONITOR_INTERVAL = 300       # 5 min between reconcile cycles
 SSH_ATTEMPTS = 12            # ~7 min total
 SSH_BACKOFF = 30             # seconds per attempt
-READY_MARKER_ATTEMPTS = 60   # ~30 min total for first install of jax[cuda12]
+
+# Ready-marker wait is INTENTIONALLY short (per reconcile cycle) so that
+# a preempted-mid-install VM is detected quickly rather than wasted on
+# a 30-min wait that's already failing. Install-in-progress across
+# multiple cycles is fine — the startup-script is idempotent.
+READY_MARKER_ATTEMPTS = 10   # ~5 min per reconcile cycle
 READY_MARKER_BACKOFF = 30
 
 
@@ -173,18 +178,26 @@ def wait_for_ssh(zone, attempts=SSH_ATTEMPTS):
 
 
 def wait_for_ready_marker(zone, attempts=READY_MARKER_ATTEMPTS):
-    """Poll for /tmp/evo-ready written by vm_startup.sh after base env install."""
+    """Poll for /tmp/evo-ready written by vm_startup.sh after base env install.
+
+    Also watches VM status — returns False early if the VM gets preempted
+    (TERMINATED) so the outer reconcile loop can restart it without
+    wasting the full wait window.
+    """
     for i in range(attempts):
+        # Bail out fast if the VM has been preempted mid-install.
+        status = vm_status(zone)
+        if status != "RUNNING":
+            print(f"{now()} VM status={status} during ready-marker wait; aborting",
+                  flush=True)
+            return False
+
         rc, out = ssh(zone, "test -f /tmp/evo-ready && echo ready || echo not_yet",
                       timeout=30)
         if "ready" in out and "not_yet" not in out:
             print(f"{now()} ✅ startup-script finished base env install",
                   flush=True)
             return True
-        # Helpful context every ~5 min
-        if (i + 1) % 10 == 0:
-            ssh(zone, "sudo tail -n 30 /var/log/evo-startup.log 2>&1 || true",
-                timeout=30)
         print(f"{now()} waiting for /tmp/evo-ready ({i+1}/{attempts})", flush=True)
         time.sleep(READY_MARKER_BACKOFF)
     return False
