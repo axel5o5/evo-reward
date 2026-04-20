@@ -7,6 +7,11 @@
 # training tmux session. Idempotent: every step short-circuits if
 # already done, so re-running on VM restart is cheap.
 #
+# Checkpoint durability: if GCS_BUCKET is set in instance metadata,
+# we gsutil-rsync results/ from the bucket on boot (so a recreated
+# VM picks up where the previous one left off) and run a background
+# tmux session that pushes results/ back to the bucket every 5 min.
+#
 # Logs to /var/log/evo-startup.log. Writes /tmp/evo-ready when the
 # base env is installed so the orchestrator can stop waiting.
 #
@@ -73,6 +78,31 @@ if [ -d "$HOME_DIR/evo-reward" ] && [ -f "$HOME_DIR/phase1a_loop.sh" ]; then
     cd $HOME_DIR/evo-reward
     pip install -q -r requirements.txt
   "
+
+  # Checkpoint durability: pull any prior results from GCS before training
+  # starts. After a delete+recreate (different zone), this is what lets
+  # us resume rather than starting over.
+  GCS_BUCKET=$(curl -sf "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcs-bucket" -H "Metadata-Flavor: Google" || true)
+  if [ -n "$GCS_BUCKET" ]; then
+    echo ">>> pulling checkpoints from gs://$GCS_BUCKET"
+    sudo -u "$USER_NAME" -H bash -lc "
+      mkdir -p $HOME_DIR/evo-reward/results
+      gsutil -m rsync -r gs://$GCS_BUCKET/results $HOME_DIR/evo-reward/results 2>&1 || true
+    "
+
+    # Background pusher: every 5 min, rsync local results -> GCS.
+    # Separate tmux session so preemption / training restarts don't kill it.
+    if ! sudo -u "$USER_NAME" -H tmux has-session -t gcs-sync 2>/dev/null; then
+      echo ">>> starting gcs-sync tmux session"
+      sudo -u "$USER_NAME" -H bash -lc "
+        tmux new-session -d -s gcs-sync -c $HOME_DIR/evo-reward \
+          'while true; do
+             gsutil -m rsync -r results gs://$GCS_BUCKET/results 2>>$HOME_DIR/gcs-sync.log
+             sleep 300
+           done'
+      "
+    fi
+  fi
 
   # Start tmux if not already running. After preemption restart, the old
   # tmux session is gone but the repo + checkpoints persist on disk, so

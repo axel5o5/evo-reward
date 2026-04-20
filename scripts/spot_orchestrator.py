@@ -47,6 +47,12 @@ ZONES_TO_TRY = [
 VM_NAME = "evo-reward-gpu"
 ROUTER_PREFIX = "evo-reward-router"
 NAT_PREFIX = "evo-reward-nat"
+GCS_BUCKET = "evo-reward-ckpts"    # must be globally unique; change if collision
+
+# After this many consecutive stockout-on-restart failures in the same zone,
+# delete the VM and fall back to polling all zones for fresh capacity.
+# Prevents getting wedged in a stuck zone with no fallback.
+MAX_CONSECUTIVE_STOCKOUTS = 3
 
 POLL_INTERVAL = 600          # 10 min between capacity polls
 MONITOR_INTERVAL = 300       # 5 min between reconcile cycles
@@ -125,6 +131,19 @@ def vm_status(zone):
     return out.strip() if rc == 0 else "UNKNOWN"
 
 
+def ensure_bucket():
+    """Create the GCS checkpoint bucket if it doesn't exist. Idempotent."""
+    rc, _ = gcloud("storage", "buckets", "describe", f"gs://{GCS_BUCKET}",
+                   "--format=value(name)")
+    if rc == 0:
+        return
+    print(f"{now()} creating GCS bucket gs://{GCS_BUCKET}", flush=True)
+    rc, out = gcloud("storage", "buckets", "create", f"gs://{GCS_BUCKET}",
+                     "--location=us-central1")
+    if rc != 0 and "already exists" not in out and "already own" not in out:
+        print(f"{now()} bucket create failed: {out.strip()[-300:]}", flush=True)
+
+
 def try_create_spot(zone):
     print(f"{now()} trying {zone}...", flush=True)
     rc, out = gcloud(
@@ -136,8 +155,9 @@ def try_create_spot(zone):
         "--image-project=deeplearning-platform-release",
         "--boot-disk-size=200GB",
         "--maintenance-policy=TERMINATE",
-        "--metadata=install-nvidia-driver=True",
+        f"--metadata=install-nvidia-driver=True,gcs-bucket={GCS_BUCKET}",
         f"--metadata-from-file=startup-script={STARTUP_SCRIPT}",
+        "--scopes=https://www.googleapis.com/auth/cloud-platform",
         "--no-address",
         "--provisioning-model=SPOT",
         "--instance-termination-action=STOP",
@@ -381,8 +401,10 @@ def main():
     ap.add_argument("--runtime", default="configs/runtime/gcp_l4_spot.yaml")
     args = ap.parse_args()
 
+    ensure_bucket()
     state = load_state()
     zone = state.get("zone")
+    stockout_streak = 0
 
     try:
         while True:
@@ -391,11 +413,30 @@ def main():
                     zone = poll_for_capacity()
                     state = {"zone": zone, "seed": args.seed, "started_at": now()}
                     save_state(state)
+                    stockout_streak = 0
                     print(f"{now()} === provisioning new VM in {zone} ===",
                           flush=True)
 
                 result = reconcile(zone, args.seed, args.config, args.runtime)
                 print(f"{now()} reconcile result: {result}", flush=True)
+
+                if result == "stockout":
+                    stockout_streak += 1
+                    print(f"{now()} stockout streak: {stockout_streak}/"
+                          f"{MAX_CONSECUTIVE_STOCKOUTS}", flush=True)
+                    if stockout_streak >= MAX_CONSECUTIVE_STOCKOUTS:
+                        print(f"{now()} zone {zone} persistently stocked out — "
+                              f"deleting VM and falling back to multi-zone poll",
+                              flush=True)
+                        gcloud("compute", "instances", "delete", VM_NAME,
+                               f"--zone={zone}", "--quiet")
+                        zone = None
+                        state = {}
+                        save_state(state)
+                        stockout_streak = 0
+                        continue
+                else:
+                    stockout_streak = 0
 
                 if result == "missing":
                     print(f"{now()} VM gone — polling for new capacity",
