@@ -112,7 +112,7 @@ Values below are from the **emevo gecco2026 source code** (ground truth), which 
 | Sensor channels (per sensor) | [prey, predator, food, wall] — winner-take-all | emevo `circle_foraging_with_predator.py:84-111` |
 | Tactile sensors | 18 bins × **4 type channels** = 72 values | emevo source |
 | Velocity in obs | **2D (vx, vy)**, not scalar speed | emevo `circle_foraging.py:744` |
-| Prey c_b / c_a | **1.0e-4 / 2.5e-6** | emevo source (paper Table 2 says 2.5e-3 / 1.0e-4 — code differs) |
+| Prey c_b / c_a | **1.0e-4 / 2.5e-6** | emevo source (paper Table 2 lists 2.5e-6 / 1.0e-4 — labels swapped in paper; magnitudes match) |
 | Predator d_b / d_a | 4.0e-3 / 5.0e-5 | emevo source (matches paper Table 2) |
 | Predator digestive rate (η) | 0.6 | emevo source |
 | Initial energy (both species) | **100.0** | emevo source |
@@ -131,7 +131,7 @@ Values below are from the **emevo gecco2026 source code** (ground truth), which 
 
 **Critical notes:**
 - The 2024 paper used Cauchy (df=1, scale=0.02, clip=±10). The 2025 paper uses t(df=2, scale=0.4, clip=±100). We replicate the 2025 paper. Do not use 2024 values.
-- Prey energy costs in the code are ~25× smaller than in the paper. Use the code values.
+- Prey energy costs: paper Table 2 has the `c_a` / `c_b` labels swapped (magnitudes match code). Use the code values; the paper's own sanity check at main.tex:443 only holds with code labels.
 - The "3-layer MLP" in the paper means 2 hidden layers + 1 output, not 3 hidden layers.
 
 ---

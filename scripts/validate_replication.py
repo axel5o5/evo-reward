@@ -42,10 +42,25 @@ CRITERIA = [
         "threshold_note": "> 0 at step 10M",
     },
     {
-        "name": "Predator w_prey > 0 (prey attraction evolved)",
-        "description": "Mean predator w_prey is positive at end of run",
-        "check": lambda m: float(m["pred_mean_w_prey"][-1]) > 0,
+        "name": "Predator w_pred > 0 (predator social reward evolved)",
+        "description": (
+            "Mean predator w_pred (social reward for observing other predators) is "
+            "positive at end of run. K&D's strongest predator finding: "
+            "'Social rewards for predators (w_pred) evolved almost positively' "
+            "(main.tex:273)."
+        ),
+        "check": lambda m: float(m["pred_mean_w_pred"][-1]) > 0,
         "threshold_note": "> 0 at step 10M",
+    },
+    {
+        "name": "Predator w_prey > 0 (attraction to prey evolved)",
+        "description": (
+            "Mean predator w_prey is positive at end of run. K&D: 'w_prey reached "
+            "positive values in most instances' but 'remained near zero in seeds 2 "
+            "and 4' (main.tex:273) — weaker criterion than w_pred."
+        ),
+        "check": lambda m: float(m["pred_mean_w_prey"][-1]) > 0,
+        "threshold_note": "> 0 at step 10M (may fail in ~2/5 seeds per K&D)",
     },
     {
         "name": "Prey population not extinct",

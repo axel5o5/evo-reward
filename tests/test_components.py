@@ -41,8 +41,8 @@ def base_config():
         "food_growth_rate": 0.5,            # CONFIRMED: 0.5/step
         "food_max_regen_per_step": 10,
         "prey_e_food": 1.0,
-        "prey_c_b": 1.0e-4,                # CONFIRMED: code value (not paper 2.5e-3)
-        "prey_c_a": 2.5e-6,                # CONFIRMED: code value (not paper 1.0e-4)
+        "prey_c_b": 1.0e-4,                # CONFIRMED: code value (paper Table 2 labels c_a/c_b swapped)
+        "prey_c_a": 2.5e-6,                # CONFIRMED: code value (paper Table 2 labels c_a/c_b swapped)
         "predator_d_b": 4.0e-3,
         "predator_d_a": 5.0e-5,
         "predator_eta": 0.6,

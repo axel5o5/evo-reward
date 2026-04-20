@@ -50,7 +50,7 @@ The headline results from their predator-prey experiments:
 
 **Reward weight branching.** Within a single population, different lineages evolve different reward strategies. Some prey develop strong fear with weak social affiliation; others develop strong social affiliation with weak fear. These are alternative survival strategies coexisting in the same population — analogous to biological polymorphism.
 
-**Environmental sensitivity.** When predator mouths are larger (more lethal predators), prey evolve stronger fear. When food is scarcer, prey evolve weaker social affiliation (solitary foraging becomes more important than group safety). The evolved reward structures are adaptive responses to ecological conditions.
+**Environmental sensitivity.** When predator mouths are larger (more lethal predators), prey evolve stronger fear. The food-rate effect is more subtle: under food-abundant conditions (Δn=0.6), fear *diminishes* because predator populations are well-supported and prey can afford solitary foraging; under food-scarce conditions (Δn=0.4), the effect on fear is subtle and prey social reward shifts more negative (main.tex:361–363, 125). The relationship is non-monotonic — fear isn't simply stronger when food is scarcer. The evolved reward structures are adaptive responses to ecological conditions, with the strongest driver being predator lethality rather than food availability.
 
 ---
 

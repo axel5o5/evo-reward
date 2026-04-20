@@ -8,7 +8,7 @@
 Kanagawa & Doya (2025) have agents whose reward function is:
 
 ```
-r(t) = w_food · food(t) + w_pred · predator(t) + w_con · conspecific(t) + w_motor · action(t)
+r(t) = w_eat · food(t) + w_pred · predator(t) + w_prey · conspecific(t) + w_act · action(t)
 ```
 
 Each stimulus term — food(t), predator(t), etc. — is a scalar describing how much of that stimulus is currently in the agent's visual field. The weight vector `w` is the genome. PPO trains a feedforward policy network against this reward for the agent's entire lifetime. When the agent reproduces, the child inherits `w` with Gaussian mutation and gets a fresh, randomly initialized policy network.
@@ -88,7 +88,7 @@ This is the sensory prerequisite for social learning. In nature, animals don't j
 
 ### Connection to Ndousse et al. (2021) and Bhoopchand et al. (2023)
 
-Ndousse et al. showed that vanilla model-free RL agents do NOT spontaneously develop social learning — they need the right inductive bias. Their agents could observe expert behavior but didn't learn from it without an auxiliary prediction loss forcing them to model what they'd see next. Our question is: does *evolved reward* provide a natural inductive bias? If evolution produces `w_conspecific > 0` (which Kanagawa & Doya showed it does), and agents can observe conspecific behavior, does the reward for proximity combined with behavioral observation produce coordination that neither element achieves alone?
+Ndousse et al. showed that vanilla model-free RL agents do NOT spontaneously develop social learning — they need the right inductive bias. Their agents could observe expert behavior but didn't learn from it without an auxiliary prediction loss forcing them to model what they'd see next. Our question is: does *evolved reward* provide a natural inductive bias? If evolution produces `w_prey > 0` for prey (the conspecific social reward — which Kanagawa & Doya showed it does), and agents can observe conspecific behavior, does the reward for proximity combined with behavioral observation produce coordination that neither element achieves alone?
 
 Bhoopchand et al. (2023) showed that with the right architecture, agents can solve the correspondence problem — translating observation of another's behavior into motor reproduction — in rich 3D environments with no pre-collected demonstrations. They used fixed, hand-designed rewards. We're asking: do agents evolve the reward structures that make behavioral observation useful, or does evolution only discover proximity-seeking?
 
@@ -189,9 +189,9 @@ The previous version had linear vs. MLP as one axis. That's about function appro
 
 ### What each cell tests
 
-**AX (baseline replication):** Reproduce Kanagawa & Doya. Validate that fear (negative w_pred) and social reward (positive w_con) emerge. This is your control condition and proof that your implementation works.
+**AX (baseline replication):** Reproduce Kanagawa & Doya. Validate that fear (negative w_pred) and social reward (positive w_prey) emerge. This is your control condition and proof that your implementation works.
 
-**AY (social observation with reactive reward):** Same flat reward weights, but the policy can see what conspecifics are doing. The reward doesn't change — evolution still operates on the same 4-6 scalars. But the policy has richer input. Question: does the evolved value of w_con change when behavioral observation is available? If w_con evolves *more* positive (stronger social reward), it means the *usefulness* of social proximity increased because agents can now coordinate, which makes evolution favor social reward more. The reward function didn't get more complex — but its fitness landscape shifted because the policy can exploit the behavioral channel.
+**AY (social observation with reactive reward):** Same flat reward weights, but the policy can see what conspecifics are doing. The reward doesn't change — evolution still operates on the same 4-6 scalars. But the policy has richer input. Question: does the evolved value of w_prey change when behavioral observation is available? If w_prey evolves *more* positive (stronger social reward), it means the *usefulness* of social proximity increased because agents can now coordinate, which makes evolution favor social reward more. The reward function didn't get more complex — but its fitness landscape shifted because the policy can exploit the behavioral channel.
 
 **BX (temporal reward without social observation):** The reward function takes a context window, but agents only see positions of conspecifics, not behavior. Question: does anticipatory fear emerge? Does the temporal reward function learn to produce negative reward for "predator was getting closer over the last 10 steps" rather than just "predator is close now"? Does this improve survival in environments with ambush dynamics (predators that stalk slowly then sprint)?
 

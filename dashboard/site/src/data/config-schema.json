@@ -229,14 +229,14 @@
       "value": 0.0001,
       "section": "Energy",
       "comment": "",
-      "inline_comment": "CONFIRMED: basic_energy_consumption (code differs from paper Table 2's 2.5e-3)"
+      "inline_comment": "CONFIRMED: basic_energy_consumption (paper Table 2 labels c_a/c_b swapped; magnitudes match code)"
     },
     {
       "key": "prey_c_a",
       "value": 2.5e-06,
       "section": "Energy",
       "comment": "",
-      "inline_comment": "CONFIRMED: force_energy_consumption (code differs from paper Table 2's 1.0e-4)"
+      "inline_comment": "CONFIRMED: force_energy_consumption (paper Table 2 labels c_a/c_b swapped; magnitudes match code)"
     },
     {
       "key": "predator_d_b",
@@ -264,7 +264,7 @@
       "value": 60.0,
       "section": "Predator Mouth",
       "comment": "",
-      "inline_comment": "medium mouth (Figure 3 \u2014 default for experiments)"
+      "inline_comment": "medium mouth (Figure 3; K&D run small/medium/large as separate conditions \u2014 we replicate medium only)"
     },
     {
       "key": "predator_mouth_range_min",

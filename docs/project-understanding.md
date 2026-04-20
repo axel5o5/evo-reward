@@ -83,13 +83,13 @@ The policy network is NOT inherited. Every newborn starts with a randomly initia
 
 ## What K&D discovered (the result we're replicating)
 
-After running this system for about 10 million steps (roughly 473–501 prey generations), K&D found that:
+After running this system for about 10 million steps (roughly 473–501 prey generations under default conditions — medium mouth, Δn=0.5), K&D found that:
 
-**Fear evolved.** Prey reliably evolved negative `w_pred` — a negative reward signal for predator proximity. This drives PPO to learn avoidance behavior. Nobody programmed fear; evolution discovered that negative reward for predator stimuli produces survival-promoting behavior.
+**Fear evolved** — though not universally. Prey `w_pred` evolved either positively or negatively across seeds, with fear (negative `w_pred`) being the majority outcome (main.tex:271). This drives PPO to learn avoidance behavior. Nobody programmed fear; evolution discovered that negative reward for predator stimuli produces survival-promoting behavior.
 
-**Social affiliation evolved.** Prey reliably evolved positive `w_prey` — positive reward for being near other prey. This drives grouping behavior. Evolution discovered that social proximity reduces predation risk (dilution effect) and is therefore worth rewarding.
+**Social affiliation evolved.** Prey `w_prey` evolved toward positive values in the majority of simulations — positive reward for being near other prey. This drives grouping behavior. Evolution discovered that social proximity reduces predation risk (dilution effect) and is therefore worth rewarding.
 
-**These emerged sequentially.** The v2 of the paper added an important finding: social reward tends to evolve *before* fear. An agent needs to be in a social group before the fear signal becomes strongly adaptive — individual fear without group behavior provides weaker protection than group cohesion with moderate fear.
+**Strategies coexist within a single seed.** In the specific cases where prey `w_pred` was counter-intuitively positive (seeds 2 and 4), social reward also grew strongly positive — suggesting that collective grouping can substitute for individual fear as a survival strategy.
 
 **Reward weight branching.** Within the same population, different lineages evolve different strategies. Some prey develop strong fear with weak social affiliation; others develop strong social affiliation with weak fear. These coexist as alternative evolutionary stable strategies — a computational analog of behavioral polymorphism in nature.
 

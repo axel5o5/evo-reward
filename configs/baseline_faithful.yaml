@@ -67,11 +67,13 @@ food_max_regen_per_step: 10          # CONFIRMED: n_max_food_regen = 10
 # ─── Energy — Prey ───────────────────────────────────────────────────────────
 energy_capacity:        1000.0       # CONFIRMED: max energy cap (20251122 config:23)
 prey_e_food:            1.0          # energy gained per food item (Section 3)
-prey_c_b:               1.0e-4       # CONFIRMED: basic_energy_consumption (code differs from paper Table 2's 2.5e-3)
-prey_c_a:               2.5e-6       # CONFIRMED: force_energy_consumption (code differs from paper Table 2's 1.0e-4)
+prey_c_b:               1.0e-4       # CONFIRMED: basic_energy_consumption (emevo code)
+prey_c_a:               2.5e-6       # CONFIRMED: force_energy_consumption (emevo code)
 # Energy update: Δe = n_eaten * e_food - c_a * ‖action‖ - c_b
-# WARNING: These values are from the emevo source code (20251122-predator-square.toml:24-25).
-# The paper Table 2 lists different values (c_b=2.5e-3, c_a=1.0e-4). We follow the code.
+# NOTE on paper Table 2: paper lists c_b=2.5e-6 and c_a=1.0e-4 (reversed from our
+# values). The paper's own sanity check (main.tex:443 — "c_a·‖a‖ is ~2× c_b at
+# max motor") only holds with our code values, so Table 2 has the c_a/c_b labels
+# swapped. Magnitudes match; the discrepancy is a labeling error in the paper.
 
 # ─── Energy — Predator ───────────────────────────────────────────────────────
 predator_d_b:           4.0e-3       # CONFIRMED: predator_basic_ec = 4e-3 (matches Table 2)
@@ -81,7 +83,7 @@ predator_d_a:           5.0e-5       # CONFIRMED: predator_force_ec = 5e-5 (matc
 predator_eta:           0.6          # CONFIRMED: predator_digestive_rate = 0.6
 
 # ─── Predator Mouth ──────────────────────────────────────────────────────────
-predator_mouth_deg:         60.0     # medium mouth (Figure 3 — default for experiments)
+predator_mouth_deg:         60.0     # medium mouth (Figure 3; K&D also run small/large as separate conditions — we replicate medium only)
 predator_mouth_range_min:   40.0     # (Section 3 / Figure 3)
 predator_mouth_range_max:   80.0     # (Section 3 / Figure 3)
 
