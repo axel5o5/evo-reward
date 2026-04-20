@@ -97,13 +97,20 @@ it's accumulated since you ran gcp-setup.md step 6, set
 
 ### 5. Point the dashboard at the data
 
-Vercel → Project → Settings → Environment Variables:
+**If the repo is public**, you can point the site directly at the raw URL:
 
 ```
 VITE_GCP_STATUS_URL = https://raw.githubusercontent.com/<user>/evo-reward/gcp-status/gcp-status.json
 ```
 
-Redeploy.
+**If the repo is private** (the default), leave `VITE_GCP_STATUS_URL` unset
+and the site will fetch from `/api/status` — a Vercel serverless route
+([api/status.ts](../../api/status.ts)) that reads the raw file with a
+server-side PAT. See step 2 of Part 2 below for the PAT — the same token
+covers both the control plane and this proxy, just add `Contents: Read`
+to its scopes.
+
+Redeploy either way (VITE_* vars are baked at build time).
 
 ### 6. First run
 
@@ -268,13 +275,16 @@ to verify WIF works before wiring up Vercel.
 
 ### 3. Mint a GitHub PAT for Vercel
 
-The Vercel function triggers workflow_dispatch via the GitHub API. It
-needs a PAT scoped *only* to this repo.
+The Vercel functions use this token to (a) trigger workflow_dispatch
+via the GitHub API and (b) read `gcp-status.json` from the private
+gcp-status branch. It needs a PAT scoped *only* to this repo.
 
 1. https://github.com/settings/personal-access-tokens/new
 2. Fine-grained token, resource owner = you (or the org).
 3. Repository access: **only `evo-reward`**.
-4. Permissions: `Actions: Read and write`. No others.
+4. Permissions:
+   - `Actions: Read and write` (for /api/action → workflow_dispatch)
+   - `Contents: Read` (for /api/status → read gcp-status.json)
 5. Expiration: 90 days (set a calendar reminder to rotate).
 6. Copy the token (starts with `github_pat_...`).
 
