@@ -1,0 +1,116 @@
+name: GCP Action
+
+# Control-plane workflow triggered from the dashboard via the Vercel
+# /api/action route. The API checks a shared PIN and forwards a
+# workflow_dispatch; this workflow does the actual gcloud call.
+#
+# Audit trail: every action appears in the Actions tab with the chosen
+# action name + the commit-request-id traceable back to Vercel logs.
+#
+# Authenticates via Workload Identity Federation — no keys stored. The
+# service account needs roles/compute.instanceAdmin.v1 on the project.
+# See dashboard/ops/GCP_MONITOR.md#control-plane for setup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - stop
+          - start
+          - restart
+          - delete
+      request_id:
+        description: 'Short request id for cross-referencing (set by API)'
+        required: false
+        type: string
+        default: 'manual'
+
+concurrency:
+  group: gcp-action
+  cancel-in-progress: false    # never cancel a stop/delete mid-flight
+
+jobs:
+  act:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write            # for WIF auth
+      contents: read
+
+    steps:
+      - name: Log what we're about to do
+        run: |
+          echo "::notice title=Action requested::action=${{ inputs.action }} request_id=${{ inputs.request_id }}"
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Find VM zone
+        id: locate
+        run: |
+          # The VM rotates across zones; don't assume us-central1-a.
+          zone=$(gcloud compute instances list \
+            --filter="name=evo-reward-gpu" \
+            --format="value(zone)" \
+            --project="evo-reward" | head -1)
+          if [ -z "$zone" ]; then
+            if [ "${{ inputs.action }}" = "delete" ]; then
+              echo "VM not found — delete is a no-op."
+              echo "vm_exists=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error title=VM missing::evo-reward-gpu not found in any zone. Nothing to ${{ inputs.action }}."
+            exit 1
+          fi
+          echo "Found VM in zone: $zone"
+          echo "zone=$zone" >> "$GITHUB_OUTPUT"
+          echo "vm_exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Stop
+        if: inputs.action == 'stop' && steps.locate.outputs.vm_exists == 'true'
+        run: |
+          gcloud compute instances stop evo-reward-gpu \
+            --zone="${{ steps.locate.outputs.zone }}" \
+            --project="evo-reward"
+
+      - name: Start
+        if: inputs.action == 'start' && steps.locate.outputs.vm_exists == 'true'
+        run: |
+          # Start can fail on spot if the zone is stocked out; surface the
+          # actual gcloud error so the dashboard can show something useful.
+          gcloud compute instances start evo-reward-gpu \
+            --zone="${{ steps.locate.outputs.zone }}" \
+            --project="evo-reward"
+
+      - name: Restart
+        if: inputs.action == 'restart' && steps.locate.outputs.vm_exists == 'true'
+        run: |
+          gcloud compute instances stop evo-reward-gpu \
+            --zone="${{ steps.locate.outputs.zone }}" \
+            --project="evo-reward"
+          # Brief pause so GCP has time to record STOPPED before we Start.
+          sleep 10
+          gcloud compute instances start evo-reward-gpu \
+            --zone="${{ steps.locate.outputs.zone }}" \
+            --project="evo-reward"
+
+      - name: Delete
+        if: inputs.action == 'delete' && steps.locate.outputs.vm_exists == 'true'
+        run: |
+          # Local spot_orchestrator.py (if running) will notice the VM
+          # is gone on its next reconcile cycle and poll for capacity
+          # in a fresh zone. If not running, this is a bare delete.
+          gcloud compute instances delete evo-reward-gpu \
+            --zone="${{ steps.locate.outputs.zone }}" \
+            --project="evo-reward" \
+            --quiet

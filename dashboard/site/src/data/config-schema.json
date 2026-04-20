@@ -229,14 +229,14 @@
       "value": 0.0001,
       "section": "Energy",
       "comment": "",
-      "inline_comment": "CONFIRMED: basic_energy_consumption (paper Table 2 labels c_a/c_b swapped; magnitudes match code)"
+      "inline_comment": "CONFIRMED: basic_energy_consumption (emevo code)"
     },
     {
       "key": "prey_c_a",
       "value": 2.5e-06,
       "section": "Energy",
       "comment": "",
-      "inline_comment": "CONFIRMED: force_energy_consumption (paper Table 2 labels c_a/c_b swapped; magnitudes match code)"
+      "inline_comment": "CONFIRMED: force_energy_consumption (emevo code)"
     },
     {
       "key": "predator_d_b",
@@ -264,7 +264,7 @@
       "value": 60.0,
       "section": "Predator Mouth",
       "comment": "",
-      "inline_comment": "medium mouth (Figure 3; K&D run small/medium/large as separate conditions \u2014 we replicate medium only)"
+      "inline_comment": "medium mouth (Figure 3; K&D also run small/large as separate conditions \u2014 we replicate medium only)"
     },
     {
       "key": "predator_mouth_range_min",
@@ -510,20 +510,6 @@
       "section": "Action Space",
       "comment": "",
       "inline_comment": "CONFIRMED: sigmoid_scale, not hard clip"
-    },
-    {
-      "key": "checkpoint_interval_steps",
-      "value": 25000,
-      "section": "Logging",
-      "comment": "",
-      "inline_comment": "save checkpoint every 25k steps"
-    },
-    {
-      "key": "log_interval_steps",
-      "value": 10000,
-      "section": "Logging",
-      "comment": "",
-      "inline_comment": "log metrics every 10k steps"
     },
     {
       "key": "seed",

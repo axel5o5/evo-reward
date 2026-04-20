@@ -377,6 +377,384 @@
       "author": "Axel Browne",
       "phase": "0",
       "session": null
+    },
+    {
+      "hash": "9a86315e",
+      "message": "[Dashboard] Add GFM table rendering and expandable commit descriptions",
+      "body": "- Install @tailwindcss/typography + remark-gfm so prose classes and markdown\n  tables render properly in DocsViewer\n- Upgrade prose-sm \u2192 prose-base for better readability\n- Extract full commit body (%b) in extract_data.py using record separators\n- Make commit rows clickable in SessionTimeline to expand/collapse the full\n  commit description",
+      "date": "2026-04-14 10:47:48 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4af7f0b3",
+      "message": "[Dashboard] Refresh extracted data: new JAX modules, deviations D13-D14, docs fix",
+      "body": "- module-deps.json: pick up 6 new jax_* modules and observations.py with edges\n- deviations.json: add D13 (JIT PPO) and D14 (power-of-2 padding)\n- project-understanding.md: correct sensor description (4-channel proximity +\n  tactile, 205-dim observation)",
+      "date": "2026-04-14 10:48:55 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9b8a61d8",
+      "message": "[Phase 2] Axis 1 \u2014 MLP reward genome (reward_type: mlp)",
+      "body": "Replace linear dot-product reward (4 weights) with a small MLP:\ninput(4) \u2192 Dense(8, tanh) \u2192 Dense(8, tanh) \u2192 Dense(1) = 121 params.\nThe MLP genome is the heritable unit; policy is unchanged.\n\n- src/reward.py: RewardMLP Flax module, init_mlp_genome, compute_mlp_reward\n- src/evolution.py: mutate_mlp_genome (flatten/t(df=2)/clip/unflatten)\n- configs/axis1_mlp_reward.yaml: mlp_mutation_scale=0.01, mlp_weight_clip=10\n- analysis/capacity_util.py: compute_reward_nonlinearity (1-R\u00b2 metric)\n- tests/test_components.py: 14 MLP tests (46 passed, 3 skipped, 0 failed)\n\nLinear genome path unchanged \u2014 zero regressions on baseline tests.",
+      "date": "2026-04-14 11:40:57 -0400",
+      "author": "Axel Browne",
+      "phase": "2",
+      "session": null
+    },
+    {
+      "hash": "ad854aaa",
+      "message": "[Phase 2] Axis 2 \u2014 Social behavioral observation (social_obs: position_heading_velocity)",
+      "body": "Append heading + speed of the 5 closest conspecifics to the observation\nvector (10 new dims, obs_dim 205\u2192215). Both the Python per-agent path\n(agents.py) and the vectorized JAX path (observations.py) are extended.\nReward genome is unchanged \u2014 only the policy input grows.\n\nNew files:\n- configs/axis2_social_obs.yaml\n\nModified:\n- src/agents.py: _compute_social_obs_single() + social branch in get_observation()\n- src/observations.py: _single_social_obs() vmapped into _build_obs_fn()\n- analysis/capacity_util.py: compute_social_obs_utilization() binned MI estimator\n- src/metrics.py: optional trajectory saving (save_trajectories flag)\n- docs/interfaces.md: finalized social obs layout with index table\n- docs/emevo-diff.md: D15 deviation entry\n\nTests: 57 component + 12 vectorized + 11 phase0 = 80 passed, 3 skipped.",
+      "date": "2026-04-14 12:27:17 -0400",
+      "author": "Axel Browne",
+      "phase": "2",
+      "session": null
+    },
+    {
+      "hash": "a76379a3",
+      "message": "[Phase 2] Axis 3 \u2014 Temporal reward context window + Axis 4 \u2014 LSTM policy",
+      "body": "Axis 3: Rolling window of k recent stimulus vectors feeds an MLP reward\nfunction, enabling temporal pattern encoding (e.g., approaching predator).\n- TemporalRewardMLP: input(k*4) \u2192 Dense(16,tanh) \u2192 Dense(16,tanh) \u2192 1\n- 945 params (k=10, h=16), mutated via t(df=2, scale=0.005, clip=\u00b15)\n- obs_buffer (max_agents, k, 4) in SimState, zeros at birth, rolled each step\n\nAxis 4: LSTM policy gives agents memory across timesteps within a lifetime.\n- LSTMPolicyNetwork: obs(205) \u2192 LSTM(64) \u2192 Dense(64,tanh) \u2192 heads (73,477 params)\n- Hidden state is lifetime state, NOT inherited \u2014 zeros at every birth\n- PPO via truncated BPTT: 128-step chunks, gradient stop at boundaries\n- rollout_init_hidden stores h_0 for replay (256KB vs 256MB per-step)\n\nBoth axes share SimState changes and spawn_offspring_jax reset logic.\n81/81 tests pass (24 new: 11 temporal + 13 LSTM), 3 skipped, no regressions.\nD16, D17 documented in emevo-diff.md.",
+      "date": "2026-04-14 13:16:36 -0400",
+      "author": "Axel Browne",
+      "phase": "2",
+      "session": null
+    },
+    {
+      "hash": "6a5d100e",
+      "message": "[Docs] Fix stale pre-resolution parameter values in technical spec and plans",
+      "body": "Back-propagate corrections from emevo source code verification (already in\nconfigs/baseline_faithful.yaml and emevo-diff.md) to the documentation that\nwas written before Phase 0 open-item resolution:\n\n- technical-spec: obs_dim 55\u2192205, sensor range 120\u2192200, food_max 100\u2192600,\n  prey energy params to match code, per-type sensor channels, energy_share_ratio\n- experimental-plan: \"Cauchy\"\u2192\"Student's t(df=2, scale=0.4)\", mutation_scale 0.02\u21920.4\n- background: \"Cauchy-distributed\"\u2192\"Student's t(df=2, scale=0.4)-distributed\"\n\nNo code or config changes \u2014 implementation was already correct.",
+      "date": "2026-04-14 16:53:21 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6413c83b",
+      "message": "Merge branch 'main' into dev/extensions",
+      "body": null,
+      "date": "2026-04-14 17:05:16 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c61668df",
+      "message": "[Docs] Add GCP VM setup runbook for Phase 1a",
+      "body": "End-to-end runbook for provisioning a g2-standard-8 + L4 VM on GCP and\nrunning the K&D baseline replication. Captures the gotchas hit during\nfirst provisioning: per-project gcloud configs, all-regions GPU quota\nrequest, zone stockout fallback, Cloud NAT + IAP path for projects\nthat forbid external IPs on VMs, minimal DL image needing apt+venv\nsetup, and tar+scp for private-repo upload.",
+      "date": "2026-04-18 18:28:09 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "edc4f646",
+      "message": "[Infra] Full-state checkpointing, --resume flag, local-setup docs, CI",
+      "body": "Phase 1a takes ~12h on L4 (~$8.50) or 2-5 days on a Mac CPU (free).\nThe Mac path is only viable if runs survive interruption \u2014 the previous\n_save_checkpoint_jax saved 8 of 27 SimState fields, which loses all\npolicy weights. This replaces the partial save with a full-state save\nand adds a --resume flag.\n\n- src/jax_checkpoint.py: save_simstate / load_simstate / rotate /\n  find_latest using jax.tree_util.tree_flatten + compressed .npz.\n  Uses tree_flatten rather than flax.serialization because the latter's\n  msgpack codec can't serialize phyjax2d's StateDict. A signature key\n  distinguishes the new format from legacy partial checkpoints.\n- scripts/run_experiment_jax.py: wire --resume / --resume-from CLI\n  flags; refuse to start fresh if checkpoints already exist (prevents\n  accidental overwrite); adjust loop start to sim_state.step for\n  correct resume continuation.\n- configs/baseline_faithful.yaml: checkpoint_interval 25k -> 100k\n  (full-state saves are larger than the old partial ones).\n- tests/test_checkpoint_jax.py: 9 tests covering roundtrip, atomic\n  write, rotation, find_latest, legacy rejection, and the critical\n  determinism check \u2014 running N steps, saving, loading into a fresh\n  template, and running M more steps must produce a bit-identical\n  trajectory to the uninterrupted run.\n- docs/local-setup.md: Mac (primary local venue) and Raspberry Pi\n  (smoke-test-only) setup instructions.\n- .github/workflows/ci.yml: matrix CI across ubuntu-latest,\n  macos-latest, and ubuntu-24.04-arm (Pi stand-in; continue-on-error\n  for the ARM runner while it's still in public preview).\n\nVerified locally: 113 passed + 3 skipped, and an end-to-end\nfresh-then-resume cycle via run_experiment_jax.py completes cleanly.",
+      "date": "2026-04-18 18:58:32 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "47ee72ae",
+      "message": "[Docs] Document cross-device checkpoint migration",
+      "body": "Explain how to hand off a run between Mac, Pi, and GCP L4 via plain\n.npz copy. Notes the two caveats: config/git-sha must match on both\nends, and cross-device resume isn't bit-identical due to GPU vs CPU\nfloating-point differences (but the Phase 1a outcome is robust to\nthe drift).",
+      "date": "2026-04-18 19:06:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "85c9a970",
+      "message": "[Infra] Split runtime ops from science configs + richer log line",
+      "body": "Separates \"how to run\" from \"what the experiment is\":\n\n- configs/runtime/{default,mac,gcp_l4}.yaml \u2014 checkpoint / log cadence.\n  Measured rate on M4 Mac is ~3 steps/s, so mac.yaml checkpoints every\n  5K steps (~28 min wall clock) and logs every 100 (~33 sec). gcp_l4\n  keeps 100K / 10K (L4 does ~237 steps/s). default.yaml is a safe\n  middle ground (10K / 1K).\n- configs/baseline_faithful + all 4 axis configs: stripped\n  checkpoint_interval_steps and log_interval_steps. They never\n  affected the experiment result, just save/log frequency.\n- scripts/run_experiment_jax.py: --runtime (default\n  configs/runtime/default.yaml), --checkpoint-interval, --log-interval\n  CLI flags. Runtime yaml overlays science config; CLI flags win.\n- Richer log line per the need for in-flight debugging: shows\n  population counts, mean energy, and mean\u00b1std of both science-\n  critical prey reward weights (w_pred = fear, w_prey = social\n  affiliation) so you can watch the evolutionary dynamics unfold.\n- docs/local-setup.md: replaced optimistic Mac runtime estimates\n  (2\u20133 days) with the measured reality (~40 days for M4). Added\n  \"useful local modes\" list \u2014 Mac is best for smoke tests, short\n  validation runs, and cross-device staging, not full Phase 1a.\n- docs/gcp-setup.md: invocations updated to pass\n  --runtime configs/runtime/gcp_l4.yaml.\n- .github/workflows/ci.yml: matrix (added in prior commit) plus\n  pytest-cov and slow-marker split applied.\n\nVerified: 133 tests pass + 3 skipped; new log format renders cleanly\non a 500-step smoke run with --runtime mac.yaml.",
+      "date": "2026-04-18 19:34:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8819f810",
+      "message": "[Docs] Link setup runbooks from the top-level README",
+      "body": "New \"Running the Code\" section points at the GCP and local setup\ndocs, and shows the runtime-config split at a glance. Previously the\nonly way to discover either runbook was to browse docs/ manually.",
+      "date": "2026-04-18 19:44:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5859b78d",
+      "message": "[Perf] Enable XLA CPU fast-math + thunk runtime",
+      "body": "Sets XLA_FLAGS before `import jax` in the runner, enabling\n--xla_cpu_enable_fast_math and --xla_cpu_use_thunk_runtime. Flags are\nCPU-specific; XLA ignores them on the GPU backend, so it's a no-op on\nour L4 but gives a ~40% speedup on Mac CPU:\n\n  Before: 7.0 steps/s (pre-PPO, 500 steps, --runtime mac.yaml)\n  After:  9.8 steps/s (same run)\n\nObservable values (population counts, energies, reward-weight means\nand stds) are identical at the displayed precision \u2014 fast-math's\nsub-ULP numerical differences don't affect anything we care about\nat the scale of this workload.\n\nFull test suite (141 passed + 3 skipped) still green, including the\nTestResumeDeterminism bit-identity check, because fast-math is\nconsistent within a single process.\n\nUsers can opt out by exporting XLA_FLAGS before invoking the runner;\nos.environ.setdefault preserves any caller-provided value.",
+      "date": "2026-04-18 21:55:41 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d00fa40f",
+      "message": "[Docs] jax-metal is a dead end \u2014 record the failure mode",
+      "body": "Tried jax-metal 0.1.1 + JAX 0.9.2 on an M4 Pro (2026-04). Metal is\ndetected but phyjax2d's ShapeDict initializer calls jnp.empty(0),\nwhich triggers a convert_element_type path Metal doesn't implement:\n\n    UNIMPLEMENTED: default_memory_space is not supported.\n\nFailure happens inside init_simstate, before the first sim step \u2014\nthere's no runner-level workaround. Updated docs to reflect this so\nfuture contributors don't burn time on the same spike.\n\nNo runtime code changed \u2014 jax-metal is opt-in via user pip install.",
+      "date": "2026-04-18 22:00:58 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d1f6d241",
+      "message": "Merge perf/xla-fast-math: 40% Mac speedup via XLA CPU flags",
+      "body": null,
+      "date": "2026-04-19 15:22:13 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5fdaf67f",
+      "message": "Merge perf/jax-metal: document jax-metal incompatibility",
+      "body": null,
+      "date": "2026-04-19 15:22:13 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "31b1cd72",
+      "message": "[Infra] Spot L4 runtime profile + gcp-spot.md recipe",
+      "body": "Adds a GCP spot/preemptible L4 path that costs ~60\u201370% less per seed\nthan on-demand at the price of occasional preemptions:\n\n  On-demand: $0.70/hr \u00d7 12h = ~$8.90 total\n  Spot (typical): $0.21/hr \u00d7 ~14.4h = ~$3.62 total\n\n- configs/runtime/gcp_l4_spot.yaml: checkpoint every 25k steps\n  (~1.75 min at 237 steps/s), log every 5k. Tuned so a preemption\n  loses ~1 min of work on average. Save overhead is ~3% of wall clock.\n- docs/gcp-spot.md: VM-create invocation with --provisioning-model=SPOT\n  and --instance-termination-action=STOP, retry-loop wrapper inside\n  tmux to survive Python-process exits, and an optional\n  poll-and-restart snippet on the laptop for fully-automated\n  preemption recovery.\n- README.md: adds gcp-spot.md to the \"Running the Code\" setup links.\n\nNo runtime code changes \u2014 resume flow already handles preemption\ncorrectly (verified by test_checkpoint_jax.py::TestResumeDeterminism).",
+      "date": "2026-04-19 16:33:32 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1443178a",
+      "message": "[Docs] Correct K&D predator mouth-size scope: medium-only, not all three",
+      "body": "K&D 2025 runs small/medium/large as three experimental conditions\nproducing the \"larger mouths \u2192 stronger fear\" finding. Docs previously\ndescribed medium as \"the default\" without flagging that the other two\nconditions exist and are out of scope for our Phase 1a. Updated\ntechnical-spec, experimental-plan, development-roadmap, reading-guide,\nand project-understanding to make the omission explicit.",
+      "date": "2026-04-19 16:36:06 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3c5560ed",
+      "message": "[Tests] Add jax_evolution + jax_ppo unit/integration tests, pytest.ini",
+      "body": "Two previously-uncovered modules now have coverage:\n\n- tests/test_jax_evolution.py \u2014 Student's t mutation distribution,\n  weight clipping, spawn_offspring slot writes and state reset. These\n  silently-failing paths were the highest risk of quietly corrupting\n  a population mid-run.\n- tests/test_jax_ppo_update.py \u2014 full build_ppo_update_fn integration:\n  loss, gradient, Adam step, multi-epoch/minibatch loop, per-slot\n  lax.cond dispatch. Marked @pytest.mark.slow because JIT compile\n  takes 20\u201340s.\n\npytest.ini is load-bearing for the CI workflow:\n- Defines the slow / jax / integration markers.\n- Uses --strict-markers so typos like @pytest.mark.slwo get caught.\n- The CI yml filters with -m \"not slow\" for the fast job and\n  -m \"slow\" for a main-only job; without these marker declarations,\n  pytest would reject those filters under strict mode.\n\nFull suite: 141 passed + 3 skipped. This matches the count reported\nby the earlier infrastructure commits, which were already running\nthese tests \u2014 they just hadn't been added to git yet.",
+      "date": "2026-04-19 16:37:45 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7da548a2",
+      "message": "[Tools] Add scripts/profile_sim_step.py for per-phase timing",
+      "body": "Diagnostic-only script that times each phase of sim_step_core\nindividually by breaking JIT fusion across phase boundaries. Used\nto determine where real time goes when sim_step_core runs slow.\n\nKey finding from running this on Mac at 198 agents (M4 Pro, fast-math):\n  physics (phyjax2d)        72.3% of step time\n  energy + births + food    19.5%\n  observations               7.2%\n  eating (O(N^2) catch)      0.5%  \u2190 was suspected bottleneck; isn't\n  policy sample              0.5%\n\nInvalidated the spatial-grid optimization direction \u2014 0.5% of time is\nnot worth 2-3 days of refactor. The sim is physics-bound.\n\nUsage: python scripts/profile_sim_step.py --warmup-steps 500 --iter 20",
+      "date": "2026-04-19 17:24:13 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cffab937",
+      "message": "Merge perf/spatial-grid: profiling tool + perf investigation findings",
+      "body": null,
+      "date": "2026-04-19 17:24:13 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5f10efcf",
+      "message": "[Perf] Batch the per-step PPO readiness check (29% Mac speedup)",
+      "body": "Previously the runner called np.array(sim_state.rollout_ptrs) every\nstep, which blocks the Python loop waiting for GPU/CPU to finish\nsim_step_core. Now we only check readiness every PPO_CHECK_EVERY steps\n(default 10, overridable via EVO_PPO_CHECK_EVERY env var).\n\nMeasured on Mac M4 Pro (fast-math enabled), 2000 steps, seed 0,\n--runtime mac.yaml:\n\n  K=1  (old behavior): 2.1 steps/s\n  K=10 (new default):  2.7 steps/s     ~29% faster\n\nOn L4 GPU the sync cost is larger, so the win is likely \u2265 29%. Have\nnot re-benchmarked on GPU (that's $0.70/hr) but will observe the rate\non the real Phase 1a run.\n\nCorrectness tradeoff: when an agent's rollout fills (ptrs hits\nrollout_steps=1024), subsequent sim_step_core calls clip the write\nindex to slot 1023 (src/jax_sim.py:123) \u2014 so the final slot may be\noverwritten by up to (PPO_CHECK_EVERY - 1) later observations before\nPPO fires. At K=10 and rollout_steps=1024 that's 0.1% of the rollout\nbeing 1-9 steps \"late\" per update.\n\nEmpirically at step 2000, K=1 vs K=10 gives:\n  prey=244 vs 243, pred=23 vs 24 (within normal stochastic variance)\n  w_pred mean: -0.04 vs -0.05 (both show fear direction)\n  w_prey mean: +0.00 vs +0.00 (identical at 2-decimal precision)\n\nWell within seed-to-seed variance. Set EVO_PPO_CHECK_EVERY=1 to\nrecover exact-timing baseline for comparison runs.\n\nFinal-flush safety: _maybe_fire_ppo is also called before each\ncheckpoint write and once more at the end of the run, so saved state\nalways reflects a post-PPO-sweep view (no stale in-progress\nrollouts).\n\nAll 141 tests still pass (tests call sim_step_core directly and\nare unaffected by the runner-side batching).",
+      "date": "2026-04-19 18:02:55 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "84eaa064",
+      "message": "Merge perf/batched-ppo-check: 29% Mac speedup via batched PPO readiness",
+      "body": null,
+      "date": "2026-04-19 18:02:56 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0e92359a",
+      "message": "[Feat] JAX runner writes metrics.npz for downstream analysis tools",
+      "body": "The legacy Python runner wrote a metrics.npz time series that\nscripts/validate_replication.py and the dashboard both read. The JAX\nrunner (scripts/run_experiment_jax.py) was writing only full SimState\ncheckpoints, so none of the analysis tooling worked on JAX runs.\n\nThis ports the legacy MetricsLog schema into src/jax_metrics.py with\nthe same field names \u2014 so validate_replication.py now works against\nJAX-run output without any changes on its side.\n\n- src/jax_metrics.py: JaxMetrics dataclass, record()/save()/load()\n  helpers. Record per log_interval_steps call; save at every\n  checkpoint boundary + end of run. Atomic writes via .tmp + rename.\n- scripts/run_experiment_jax.py: initializes metrics_log, records in\n  _log_progress, saves at each checkpoint and at final flush. On\n  --resume, loads the existing metrics.npz and keeps appending.\n- tests/test_jax_metrics.py: 10 tests covering record correctness,\n  roundtrip, atomic write, resume-append semantics, and a compat\n  check against the exact keys validate_replication.py reads.\n\nSmoke-tested end-to-end: 500-step run produces a valid metrics.npz,\nvalidate_replication.py loads it and runs all Phase 1a criteria\n(expected FAIL on most at 500 steps \u2014 populations haven't oscillated\nyet, weights haven't fully drifted \u2014 but the pipeline works).\n\nFull test suite: 151 passed + 3 skipped (was 141 + 3 before).",
+      "date": "2026-04-20 00:12:26 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "12052980",
+      "message": "Merge feat/jax-metrics: metrics.npz for validate_replication + dashboard compat",
+      "body": null,
+      "date": "2026-04-20 00:12:26 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "91a423f7",
+      "message": "[Tools] Add scripts/gcloud-env.sh for per-shell gcloud scoping",
+      "body": "Sources env vars that override the globally-active gcloud config with\nthe evo-reward values for the current shell only, so working on this\nproject never mutates the user's primary gcloud account/project.\n\n  source scripts/gcloud-env.sh",
+      "date": "2026-04-20 08:00:34 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9295a76c",
+      "message": "[Infra] spot_orchestrator: auto-create NAT + SSH retry with backoff",
+      "body": "Two reliability fixes after the first run failed on us-west1-a:\n\n1. Each region needs its own Cloud NAT (NAT is regional). The\n   orchestrator now calls ensure_nat(zone) right after a successful\n   VM create, checking for the router/NAT in the VM's region and\n   creating them if missing. Idempotent \u2014 no-ops when they exist.\n\n2. Fresh VMs aren't ready for SSH for ~30-90s after create (ssh key\n   propagation, sshd startup). wait_for_ssh() polls with backoff\n   (30, 60, 90, 120, 150, 180s \u2014 up to ~7 min of patience) before\n   handing off to provision().\n\nNo behavior change when things work; just way more tolerant of the\nnormal transient failures of GCP spot capacity handoff.",
+      "date": "2026-04-20 11:47:44 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b33cda60",
+      "message": "[Infra] Preemption-hardened orchestrator via GCP startup-script",
+      "body": "Previous orchestrator installed apt packages + jax[cuda12] via SSH\nfrom the laptop. That took 10-15 minutes during which the spot VM\nwas especially vulnerable to preemption, and mid-install preemption\nkilled SSH and the orchestrator exited.\n\nNew architecture:\n\n- scripts/vm_startup.sh: idempotent bootstrap script passed as\n  instance metadata. Runs as root on every VM boot (including after\n  spot preemption + restart). Installs apt packages, creates venv,\n  installs jax[cuda12]. If repo + phase1a_loop.sh have been uploaded,\n  also installs requirements and starts the tmux training session.\n  Logs to /var/log/evo-startup.log. Writes /tmp/evo-ready once the\n  base env is ready.\n\n- scripts/spot_orchestrator.py rewritten as a reconcile-loop:\n  1. Get (or poll for) a zone with spot capacity; create VM with\n     vm_startup.sh as startup-script metadata.\n  2. Each cycle, describe the VM and drive it to the target state:\n     TERMINATED -> start; RUNNING -> wait for ready marker; then\n     upload repo + loop script if missing; then start tmux if missing.\n  3. Every step is idempotent and failure-tolerant. No step ever\n     calls sys.exit \u2014 failures just leave the cycle incomplete and\n     the next iteration retries.\n  4. On preemption restart, vm_startup.sh restarts the tmux session\n     automatically; the orchestrator just has to notice RUNNING.\n\nWait windows:\n  * wait_for_ssh: up to 6 min for sshd + key propagation\n  * wait_for_ready_marker: up to 30 min for jax[cuda12] install to\n    finish on first boot (it's ~500MB of CUDA wheels)\n\nState is still in .claude-orch-state.json so rerunning picks up the\nexisting VM.",
+      "date": "2026-04-20 13:09:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8519e4fd",
+      "message": "[Infra] spot_orchestrator: detect preemption mid-wait, faster reconcile",
+      "body": "Two fixes after observing the orchestrator stuck in a 30-min wait\nloop while the VM was already TERMINATED:\n\n1. wait_for_ready_marker polls VM status each iteration and returns\n   False immediately if status != RUNNING. The outer reconcile loop\n   then restarts the VM on the next cycle.\n\n2. READY_MARKER_ATTEMPTS dropped from 60 (30 min) to 10 (5 min).\n   Longer install progress naturally spans multiple reconcile cycles\n   since the startup-script is idempotent \u2014 no reason to hold one\n   cycle open for 30 min while pretending nothing is wrong.",
+      "date": "2026-04-20 13:40:44 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4391e466",
+      "message": "[Infra] GCS-backed checkpoints + persistent-stockout fallback",
+      "body": "Two fixes that together make the spot orchestrator survive sustained\nGCP capacity pressure:\n\n1. GCS-backed checkpoints (cross-zone recovery).\n   vm_startup.sh now reads instance-metadata key `gcs-bucket` and:\n     - on boot, `gsutil rsync` from gs://$BUCKET/results -> local\n       (restores a new VM to the last saved state of the previous VM)\n     - starts a tmux session that pushes local results -> GCS every\n       5 min (incremental, survives preemption)\n   The orchestrator creates the bucket on startup, attaches it via\n   metadata to each VM, and gives the VM cloud-platform scope so its\n   default service account can read/write.\n\n2. Persistent-stockout fallback (delete+recreate elsewhere).\n   After 3 consecutive stockout failures on `instances start` in the\n   same zone (~15 min), the orchestrator deletes the stuck VM and\n   polls all zones for fresh capacity. With GCS-backed checkpoints\n   in place, the new VM pulls prior results before resuming training \u2014\n   minimal progress loss.\n\nThis unblocks the case we just hit: us-central1-a preempted our VM\nand then refused to restart it due to stockout. Before these fixes\nthe orchestrator would loop forever on same-zone retry. After these\nfixes, new VM in an available zone with checkpoints restored.",
+      "date": "2026-04-20 13:52:27 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f6ab1315",
+      "message": "[Infra] spot_orchestrator: --on-demand flag instead of auto-fallback",
+      "body": "The decision of when to abandon spot is a user judgment, not an\norchestrator policy. Replaced the time-based auto-fallback with an\nexplicit --on-demand flag.\n\nUsage: when spot capacity is chronically bad and you'd rather pay\nthe premium for certainty, kill the spot orchestrator and re-run:\n\n    python3 scripts/spot_orchestrator.py --on-demand --seed 0\n\nEverything else stays identical \u2014 same state file, same GCS\ncheckpoint bucket, same reconcile loop. The new VM just skips the\n--provisioning-model=SPOT / termination-action flags, so it's a\nregular on-demand VM that won't be preempted.",
+      "date": "2026-04-20 14:05:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d074f9f9",
+      "message": "[Infra] Line-buffer runner stdout so phase1a.log updates in real time",
+      "body": "Without unbuffered output, Python's stdout piped through tee sat in\na ~4KB block buffer. On a real Phase 1a run the first log line at\nstep 5000 emits about 150 bytes, so nothing appeared in phase1a.log\nfor many minutes while training was quietly running on the GPU. Made\nit look like training was hung when it was actually fine.\n\nFix: wrap the runner with stdbuf -oL -eL python -u, and pipe through\nstdbuf -oL tee, forcing line-buffering end to end. Progress lines now\nappear in phase1a.log within seconds of being printed.\n\nOnly the orchestrator-generated phase1a_loop.sh script was changed;\ntests and repo code are untouched.",
+      "date": "2026-04-20 14:10:38 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "11fd8432",
+      "message": "[Tools] status.py monitoring dashboard + docs/monitoring.md",
+      "body": "Goal: day-to-day operations of the GCP Phase 1a run should never\nrequire remembering raw gcloud commands or manually tailing logs.\n\n- scripts/status.py: one-shot status CLI. Reads the orchestrator\n  state file, queries gcloud for VM + GCS state, SSHes once to pull\n  the last lines of phase1a.log, parses the latest progress line\n  (Step N/M | prey=... | w_pred=... | ...), and renders a compact\n  color-coded dashboard: VM status, provisioning model, training\n  progress, ETA, GPU utilization, population counts, reward-weight\n  means (with green indicators when fear + affiliation are\n  emerging in the right direction), retry count, and the\n  canonical tail-log / tmux-attach commands footer. --follow N\n  refreshes in place every N seconds.\n\n- tests/test_status.py: 10 unit tests for the log-line regex + the\n  format helpers. Pure-function coverage; subprocess / gcloud paths\n  are validated live.\n\n- docs/monitoring.md: tools at a glance, quick-reference one-liners,\n  status dashboard walkthrough, lifecycle operations (start /\n  resume / on-demand switch / teardown), and a troubleshooting\n  section with the failure modes we hit during this session.\n\n- README.md: link to the new monitoring doc alongside gcp-setup\n  and gcp-spot.\n\nFull test suite: 161 passed + 3 skipped (was 151 + 3).",
+      "date": "2026-04-20 14:16:07 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "324e165d",
+      "message": "[Config] Shorten spot checkpoint interval: 25k -> 10k steps",
+      "body": "Four spot VM attempts today lost 100% of training progress because\nevery preemption happened before the first checkpoint was written.\nCheckpoint interval was 25k steps (~12 min at 34 sps), but measured\npreemption window during contested capacity is ~10-15 min. Shortening\nto 10k (~5 min wall clock) lets us survive typical preemptions \u2014\nseveral checkpoints land before the VM is reclaimed, so new VMs\nresume from GCS instead of starting from step 0.\n\nSave overhead goes from ~3% to ~5-7% of wall clock, which is still\nmuch cheaper than the total-progress-loss we'd been eating.\n\nIf spot capacity remains chronically bad, on-demand (via\n--on-demand on spot_orchestrator.py) stays a clean off-ramp.",
+      "date": "2026-04-20 14:23:56 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "af4827e8",
+      "message": "[Infra] orchestrator: surface actual gcloud error instead of assuming stockout",
+      "body": "Prior behavior: any failed `gcloud compute instances create` was logged\nas \"trying <zone>...\" with no follow-up, so quota errors, permission\nproblems, and all other non-capacity failures were invisibly rolled\nup as \"stockout, sleeping 10min\".\n\nHit this today when 200GB orphan disks pushed us past SSD_TOTAL_GB\nquota in us-central1 \u2014 orchestrator reported \"all zones stockout\"\nbut the real error was quota, fixable in seconds by deleting the\nstuck disk.\n\nNow each failed create logs a one-line summary (stockout, SSD quota,\ngeneral quota, permissions, already-exists, or the last line of\ngcloud's error).",
+      "date": "2026-04-20 14:57:41 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b302ecc1",
+      "message": "[Infra] orchestrator: start gcs-sync sidecar directly, not via startup-script",
+      "body": "vm_startup.sh only launched the gcs-sync tmux session if the repo was\nalready on disk when it ran. But the orchestrator uploads the repo\nAFTER the startup-script has finished its first pass \u2014 so gcs-sync\nwas never launched on a fresh VM, which meant local checkpoints\nnever synced to GCS. Local disk is durable for on-demand VMs, but\nwe lose our cross-zone safety net for spot, and there's no backup\nagainst accidental VM deletion for either mode.\n\nFix: start both phase1a AND gcs-sync tmux sessions from the\norchestrator's start_tmux() step, which runs after the repo is\nguaranteed to be in place. Idempotent \u2014 if gcs-sync is already\nrunning, it's left alone.\n\nAlso reported in the orchestrator log output now, so a missing\ngcs-sync is immediately visible.",
+      "date": "2026-04-20 15:11:44 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b7aa37fa",
+      "message": "[Docs] Add K&D 2024/2025 arXiv .tex sources for LLM-readable reference",
+      "body": "LLM agents can now grep the actual paper text directly instead of\nrelying on summaries. K&D 2025 .tex confirmed the predator mouth-size\nsweep (\u00a73.4) that prior docs misrepresented as a single-condition\ndefault. Keeping publisher templates (acmart.cls, alifeconf.sty) and\nfigure PDFs for now \u2014 may strip before merge to main.\n\nLIIR and Doya 2002 have no arXiv source and are deferred to\nPDF-to-markdown extraction if needed.",
+      "date": "2026-04-20 15:23:12 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3d39800c",
+      "message": "[Tools] status.py: hardcode project/account + retry on TERMINATED",
+      "body": "Two fixes after status.py returned wildly wrong data (reported a VM\nas TERMINATED in spot mode when it was actually RUNNING on-demand):\n\n1. Pin CLOUDSDK_CORE_PROJECT and CLOUDSDK_CORE_ACCOUNT as env vars\n   for every gcloud subprocess call. If the user's shell-global\n   gcloud config points at a different project (as likely happened\n   since they maintain another project for unrelated work), we were\n   querying the wrong thing and silently getting back a same-named\n   VM from that project. Now status.py is safe to run from any\n   terminal without sourcing scripts/gcloud-env.sh first.\n\n2. Retry once with a 2s delay if describe returns TERMINATED. GCP\n   describe is eventually-consistent and very occasionally returns\n   stale state. A single retry smooths over transient blips; a\n   genuinely TERMINATED VM stays TERMINATED on the second call so\n   real outages still surface.\n\nUsage unchanged:\n  python3 scripts/status.py\n  python3 scripts/status.py --follow 30\n\nAll 10 tests still pass.",
+      "date": "2026-04-20 15:27:03 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6093609f",
+      "message": "[Docs] Record April 2026 spot experience + on-demand as the default",
+      "body": "After a multi-hour attempt to run Phase 1a seed 0 on GCP spot L4\nVMs that kept getting preempted within 10-15 min of creation (before\nany checkpoint could land in GCS), we fell back to on-demand. This\ncommit captures the lessons so future runs start with the right\nexpectations.\n\n- docs/gcp-spot.md: new \"\u26a0 When spot works \u2014 and when it doesn't\"\n  admonition at the top, plus an updated caveat to the cost table\n  noting that contested-capacity runs can cost more than on-demand\n  if every attempt ends in preemption without forward progress.\n\n- docs/monitoring.md: expanded troubleshooting with two new\n  sections \u2014 \"SSD quota exceeded\" (the error the orchestrator used\n  to mask as stockout, fixed in a previous commit; now this is the\n  user-facing playbook when it happens) and \"Telling if spot isn't\n  going to work\" (concrete decision signals + the one-liner to\n  switch modes). GCS-backed checkpoints from prior spot attempts\n  carry over, so the switch is non-destructive.\n\n- README.md: note on the gcp-spot link that on-demand is the default\n  recommendation; try spot only when capacity is healthy.\n\nNo code changes \u2014 the spot path stays intact as a one-flag option\nfor future runs when the GCP L4 market is less contested.",
+      "date": "2026-04-20 15:29:40 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cb082ce6",
+      "message": "[Docs+Validation] Apply K&D audit corrections across docs and gate criteria",
+      "body": "Audit of the arXiv .tex sources surfaced several documentation errors\nand one real bug in the Phase 1a gate criteria. Sim code is unchanged.\n\nCritical corrections:\n- Paper Table 2 has c_a/c_b labels SWAPPED (not 25x magnitude difference\n  as we'd claimed). The paper's own sanity check at main.tex:443 only\n  holds with code values. Fixed narrative across spec, AGENTS.md,\n  dashboard schema, config yaml, and test fixtures.\n- validate_replication.py now checks predator w_pred > 0 (K&D's strongest\n  predator finding \u2014 \"social rewards for predators evolved almost\n  positively\", main.tex:273) as the primary predator criterion. The\n  pre-existing w_prey check stays but is now marked weaker per K&D's\n  own \"near zero in seeds 2 and 4\" caveat.\n- Generation-count gate (\"473-501 prey generations\") qualified as\n  default-condition only; \u00b120% tolerance flagged as our choice, not K&D's.\n- \u03b6 parameter removed from hazard parameter table \u2014 it's birth-only per\n  Eq. 3. Code was already correct; only the spec table was misleading.\n\nMedium corrections:\n- \"Social evolves before fear\" claim removed (unsupported by the .tex).\n- Scope notes expanded: K&D run 6 conditions total (default + small/large\n  mouth + \u0394n=0.4/0.6 + pitfall); Phase 1a replicates default only.\n- w_con replaced with w_prey throughout (paper's notation is w_prey).\n- Population comparison fixed (~350 prey steady-state, not ~130-150).\n- Non-monotonic resource-richness effect added to background.\n\nAlso replaced stale inline yaml block in the spec with a pointer to\nconfigs/baseline_faithful.yaml so there's one source of truth.",
+      "date": "2026-04-20 16:11:44 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8ecbcee3",
+      "message": "[Monitoring] Expand training log to 8 reward weights; status.py surfaces full gate",
+      "body": "The training log previously emitted only prey w_pred and w_prey \u2014 not\nenough to read the Phase 1a gate at a glance, and missing the new\npredator w_pred (social) criterion from the audit.\n\nChanges:\n- run_experiment_jax.py::_log_progress now emits all 8 reward weights\n  (mean \u00b1 std) plus population/food/energy/sps on one line. Log line\n  grows from ~140 to ~221 chars. Format is regex-parseable and atomic.\n- status.py adds a second regex (_LOG_RE_FULL) for the new format and\n  keeps the legacy regex as a fallback so logs mid-transition (across\n  a --resume boundary) still parse. Latest line wins; full format\n  preferred when both are present.\n- status.py rendering shows prey and predator weights in separate\n  panels, tags each weight with its Phase 1a gate direction (want >0,\n  want <0, or informational), and displays an \"evolution detected\"\n  flag when any |mean(w)| > 0.2 (the 2\u03c3-from-init threshold from\n  validate_replication.py).\n- test_status.py updated for unified key names (py_*, pd_*) and adds\n  coverage for the full format + mixed-log format selection.\n\nDeploying requires stopping the current Phase 1a run and resuming from\nthe latest GCS checkpoint so the new log format takes effect. Cost:\n~10-15 min (lost steps since last checkpoint + JIT recompile).",
+      "date": "2026-04-20 16:11:58 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6c289883",
+      "message": "[Docs] TODO: git-clone repo on VMs so git pull works",
+      "body": "Captures the deploy-key auth approach, scoped change list across\nspot_orchestrator.py and vm_startup.sh, migration path (just let the\ncurrent VM finish \u2014 next VM gets the new flow), and acceptance criteria.\n\nDeferred from 2026-04-20 because Phase 1a is mid-run. Not blocking.",
+      "date": "2026-04-20 16:30:49 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }

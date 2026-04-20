@@ -2,7 +2,7 @@
   "nodes": [
     {
       "name": "agents",
-      "lines": 119,
+      "lines": 177,
       "file": "src/agents.py"
     },
     {
@@ -12,12 +12,17 @@
     },
     {
       "name": "evolution",
-      "lines": 98,
+      "lines": 151,
       "file": "src/evolution.py"
     },
     {
+      "name": "jax_checkpoint",
+      "lines": 116,
+      "file": "src/jax_checkpoint.py"
+    },
+    {
       "name": "jax_evolution",
-      "lines": 151,
+      "lines": 154,
       "file": "src/jax_evolution.py"
     },
     {
@@ -31,8 +36,13 @@
       "file": "src/jax_lifecycle.py"
     },
     {
+      "name": "jax_metrics",
+      "lines": 127,
+      "file": "src/jax_metrics.py"
+    },
+    {
       "name": "jax_ppo",
-      "lines": 174,
+      "lines": 349,
       "file": "src/jax_ppo.py"
     },
     {
@@ -42,7 +52,7 @@
     },
     {
       "name": "jax_state",
-      "lines": 386,
+      "lines": 412,
       "file": "src/jax_state.py"
     },
     {
@@ -52,17 +62,17 @@
     },
     {
       "name": "metrics",
-      "lines": 202,
+      "lines": 238,
       "file": "src/metrics.py"
     },
     {
       "name": "observations",
-      "lines": 376,
+      "lines": 455,
       "file": "src/observations.py"
     },
     {
       "name": "policy",
-      "lines": 127,
+      "lines": 232,
       "file": "src/policy.py"
     },
     {
@@ -72,7 +82,7 @@
     },
     {
       "name": "reward",
-      "lines": 65,
+      "lines": 145,
       "file": "src/reward.py"
     }
   ],
