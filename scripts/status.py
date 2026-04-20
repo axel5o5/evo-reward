@@ -40,6 +40,13 @@ STATE_FILE = os.path.join(REPO_ROOT, ".claude-orch-state.json")
 VM_NAME = "evo-reward-gpu"
 GCS_BUCKET = "evo-reward-ckpts"
 
+# Hardcode the project + account so this script is safe to run from any
+# terminal without first sourcing scripts/gcloud-env.sh. If the user's
+# global gcloud config happens to point at a different project with a
+# same-named VM, that'd return bogus data otherwise.
+GCP_PROJECT = "evo-reward"
+GCP_ACCOUNT = "db3792@columbia.edu"
+
 TOTAL_STEPS_DEFAULT = 10_240_000  # baseline_faithful.yaml
 
 # ANSI color codes
@@ -62,9 +69,14 @@ def c(text, code):
 
 
 def gcloud(*args, timeout=60):
+    # Run gcloud with project+account pinned via env vars, so the caller's
+    # shell-global gcloud config can't redirect us to a different project.
+    env = {**os.environ,
+           "CLOUDSDK_CORE_PROJECT": GCP_PROJECT,
+           "CLOUDSDK_CORE_ACCOUNT": GCP_ACCOUNT}
     try:
         r = subprocess.run(["gcloud"] + list(args), capture_output=True,
-                           text=True, timeout=timeout)
+                           text=True, timeout=timeout, env=env)
         return r.returncode, r.stdout.strip(), r.stderr.strip()
     except subprocess.TimeoutExpired:
         return -1, "", "TIMEOUT"
@@ -80,18 +92,32 @@ def load_state():
 # ─── VM-level info ─────────────────────────────────────────────────────────
 
 def vm_info(zone):
-    """Return a dict of VM info, or None if the VM doesn't exist."""
+    """Return a dict of VM info, or None if the VM doesn't exist.
+
+    If describe returns TERMINATED on the first call, retry once after
+    a short delay — we've seen gcloud very occasionally return stale
+    data that flips back on the retry. Avoids confusing alerts.
+    """
     if not zone:
         return None
     fmt = ("value(status,machineType.basename(),"
            "scheduling.provisioningModel,creationTimestamp,lastStartTimestamp)")
-    rc, out, _ = gcloud("compute", "instances", "describe", VM_NAME,
-                        f"--zone={zone}", f"--format={fmt}")
-    if rc != 0:
-        return None
-    parts = out.split("\t")
-    while len(parts) < 5:
-        parts.append("")
+
+    for attempt in range(2):
+        rc, out, _ = gcloud("compute", "instances", "describe", VM_NAME,
+                            f"--zone={zone}", f"--format={fmt}")
+        if rc != 0:
+            return None
+        parts = out.split("\t")
+        while len(parts) < 5:
+            parts.append("")
+        status = parts[0]
+        # Only retry on the alarming states — RUNNING / STAGING etc. we trust.
+        if status == "TERMINATED" and attempt == 0:
+            time.sleep(2)
+            continue
+        break
+
     return {
         "status": parts[0],
         "machine": parts[1],
