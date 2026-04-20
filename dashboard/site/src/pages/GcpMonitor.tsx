@@ -44,7 +44,10 @@ type Payload = {
   errors: WorkerError[];
 };
 
-const STATUS_URL: string | undefined = import.meta.env.VITE_GCP_STATUS_URL;
+// Default to the Vercel proxy route (api/status.ts), which reads from
+// the private gcp-status branch with a server-side PAT. Local dev can
+// override with VITE_GCP_STATUS_URL=/gcp-status.json + a file in public/.
+const STATUS_URL: string = import.meta.env.VITE_GCP_STATUS_URL || "/api/status";
 const POLL_MS = 30_000;
 const STALE_MINUTES = 20;
 
@@ -426,17 +429,19 @@ export default function GcpMonitor() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!STATUS_URL) {
-        if (!cancelled) { setPayload(FIXTURE); setLastFetchedAt(Date.now()); }
-        return;
-      }
       try {
         const res = await fetch(`${STATUS_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as Payload;
         if (!cancelled) { setPayload(data); setFetchError(null); setLastFetchedAt(Date.now()); }
       } catch (e) {
-        if (!cancelled) setFetchError(String(e));
+        if (!cancelled) {
+          setFetchError(String(e));
+          // Render the fixture only if we've never had real data — use
+          // the updater form so we don't clobber a previously-good fetch
+          // after a transient network blip.
+          setPayload((prev) => prev ?? FIXTURE);
+        }
       }
     }
     load();
