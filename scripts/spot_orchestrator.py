@@ -144,7 +144,7 @@ def ensure_bucket():
         print(f"{now()} bucket create failed: {out.strip()[-300:]}", flush=True)
 
 
-def try_create(zone, spot=True):
+def try_create(zone, spot=True, labels=None):
     provisioning = "SPOT" if spot else "STANDARD"
     print(f"{now()} trying {zone} ({provisioning})...", flush=True)
     args = [
@@ -161,6 +161,11 @@ def try_create(zone, spot=True):
         "--scopes=https://www.googleapis.com/auth/cloud-platform",
         "--no-address",
     ]
+    if labels:
+        # GCP label values must be lowercase [a-z0-9_-], max 63 chars.
+        # The runner's experiment_name already satisfies that; seed and
+        # phase are small alphanumerics.
+        args.append("--labels=" + ",".join(f"{k}={v}" for k, v in labels.items()))
     if spot:
         args += ["--provisioning-model=SPOT",
                  "--instance-termination-action=STOP"]
@@ -202,10 +207,10 @@ def _summarize_error(gcloud_output: str) -> str:
     return ""
 
 
-def poll_for_capacity(spot=True):
+def poll_for_capacity(spot=True, labels=None):
     while True:
         for zone in ZONES_TO_TRY:
-            if try_create(zone, spot=spot):
+            if try_create(zone, spot=spot, labels=labels):
                 return zone
         mode = "spot" if spot else "on-demand"
         print(f"{now()} all zones stockout ({mode}), sleeping {POLL_INTERVAL}s",
@@ -447,14 +452,45 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
+def _labels_from_args(args) -> dict[str, str]:
+    """Derive VM labels (experiment/phase/seed) from the run's config + CLI.
+
+    These show up on the dashboard as run identity and let the monitor
+    discover progress.json under results/<experiment>/seed_<N>/.
+    """
+    # Read experiment_name from the config file. Fall back to the config
+    # filename stem if the key is missing (older configs).
+    try:
+        import yaml as _yaml
+        with open(args.config) as f:
+            cfg = _yaml.safe_load(f) or {}
+        experiment = cfg.get("experiment_name") or \
+            os.path.basename(args.config).split(".")[0]
+    except (FileNotFoundError, ValueError):
+        experiment = os.path.basename(args.config).split(".")[0]
+    # Lowercase + sanitize for GCP label constraints.
+    experiment = experiment.lower().replace(".", "_")
+    return {
+        "experiment": experiment,
+        "phase": args.phase,
+        "seed": str(args.seed),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--config", default="configs/baseline_faithful.yaml")
     ap.add_argument("--runtime", default="configs/runtime/gcp_l4_spot.yaml")
+    ap.add_argument("--phase", default="1a",
+                    help="Phase label for the VM (e.g. 1a, 1b, 2, 3). "
+                         "Surfaces on the dashboard.")
     ap.add_argument("--on-demand", action="store_true",
                     help="Use on-demand VMs instead of spot. No preemption, ~3x cost.")
     args = ap.parse_args()
+
+    labels = _labels_from_args(args)
+    print(f"{now()} run labels: {labels}", flush=True)
 
     ensure_bucket()
     state = load_state()
@@ -465,7 +501,7 @@ def main():
         while True:
             try:
                 if zone is None:
-                    zone = poll_for_capacity(spot=not args.on_demand)
+                    zone = poll_for_capacity(spot=not args.on_demand, labels=labels)
                     state = {"zone": zone, "seed": args.seed, "started_at": now()}
                     save_state(state)
                     stockout_streak = 0
