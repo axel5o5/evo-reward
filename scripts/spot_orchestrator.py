@@ -360,14 +360,30 @@ done
 
 
 def start_tmux(zone):
+    # Also (re-)start the gcs-sync sidecar here rather than relying on
+    # vm_startup.sh. The startup-script runs on boot, which is BEFORE the
+    # orchestrator uploads the repo — so when it checks for the repo it
+    # finds nothing and skips both phase1a and gcs-sync. We're past that
+    # ordering problem now; repo + bucket are in place, so just start it.
     launch = (
+        # phase1a training loop
         "tmux kill-session -t phase1a 2>/dev/null; "
         "tmux new-session -d -s phase1a -c ~/evo-reward 'bash ~/phase1a_loop.sh' && "
+        # gcs-sync sidecar: pushes results/ to the GCS bucket every 5 min
+        f"if ! tmux has-session -t gcs-sync 2>/dev/null; then "
+        f"  tmux new-session -d -s gcs-sync -c ~/evo-reward "
+        f"    'while true; do "
+        f"       gsutil -m rsync -r results gs://{GCS_BUCKET}/results 2>>~/gcs-sync.log; "
+        f"       sleep 300; "
+        f"     done'; "
+        f"fi && "
         "tmux ls"
     )
     rc, out = ssh(zone, launch, timeout=60)
     if rc == 0 and "phase1a" in out:
-        print(f"{now()} ✅ tmux phase1a session started", flush=True)
+        sync_state = "✅" if "gcs-sync" in out else "⚠ (no gcs-sync)"
+        print(f"{now()} ✅ tmux phase1a session started  gcs-sync: {sync_state}",
+              flush=True)
         return True
     print(f"{now()} tmux start failed: {out.strip()[-300:]}", flush=True)
     return False
