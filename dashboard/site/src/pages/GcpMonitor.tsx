@@ -146,17 +146,72 @@ function Card({ title, children, footer }: {
   );
 }
 
-function Row({ label, value, title, mono = true }: {
+function Row({ label, value, title, mono = true, tip }: {
   label: React.ReactNode;
   value: React.ReactNode;
   title?: string;
   mono?: boolean;
+  tip?: React.ReactNode;   // richer content shown via custom Tooltip
 }) {
+  const labelNode = (
+    <span className="text-gray-600 dark:text-gray-400">{label}</span>
+  );
   return (
     <div className="flex justify-between py-1 text-sm" title={title}>
-      <span className="text-gray-600 dark:text-gray-400">{label}</span>
+      {tip ? <Tooltip content={tip}>{labelNode}</Tooltip> : labelNode}
       <span className={`text-gray-900 dark:text-gray-100 ${mono ? "font-mono" : ""}`}>{value}</span>
     </div>
+  );
+}
+
+// Lightweight hover/focus tooltip. Pure Tailwind, no deps, a11y-friendly.
+// Wrap any inline element. For richer content (lists, links), pass a
+// ReactNode in `content` — it renders inside the popover.
+//
+// Positioning: centered above the trigger by default. For rows at the
+// top of a card where "top" would clip, pass side="bottom".
+// Width: fixed w-64 (256px) — keeps line wrapping consistent.
+//
+// Known limitation v1: doesn't flip on viewport overflow, and wrapper
+// adds a tabstop even when child is focusable. Fine for a desktop
+// internal tool; revisit if used in a public-facing page.
+function Tooltip({
+  content,
+  children,
+  side = "top",
+  width = "w-64",
+  plain = false,        // true: no dotted underline (for pills, links, etc.)
+}: {
+  content: React.ReactNode;
+  children: React.ReactNode;
+  side?: "top" | "bottom";
+  width?: string;
+  plain?: boolean;
+}) {
+  const pos = side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5";
+  const childClass = plain
+    ? "cursor-help"
+    : "underline decoration-dotted decoration-gray-400 dark:decoration-gray-500 underline-offset-2 cursor-help";
+  return (
+    <span
+      className="relative inline-block group focus:outline-2 focus:outline-blue-400 focus:rounded-sm"
+      tabIndex={0}
+    >
+      <span className={childClass}>{children}</span>
+      <span
+        role="tooltip"
+        className={
+          "pointer-events-none absolute " + pos + " left-1/2 -translate-x-1/2 z-30 " + width + " " +
+          "px-3 py-2 rounded border shadow-lg text-[11px] leading-snug text-left normal-case tracking-normal font-normal " +
+          "bg-gray-900 text-gray-100 border-gray-700 " +
+          "opacity-0 invisible group-hover:opacity-100 group-hover:visible " +
+          "group-focus:opacity-100 group-focus:visible " +
+          "transition-opacity duration-150"
+        }
+      >
+        {content}
+      </span>
+    </span>
   );
 }
 
@@ -183,7 +238,11 @@ function VMCard({ vm }: { vm: VM }) {
 
       {hasRunIdentity && (
         <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800 text-xs">
-          <div className="text-gray-500 dark:text-gray-400 mb-1">Run</div>
+          <Tooltip
+            content={<>Run identity is set by <code>spot_orchestrator.py</code> as VM labels on creation. <strong>experiment</strong>: from <code>experiment_name</code> in the config YAML. <strong>phase</strong>: from <code>--phase</code> CLI flag (1a / 1b / 2 / ...). <strong>seed</strong>: from <code>--seed</code> CLI flag. Monitor uses <code>experiment</code> + <code>seed</code> to find the matching progress.json in GCS.</>}
+          >
+            <span className="text-gray-500 dark:text-gray-400 mb-1 inline-block">Run</span>
+          </Tooltip>
           <div className="font-mono text-gray-900 dark:text-gray-100">
             {experiment || "?"}
             {phase && <span className="text-gray-400"> · phase {phase}</span>}
@@ -195,6 +254,7 @@ function VMCard({ vm }: { vm: VM }) {
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
+              title="Link to the config YAML on GitHub main. Static link — assumes experiment name matches configs/<name>.yaml by convention."
             >
               configs/{experiment}.yaml ↗
             </a>
@@ -204,29 +264,45 @@ function VMCard({ vm }: { vm: VM }) {
 
       <Row label="Zone" value={vm.zone || "—"} />
       <Row label="Machine" value={vm.machine_type || "—"} />
-      <Row label="Runtime (current)" value={hoursToDuration(vm.runtime_hours_current)} />
-      <Row label="Hourly rate" value={vm.hourly_rate_usd != null ? `$${vm.hourly_rate_usd.toFixed(3)}/h` : "—"} />
-      <Row label="Current run cost" value={usd(vm.estimated_current_run_usd)} />
+      <Row
+        label="Runtime (current)"
+        value={hoursToDuration(vm.runtime_hours_current)}
+        tip={<>Hours since the VM's <code>last_start_timestamp</code>. Resets on Stop/Start and on spot preemption. Does <em>not</em> accumulate across interruptions — see Costs card for cumulative spend.</>}
+      />
+      <Row
+        label="Hourly rate"
+        value={vm.hourly_rate_usd != null ? `$${vm.hourly_rate_usd.toFixed(3)}/h` : "—"}
+        tip={<>Looked up from <code>pricing</code> in <code>scripts/gcp_monitor_config.yaml</code>. g2-standard-8 + L4: $0.850/h on-demand, $0.28/h spot. If the shape isn't in the table, this shows — and cost estimate is null.</>}
+      />
+      <Row
+        label="Current run cost"
+        value={usd(vm.estimated_current_run_usd)}
+        tip={<>Simply <code>runtime_hours_current × hourly_rate</code>. Resets to $0 at each Stop/Start because runtime resets. For spend across the whole run, see the Costs card.</>}
+      />
     </Card>
   );
 }
 
 function WeightLine({
-  label, pair, wantSign, note,
+  label, pair, wantSign, note, tip,
 }: {
   label: string;
   pair: WeightPair | undefined;
   wantSign?: "+" | "-" | null;
   note: string;
+  tip?: React.ReactNode;
 }) {
   if (!pair) return null;
   const [m, s] = pair;
   let tone = "text-gray-500 dark:text-gray-500";
   if (wantSign === "+") tone = m > 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400";
   else if (wantSign === "-") tone = m < 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400";
+  const labelEl = (
+    <span className="text-gray-600 dark:text-gray-400 w-14 inline-block">{label}</span>
+  );
   return (
     <div className="flex justify-between text-xs font-mono py-0.5">
-      <span className="text-gray-600 dark:text-gray-400 w-14">{label}</span>
+      {tip ? <Tooltip content={tip}>{labelEl}</Tooltip> : labelEl}
       <span className="w-20 text-right text-gray-900 dark:text-gray-100">
         {m >= 0 ? "+" : ""}{m.toFixed(3)} ± {s.toFixed(3)}
       </span>
@@ -248,9 +324,14 @@ function TrainingCard({ t }: { t: Training }) {
         <span>
           Training
           {t.evolution_detected && (
-            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 normal-case">
-              evolution detected
-            </span>
+            <Tooltip
+              plain
+              content={<>Shorthand from <code>validate_replication.py</code>: true when max|mean| of any of the 8 evolved weights exceeds <strong>0.2</strong> (2× the initial weight std of 0.1). Indicates evolution has moved the population mean outside the initial noise band; does NOT mean any specific K&D gate has passed.</>}
+            >
+              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 normal-case">
+                evolution detected
+              </span>
+            </Tooltip>
           )}
         </span>
       }
@@ -276,6 +357,7 @@ function TrainingCard({ t }: { t: Training }) {
             <span className="text-gray-400 ml-1">· ETA {hoursToDuration(t.eta_hours)}</span>
           )}
         </span>}
+        tip={<>Steps-per-second averaged since the runner started (reset at each restart). ETA assumes the current rate holds — in practice sps fluctuates with GPU memory pressure and PPO-update cadence. K&D reported ~10.24M steps in ~40h on an A100; we run on L4 which is ~40% slower, so ~60-70h is typical.</>}
       />
       {pop && (
         <>
@@ -283,11 +365,16 @@ function TrainingCard({ t }: { t: Training }) {
             label="Population"
             value={<span>prey {pop.prey ?? "—"} · pred {pop.pred ?? "—"} · food {pop.food ?? "—"} · E {pop.mean_energy?.toFixed(1) ?? "—"}</span>}
             mono={false}
+            tip={<>Current counts (taken at the latest log interval). <strong>E</strong> = mean energy across all active agents. K&D Table 1 steady-state for default (medium mouth + Δn=0.5): ~349 prey, ~23 predators. Expect Lotka-Volterra-style oscillations with ~1M step period once training matures (after ~3M steps).</>}
           />
           {(pop.prey === 450 || pop.pred === 50) && (
-            <div className="text-[10px] text-amber-600 dark:text-amber-400 pl-1 -mt-1 pb-1" title="K&D Table 1 steady-state: ~349 prey, ~23 predators. Populations pinned at caps indicate oscillations haven't developed yet — expected before ~3M steps, concerning after.">
-              at cap (K&D steady-state: ~349 prey / ~23 pred)
-            </div>
+            <Tooltip
+              content={<>Prey cap: <code>prey_cap=450</code>. Predator cap: <code>predator_cap=50</code>. Early training (under ~3M steps) often pins against caps because the initial population ramps up from 150 prey / 10 predators with no counter-pressure yet. If still pinned by ~5M steps, either the caps are too tight or Lotka-Volterra dynamics aren't kicking in — K&D's §4.2 Figure 4 shows clear oscillations well before 10M.</>}
+            >
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 pl-1 -mt-1 pb-1 inline-block">
+                at cap (K&D steady-state: ~349 prey / ~23 pred)
+              </span>
+            </Tooltip>
           )}
         </>
       )}
@@ -295,20 +382,44 @@ function TrainingCard({ t }: { t: Training }) {
       {prey && (
         <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prey reward weights</div>
-          <WeightLine label="w_eat"  pair={prey.eat}  wantSign="+" note="food reward — universal >0" />
-          <WeightLine label="w_act"  pair={prey.act}  wantSign="+" note="consistently >0 (K&D §4.2)" />
-          <WeightLine label="w_prey" pair={prey.prey} wantSign="+" note="social affiliation — >0 in 3/5 seeds" />
-          <WeightLine label="w_pred" pair={prey.pred} wantSign={null} note="fear — bimodal: <0 in 3/5 (fear), >0 in 2/5 (sociality compensates)" />
+          <WeightLine
+            label="w_eat"  pair={prey.eat}  wantSign="+" note="food reward — universal >0"
+            tip={<>Weights the "ate food this step" signal (+1 energy per food item). K&D §4.2: <em>"evolved toward significantly positive values for both prey and predators, reflecting the fundamental importance of food intake."</em> Expected positive across all 5 seeds — the easiest K&D finding to reproduce.</>}
+          />
+          <WeightLine
+            label="w_act"  pair={prey.act}  wantSign="+" note="consistently >0 (K&D §4.2)"
+            tip={<>Weights the motor-action cost signal. K&D §4.2: <em>"remained consistently positive, suggesting a selective advantage for continuous movement or exploration."</em> Our original spec didn't track this as a gate; now it's criterion 4.</>}
+          />
+          <WeightLine
+            label="w_prey" pair={prey.prey} wantSign="+" note="social affiliation — >0 in 3/5 seeds"
+            tip={<>Weights the "closest conspecific (prey) is nearby" sensor. K&D §4.2: positive in the majority of simulations (P1 "social defense" strategy), but <strong>near zero in seeds 2 & 4</strong> where prey evolved the individualist P2 strategy instead. Our gate: ≥3/5 seeds positive.</>}
+          />
+          <WeightLine
+            label="w_pred" pair={prey.pred} wantSign={null} note="fear — bimodal: <0 in 3/5 (fear), >0 in 2/5 (sociality compensates)"
+            tip={<>Weights the "closest predator is nearby" sensor. K&D §4.2 explicitly report <strong>bimodality</strong>: <em>"evolved either positively or negatively"</em>. P1 lineage (seeds 1, 3, 5 typically): negative w_pred — classic fear, paired with positive w_prey (group defense). P2 lineage (seeds 2, 4): counter-intuitively positive w_pred, paired with strongly positive w_prey — individual escape maneuvering compensates. Both strategies are evolutionarily stable.</>}
+          />
         </div>
       )}
 
       {pred && (
         <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Predator reward weights</div>
-          <WeightLine label="w_eat"  pair={pred.eat}  wantSign="+" note="prey-eating reward — >0 medium mouth" />
-          <WeightLine label="w_act"  pair={pred.act}  wantSign={null} note="bimodal ± by seed" />
-          <WeightLine label="w_prey" pair={pred.prey} wantSign="+" note="prey attraction — >0 most seeds, near 0 if prey.w_pred>0" />
-          <WeightLine label="w_pred" pair={pred.pred} wantSign="+" note="social (follow conspecifics to prey-rich regions)" />
+          <WeightLine
+            label="w_eat"  pair={pred.eat}  wantSign="+" note="prey-eating reward — >0 medium mouth"
+            tip={<>Weights the "caught prey this step" signal (+6-10 energy per catch, via digestion rate η). Predators <em>cannot</em> eat food items. K&D §4.3 shows this is mouth-size-sensitive: strongly positive at small mouth, positive-but-modest at medium (ours), can go <strong>negative at large</strong> mouth for sustainable hunting. Our gate: ≥3/5 seeds positive at medium.</>}
+          />
+          <WeightLine
+            label="w_act"  pair={pred.act}  wantSign={null} note="bimodal ± by seed"
+            tip={<>Weights predator motor-action cost. K&D §4.2: <em>"evolved either positive or negative values in different simulation runs"</em>. The paper attributes this to predators having fewer hunting opportunities, creating competing pressures to conserve energy vs. stay active. No sign expectation — purely descriptive.</>}
+          />
+          <WeightLine
+            label="w_prey" pair={pred.prey} wantSign="+" note="prey attraction — >0 most seeds, near 0 if prey.w_pred>0"
+            tip={<>Weights the "closest prey is nearby" sensor. K&D §4.2: positive in most seeds, but <em>"remained near zero in seeds 2 and 4, where the majority of prey agents exhibited positive w_pred values. The prey's attraction to predators may have reduced the evolutionary pressure on predators to rely on visual preference for prey."</em> Watch the coupling with prey.w_pred.</>}
+          />
+          <WeightLine
+            label="w_pred" pair={pred.pred} wantSign="+" note="social (follow conspecifics to prey-rich regions)"
+            tip={<>Weights the "closest other predator is nearby" sensor (NOT fear — predators don't fear each other). K&D §4.2: <em>"evolved almost positively, which is reasonable because following another predator can guide a predator to regions with higher prey density."</em> K&D's strongest predator-side finding.</>}
+          />
         </div>
       )}
     </Card>
@@ -319,10 +430,15 @@ function CheckpointsCard({ c }: { c: Checkpoints }) {
   const fresh = c.latest_age_hours != null && c.latest_age_hours < 0.5;
   return (
     <Card title="Checkpoints" footer={`gs://${c.bucket}/results/`}>
-      <Row label="Count" value={c.count.toString()} />
+      <Row
+        label="Count"
+        value={c.count.toString()}
+        tip={<>Total <code>step_*.npz</code> files across all experiments in the bucket. Each run keeps the most recent 3 to bound disk use. If you see a huge count, old runs aren't being pruned.</>}
+      />
       <Row
         label="Latest step"
         value={c.latest_step != null ? c.latest_step.toLocaleString() : "—"}
+        tip={<>Highest step number across all checkpoints in the bucket. Should match or be slightly behind <code>training.step</code> (checkpoints save every N steps; progress.json writes every log interval — typically more often).</>}
       />
       <Row
         label="Last saved"
@@ -331,8 +447,13 @@ function CheckpointsCard({ c }: { c: Checkpoints }) {
             {c.latest_age_hours != null ? `${hoursToDuration(c.latest_age_hours)} ago` : "—"}
           </span>
         }
+        tip={<>Age of the most-recent checkpoint's GCS object. Expected cadence: <code>checkpoint_interval_steps</code> (10k for spot, 100k for on-demand) ÷ sps. At 25 sps + 10k interval, that's ~7 min. Fresh = under 30 min; stale beyond that = training may be stuck.</>}
       />
-      <Row label="Bucket size" value={c.total_gb != null ? `${c.total_gb.toFixed(2)} GB` : "—"} />
+      <Row
+        label="Bucket size"
+        value={c.total_gb != null ? `${c.total_gb.toFixed(2)} GB` : "—"}
+        tip={<>Total bytes of everything under <code>results/</code> (checkpoints + metrics.npz + progress.json). Affects the storage cost line on the Costs card (~$0.020/GB-month).</>}
+      />
     </Card>
   );
 }
@@ -341,7 +462,12 @@ function CostsCard({ costs }: { costs: Costs }) {
   return (
     <Card title="Costs (USD)">
       <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
-        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Live estimate (now)</div>
+        <Tooltip
+          content={<>Sum of <strong>VM compute (current run)</strong> + <strong>Cloud NAT (since active)</strong> + <strong>GCS storage (pro-rata MTD)</strong>. This is a fast-update live estimate — NOT authoritative. <strong>Billing actual</strong> below is the ground truth but lags ~24h.</>}
+          side="bottom"
+        >
+          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 inline-block">Live estimate (now)</span>
+        </Tooltip>
         <div className="text-2xl font-mono font-semibold text-gray-900 dark:text-gray-100">
           {usd(costs.live_estimate_total)}
         </div>
@@ -349,25 +475,29 @@ function CostsCard({ costs }: { costs: Costs }) {
       <Row
         label="VM compute (current run)"
         value={usd(costs.compute_current_run)}
-        title="VM runtime since last_started × hourly rate. Resets at preemption."
+        tip={<>VM runtime since <code>last_started_at</code> × hourly rate. Resets at each Stop/Start or spot preemption — so this is NOT the total spent on this experiment, just the current invocation. Running sum of past invocations only shows up in Billing actual.</>}
       />
       <Row
         label="Cloud NAT (24/7)"
         value={usd(costs.nat_since_active)}
-        title="NAT gateway charges ~$0.044/hr whether the VM is up or not. Set nat_active_since in the config."
+        tip={<>NAT gateway charges ~$0.044/hr <strong>whether the VM is up or not</strong> — ~$1/day idle. This line shows total NAT cost since <code>nat_active_since</code> in the config (when the first router was created). Usually the largest slow-burn cost if runs are infrequent.</>}
       />
       <Row
         label="GCS storage (MTD)"
         value={usd(costs.storage_current)}
-        title="Bucket size × $/GB-month × fraction of month elapsed."
+        tip={<>Bucket size × $0.020/GB-month × fraction of current month elapsed. Small for this project (~$0.10/month for a few GB). Mostly here for completeness — won't move the needle versus compute + NAT.</>}
       />
       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
         <Row
           label={<span>Billing actual <span className="text-[10px] text-gray-400">(~24h lag)</span></span>}
           value={usd(costs.billing_actual_usd)}
-          title="From BigQuery billing export — lags ~24h. null if not configured."
+          tip={<>Authoritative spend from the Cloud Billing BigQuery export. <strong>null</strong> means the export isn't configured in the monitor config (<code>billing.export_table</code> is null). Once configured, reconcile this against Live estimate to catch missed cost sources.</>}
         />
-        <Row label="Month to date" value={usd(costs.month_to_date_usd)} />
+        <Row
+          label="Month to date"
+          value={usd(costs.month_to_date_usd)}
+          tip={<>Sum of billing-actual rows from the 1st of the current month. Also null until billing export is wired up.</>}
+        />
       </div>
     </Card>
   );
