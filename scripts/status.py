@@ -199,24 +199,54 @@ def gpu_util(zone, timeout=20):
 
 # ─── Log parsing ───────────────────────────────────────────────────────────
 
-# Matches: "Step    5000/10240000 | prey=186 pred=12 food=257 | E=131.8 |
-#          w_pred=-0.04±0.47 w_prey=-0.00±0.35 | 5.1 sps | 98s"
-_LOG_RE = re.compile(
+# New (post-2026-04-20) format — all 8 reward weights:
+#   "Step    5000/10240000 | prey=186 pred=12 food=257 | E=131.8 |
+#    prey_w eat=+0.12±0.15 act=+0.05±0.18 prey=+0.00±0.35 pred=-0.04±0.47 |
+#    pred_w eat=+0.08±0.12 act=+0.02±0.19 prey=+0.03±0.24 pred=+0.10±0.21 |
+#    5.1 sps | 98s"
+_LOG_RE_FULL = re.compile(
     r"Step\s+(?P<step>\d+)/(?P<total>\d+)\s*\|\s*"
     r"prey=\s*(?P<prey>\d+)\s+pred=\s*(?P<pred>\d+)\s+food=\s*(?P<food>\d+)\s*\|\s*"
     r"E=\s*(?P<energy>[-+0-9.]+)\s*\|\s*"
-    r"w_pred=(?P<wpd_mean>[-+0-9.]+)±(?P<wpd_std>[0-9.]+)\s+"
-    r"w_prey=(?P<wpy_mean>[-+0-9.]+)±(?P<wpy_std>[0-9.]+)\s*\|\s*"
+    r"prey_w\s+eat=(?P<py_eat_m>[-+0-9.]+)±(?P<py_eat_s>[0-9.]+)\s+"
+    r"act=(?P<py_act_m>[-+0-9.]+)±(?P<py_act_s>[0-9.]+)\s+"
+    r"prey=(?P<py_prey_m>[-+0-9.]+)±(?P<py_prey_s>[0-9.]+)\s+"
+    r"pred=(?P<py_pred_m>[-+0-9.]+)±(?P<py_pred_s>[0-9.]+)\s*\|\s*"
+    r"pred_w\s+eat=(?P<pd_eat_m>[-+0-9.]+)±(?P<pd_eat_s>[0-9.]+)\s+"
+    r"act=(?P<pd_act_m>[-+0-9.]+)±(?P<pd_act_s>[0-9.]+)\s+"
+    r"prey=(?P<pd_prey_m>[-+0-9.]+)±(?P<pd_prey_s>[0-9.]+)\s+"
+    r"pred=(?P<pd_pred_m>[-+0-9.]+)±(?P<pd_pred_s>[0-9.]+)\s*\|\s*"
+    r"(?P<sps>[0-9.]+)\s+sps\s*\|\s*(?P<elapsed>[0-9.]+)s"
+)
+
+# Legacy (pre-2026-04-20) format — only prey w_pred and w_prey.
+# Kept so status.py still works against log lines emitted before the
+# log-format expansion was deployed.
+_LOG_RE_LEGACY = re.compile(
+    r"Step\s+(?P<step>\d+)/(?P<total>\d+)\s*\|\s*"
+    r"prey=\s*(?P<prey>\d+)\s+pred=\s*(?P<pred>\d+)\s+food=\s*(?P<food>\d+)\s*\|\s*"
+    r"E=\s*(?P<energy>[-+0-9.]+)\s*\|\s*"
+    r"w_pred=(?P<py_pred_m>[-+0-9.]+)±(?P<py_pred_s>[0-9.]+)\s+"
+    r"w_prey=(?P<py_prey_m>[-+0-9.]+)±(?P<py_prey_s>[0-9.]+)\s*\|\s*"
     r"(?P<sps>[0-9.]+)\s+sps\s*\|\s*(?P<elapsed>[0-9.]+)s"
 )
 
 
 def parse_latest_progress(log_text):
+    """Return the most recent progress line as a dict, tagged with 'format'.
+
+    Prefers the full (8-weight) format; falls back to legacy (2-weight)
+    for log lines emitted before the format expansion.
+    """
     latest = None
     for line in log_text.splitlines():
-        m = _LOG_RE.search(line)
+        m = _LOG_RE_FULL.search(line)
         if m:
-            latest = m.groupdict()
+            latest = {**m.groupdict(), "format": "full"}
+            continue
+        m = _LOG_RE_LEGACY.search(line)
+        if m:
+            latest = {**m.groupdict(), "format": "legacy"}
     return latest
 
 
@@ -320,16 +350,61 @@ def render(args):
               f"food {progress['food']:>4}   E={float(progress['energy']):.1f}")
 
         # Evolving reward weights — the Phase 1a science signal
-        wpd_m = float(progress["wpd_mean"])
-        wpy_m = float(progress["wpy_mean"])
-        fear_ok = wpd_m < 0
-        soc_ok = wpy_m > 0
-        fear_tag = c("← fear emerging (want <0)", C_GREEN if fear_ok else C_DIM)
-        soc_tag = c("← social affiliation (want >0)", C_GREEN if soc_ok else C_DIM)
+        fmt = progress.get("format", "legacy")
 
+        def _w(prefix):
+            """Return (mean, std) as floats, or (None, None) if absent."""
+            m = progress.get(f"{prefix}_m")
+            s = progress.get(f"{prefix}_s")
+            return (float(m), float(s)) if m is not None and s is not None else (None, None)
+
+        py_eat  = _w("py_eat")
+        py_act  = _w("py_act")
+        py_prey = _w("py_prey")
+        py_pred = _w("py_pred")
+        pd_eat  = _w("pd_eat")
+        pd_act  = _w("pd_act")
+        pd_prey = _w("pd_prey")
+        pd_pred = _w("pd_pred")
+
+        def _render_weight(label, w, want_sign, note):
+            """Print one weight line with gate-criterion color coding."""
+            if w[0] is None:
+                return
+            m, s = w
+            if want_sign == "+":
+                ok = m > 0
+            elif want_sign == "-":
+                ok = m < 0
+            else:
+                ok = None  # informational, no gate
+            color = C_GREEN if ok else (C_DIM if ok is None else C_YELLOW)
+            print(f"  {label:<8} {m:+.3f} ± {s:.3f}   {c(note, color)}")
+
+        # --- Prey weights ---
         print(f"\n{c('Reward weights (prey)', C_BOLD)}")
-        print(f"  w_pred   {wpd_m:+.3f} ± {float(progress['wpd_std']):.3f}   {fear_tag}")
-        print(f"  w_prey   {wpy_m:+.3f} ± {float(progress['wpy_std']):.3f}   {soc_tag}")
+        _render_weight("w_eat",  py_eat,  "+", "← food reward (want >0)")
+        _render_weight("w_act",  py_act,  None, "(K&D: consistently positive for prey)")
+        _render_weight("w_prey", py_prey, "+", "← social affiliation (want >0)")
+        _render_weight("w_pred", py_pred, "-", "← fear (want <0)")
+
+        # --- Predator weights (new in full format) ---
+        if fmt == "full":
+            print(f"\n{c('Reward weights (predator)', C_BOLD)}")
+            _render_weight("w_eat",  pd_eat,  "+", "← food reward (want >0)")
+            _render_weight("w_act",  pd_act,  None, "(K&D: varies ± by seed)")
+            _render_weight("w_prey", pd_prey, "+", "← prey attraction (want >0, weaker; seeds 2&4 near 0)")
+            _render_weight("w_pred", pd_pred, "+", "← social (want >0, K&D's strongest predator finding)")
+
+            # Evolution-started flag: max |mean| across all 8 weights exceeds init std×2.
+            all_means = [w[0] for w in (py_eat, py_act, py_prey, py_pred,
+                                        pd_eat, pd_act, pd_prey, pd_pred) if w[0] is not None]
+            max_abs = max((abs(m) for m in all_means), default=0.0)
+            evo_started = max_abs > 0.2  # init std is 0.1 → 2σ threshold per validate_replication.py
+            evo_flag = c("✅ yes", C_GREEN) if evo_started else c("not yet", C_DIM)
+            print(f"\n  {c('Evolution detected:', C_BOLD)} {evo_flag} (max |mean| = {max_abs:.3f}; threshold 0.2)")
+        else:
+            print(f"\n  {c('(legacy log format — predator weights unavailable until --resume with new format)', C_DIM)}")
     else:
         print(f"\n{c('Training', C_BOLD)}")
         print(f"  {c('no progress line yet (still JIT compiling or waiting for first log)', C_DIM)}")

@@ -173,16 +173,25 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             float(jnp.mean(state.energies[state.is_active]))
             if any_active else 0.0
         )
-        wpd_mean = metrics_log.prey_mean_w_pred[-1]
-        wpd_std = metrics_log.prey_std_w_pred[-1]
-        wpy_mean = metrics_log.prey_mean_w_prey[-1]
-        wpy_std = metrics_log.prey_std_w_prey[-1]
+        # All 8 reward-weight trajectories (means + stds).
+        # Surfaces the full Phase 1a gate, including the new predator w_pred
+        # criterion (strongest K&D finding) and prey w_eat.
+        py_eat_m,  py_eat_s  = metrics_log.prey_mean_w_eat[-1],  metrics_log.prey_std_w_eat[-1]
+        py_act_m,  py_act_s  = metrics_log.prey_mean_w_act[-1],  metrics_log.prey_std_w_act[-1]
+        py_prey_m, py_prey_s = metrics_log.prey_mean_w_prey[-1], metrics_log.prey_std_w_prey[-1]
+        py_pred_m, py_pred_s = metrics_log.prey_mean_w_pred[-1], metrics_log.prey_std_w_pred[-1]
+        pd_eat_m,  pd_eat_s  = metrics_log.pred_mean_w_eat[-1],  metrics_log.pred_std_w_eat[-1]
+        pd_act_m,  pd_act_s  = metrics_log.pred_mean_w_act[-1],  metrics_log.pred_std_w_act[-1]
+        pd_prey_m, pd_prey_s = metrics_log.pred_mean_w_prey[-1], metrics_log.pred_std_w_prey[-1]
+        pd_pred_m, pd_pred_s = metrics_log.pred_mean_w_pred[-1], metrics_log.pred_std_w_pred[-1]
         print(
             f"Step {step+1:>8d}/{total_steps} | "
             f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
             f"E={mean_energy:>5.1f} | "
-            f"w_pred={wpd_mean:+.2f}±{wpd_std:.2f} "
-            f"w_prey={wpy_mean:+.2f}±{wpy_std:.2f} | "
+            f"prey_w eat={py_eat_m:+.2f}±{py_eat_s:.2f} act={py_act_m:+.2f}±{py_act_s:.2f} "
+            f"prey={py_prey_m:+.2f}±{py_prey_s:.2f} pred={py_pred_m:+.2f}±{py_pred_s:.2f} | "
+            f"pred_w eat={pd_eat_m:+.2f}±{pd_eat_s:.2f} act={pd_act_m:+.2f}±{pd_act_s:.2f} "
+            f"prey={pd_prey_m:+.2f}±{pd_prey_s:.2f} pred={pd_pred_m:+.2f}±{pd_pred_s:.2f} | "
             f"{sps:.1f} sps | "
             f"{elapsed:.0f}s"
         )
