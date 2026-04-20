@@ -1,0 +1,43 @@
+{
+  "updated_at": "2026-04-20T21:57:16+00:00",
+  "project_id": "evo-reward",
+  "vm": {
+    "name": "evo-reward-gpu",
+    "status": "UNKNOWN",
+    "zone": null,
+    "machine_type": null,
+    "provisioning": "UNKNOWN",
+    "created_at": null,
+    "last_started_at": null,
+    "runtime_hours_current": null,
+    "hourly_rate_usd": null,
+    "estimated_current_run_usd": null
+  },
+  "checkpoints": {
+    "bucket": "evo-reward-ckpts",
+    "count": 0,
+    "latest_step": null,
+    "latest_age_hours": null,
+    "total_gb": null
+  },
+  "costs": {
+    "compute_current_run": 0.0,
+    "nat_since_active": 2.1,
+    "storage_current": 0.0,
+    "live_estimate_total": 2.1,
+    "billing_actual_usd": null,
+    "billing_as_of": null,
+    "month_to_date_usd": null
+  },
+  "training": null,
+  "errors": [
+    {
+      "stage": "vm",
+      "message": "('Unable to acquire impersonated credentials', '{\\n  \"error\": {\\n    \"code\": 403,\\n    \"message\": \"IAM Service Account Credentials API has not been used in project 267365755235 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\\n    \"status\": \"PERMISSION_DENIED\",\\n    \"details\": [\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\\n        \"reason\": \"SERVICE_DISABLED\",\\n        \"domain\": \"googleapis.com\",\\n        \"metadata\": {\\n          \"service\": \"iamcredentials.googleapis.com\",\\n          \"consumer\": \"projects/267365755235\",\\n          \"serviceTitle\": \"IAM Service Account Credentials API\",\\n          \"containerInfo\": \"267365755235\",\\n          \"activationUrl\": \"https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235\"\\n        }\\n      },\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.LocalizedMessage\",\\n        \"locale\": \"en-US\",\\n        \"message\": \"IAM Service Account Credentials API has not been used in project 267365755235 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\"\\n      },\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\\n        \"links\": [\\n          {\\n            \"description\": \"Google developers console API activation\",\\n            \"url\": \"https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235\"\\n          }\\n        ]\\n      }\\n    ]\\n  }\\n}\\n')"
+    },
+    {
+      "stage": "checkpoints",
+      "message": "('Unable to acquire impersonated credentials', '{\\n  \"error\": {\\n    \"code\": 403,\\n    \"message\": \"IAM Service Account Credentials API has not been used in project 267365755235 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\\n    \"status\": \"PERMISSION_DENIED\",\\n    \"details\": [\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\\n        \"reason\": \"SERVICE_DISABLED\",\\n        \"domain\": \"googleapis.com\",\\n        \"metadata\": {\\n          \"activationUrl\": \"https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235\",\\n          \"consumer\": \"projects/267365755235\",\\n          \"service\": \"iamcredentials.googleapis.com\",\\n          \"containerInfo\": \"267365755235\",\\n          \"serviceTitle\": \"IAM Service Account Credentials API\"\\n        }\\n      },\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.LocalizedMessage\",\\n        \"locale\": \"en-US\",\\n        \"message\": \"IAM Service Account Credentials API has not been used in project 267365755235 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\"\\n      },\\n      {\\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\\n        \"links\": [\\n          {\\n            \"description\": \"Google developers console API activation\",\\n            \"url\": \"https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview?project=267365755235\"\\n          }\\n        ]\\n      }\\n    ]\\n  }\\n}\\n')"
+    }
+  ]
+}
