@@ -144,9 +144,10 @@ def ensure_bucket():
         print(f"{now()} bucket create failed: {out.strip()[-300:]}", flush=True)
 
 
-def try_create_spot(zone):
-    print(f"{now()} trying {zone}...", flush=True)
-    rc, out = gcloud(
+def try_create(zone, spot=True):
+    provisioning = "SPOT" if spot else "STANDARD"
+    print(f"{now()} trying {zone} ({provisioning})...", flush=True)
+    args = [
         "compute", "instances", "create", VM_NAME,
         f"--zone={zone}",
         "--machine-type=g2-standard-8",
@@ -159,22 +160,25 @@ def try_create_spot(zone):
         f"--metadata-from-file=startup-script={STARTUP_SCRIPT}",
         "--scopes=https://www.googleapis.com/auth/cloud-platform",
         "--no-address",
-        "--provisioning-model=SPOT",
-        "--instance-termination-action=STOP",
-    )
+    ]
+    if spot:
+        args += ["--provisioning-model=SPOT",
+                 "--instance-termination-action=STOP"]
+    rc, out = gcloud(*args)
     ok = rc == 0 and "RUNNING" in out
     if ok:
-        print(f"{now()} ✅ capacity in {zone}", flush=True)
+        print(f"{now()} ✅ capacity in {zone} ({provisioning})", flush=True)
         ensure_nat(zone)
     return ok
 
 
-def poll_for_capacity():
+def poll_for_capacity(spot=True):
     while True:
         for zone in ZONES_TO_TRY:
-            if try_create_spot(zone):
+            if try_create(zone, spot=spot):
                 return zone
-        print(f"{now()} all zones stockout, sleeping {POLL_INTERVAL}s",
+        mode = "spot" if spot else "on-demand"
+        print(f"{now()} all zones stockout ({mode}), sleeping {POLL_INTERVAL}s",
               flush=True)
         time.sleep(POLL_INTERVAL)
 
@@ -399,6 +403,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--config", default="configs/baseline_faithful.yaml")
     ap.add_argument("--runtime", default="configs/runtime/gcp_l4_spot.yaml")
+    ap.add_argument("--on-demand", action="store_true",
+                    help="Use on-demand VMs instead of spot. No preemption, ~3x cost.")
     args = ap.parse_args()
 
     ensure_bucket()
@@ -410,11 +416,12 @@ def main():
         while True:
             try:
                 if zone is None:
-                    zone = poll_for_capacity()
+                    zone = poll_for_capacity(spot=not args.on_demand)
                     state = {"zone": zone, "seed": args.seed, "started_at": now()}
                     save_state(state)
                     stockout_streak = 0
-                    print(f"{now()} === provisioning new VM in {zone} ===",
+                    mode = "on-demand" if args.on_demand else "spot"
+                    print(f"{now()} === provisioning new {mode} VM in {zone} ===",
                           flush=True)
 
                 result = reconcile(zone, args.seed, args.config, args.runtime)
