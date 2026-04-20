@@ -2,42 +2,87 @@
   "nodes": [
     {
       "name": "agents",
-      "lines": 119,
+      "lines": 177,
       "file": "src/agents.py"
     },
     {
       "name": "environment",
-      "lines": 937,
+      "lines": 1030,
       "file": "src/environment.py"
     },
     {
       "name": "evolution",
-      "lines": 98,
+      "lines": 151,
       "file": "src/evolution.py"
     },
     {
+      "name": "jax_checkpoint",
+      "lines": 116,
+      "file": "src/jax_checkpoint.py"
+    },
+    {
+      "name": "jax_evolution",
+      "lines": 154,
+      "file": "src/jax_evolution.py"
+    },
+    {
+      "name": "jax_food",
+      "lines": 206,
+      "file": "src/jax_food.py"
+    },
+    {
+      "name": "jax_lifecycle",
+      "lines": 225,
+      "file": "src/jax_lifecycle.py"
+    },
+    {
+      "name": "jax_metrics",
+      "lines": 127,
+      "file": "src/jax_metrics.py"
+    },
+    {
+      "name": "jax_ppo",
+      "lines": 349,
+      "file": "src/jax_ppo.py"
+    },
+    {
+      "name": "jax_sim",
+      "lines": 196,
+      "file": "src/jax_sim.py"
+    },
+    {
+      "name": "jax_state",
+      "lines": 412,
+      "file": "src/jax_state.py"
+    },
+    {
       "name": "lifecycle",
-      "lines": 387,
+      "lines": 442,
       "file": "src/lifecycle.py"
     },
     {
       "name": "metrics",
-      "lines": 202,
+      "lines": 238,
       "file": "src/metrics.py"
     },
     {
+      "name": "observations",
+      "lines": 455,
+      "file": "src/observations.py"
+    },
+    {
       "name": "policy",
-      "lines": 127,
+      "lines": 232,
       "file": "src/policy.py"
     },
     {
       "name": "ppo",
-      "lines": 189,
+      "lines": 203,
       "file": "src/ppo.py"
     },
     {
       "name": "reward",
-      "lines": 65,
+      "lines": 145,
       "file": "src/reward.py"
     }
   ],
@@ -53,6 +98,50 @@
     {
       "source": "evolution",
       "target": "environment"
+    },
+    {
+      "source": "jax_evolution",
+      "target": "policy"
+    },
+    {
+      "source": "jax_lifecycle",
+      "target": "jax_evolution"
+    },
+    {
+      "source": "jax_ppo",
+      "target": "policy"
+    },
+    {
+      "source": "jax_sim",
+      "target": "environment"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_food"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_lifecycle"
+    },
+    {
+      "source": "jax_sim",
+      "target": "jax_ppo"
+    },
+    {
+      "source": "jax_sim",
+      "target": "observations"
+    },
+    {
+      "source": "jax_sim",
+      "target": "policy"
+    },
+    {
+      "source": "jax_state",
+      "target": "environment"
+    },
+    {
+      "source": "jax_state",
+      "target": "policy"
     },
     {
       "source": "lifecycle",

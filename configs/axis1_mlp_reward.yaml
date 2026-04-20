@@ -1,0 +1,140 @@
+# Axis 1: MLP Reward Genome
+# Based on baseline_faithful.yaml — only reward genome changes.
+# All other parameters identical to K&D faithful replication.
+#
+# The baseline uses a 4-weight linear genome: r = w . stimuli
+# Axis 1 replaces this with a small MLP: r = MLP_theta(stimuli)
+# where theta (~121 params) is the heritable genome.
+#
+# MLP architecture: input(4) -> Dense(8, tanh) -> Dense(8, tanh) -> Dense(1, linear)
+# Parameter count: (4*8+8) + (8*8+8) + (8*1+1) = 40 + 72 + 9 = 121
+#
+# MLP mutation scale (0.01) is 40x smaller than linear (0.4) because:
+# - More parameters means each individual mutation has less relative impact,
+#   but the aggregate effect of 121 simultaneous mutations can be large.
+# - Aggregate L2 perturbation ~ sqrt(121) * 0.01 = 0.11, vs linear's sqrt(4) * 0.4 = 0.8.
+#   Intentionally more conservative for stability during early evolution.
+# - MLP weights interact multiplicatively across layers, amplifying perturbations.
+#
+# MLP weight clip (10.0) is tighter than linear (100.0) because:
+# - Weights of magnitude 100 in a 3-layer MLP would produce astronomically large outputs.
+# - tanh saturates at ~3, so weights beyond ~10 produce diminishing returns.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis1_mlp_reward"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "mlp"            # MLP reward genome — Axis 1 extension
+social_obs:         "position_only"  # no heading/velocity of neighbors
+policy_type:        "mlp"            # feedforward MLP — K&D faithful
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960              # 960x960 units (Appendix A)
+total_steps:        10_240_000       # 1024 x 10^4 steps (Section 4)
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205              # CONFIRMED: 128+72+2+1+1+1
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150
+predator_initial:   10
+prey_cap:           450
+predator_cap:       50
+
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.6
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_deg:         60.0
+predator_mouth_range_min:   40.0
+predator_mouth_range_max:   80.0
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        2.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.1
+zeta_b_prey:        10.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (MLP — Axis 1) ───────────────────────────────────────────
+# Linear genome params (still used for init population comparison):
+reward_weights_init_std:  0.1
+mutation_df:              2          # Student's t degrees of freedom
+mutation_scale:           0.4        # linear genome mutation scale (unused when reward_type=mlp)
+weight_clip:              100.0      # linear genome clip (unused when reward_type=mlp)
+
+# MLP-specific genome params:
+mlp_hidden_size:          8          # hidden units per layer in reward MLP
+mlp_mutation_scale:       0.01       # Student's t scale for MLP weight mutation
+mlp_weight_clip:          10.0       # clip MLP weights to [-10, 10] after mutation
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# Logging cadence lives in configs/runtime/*.yaml.
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

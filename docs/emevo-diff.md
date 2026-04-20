@@ -302,6 +302,50 @@ Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-pad
 
 ---
 
+### [D15] Social observation: heading and speed of conspecifics (Axis 2 extension)
+
+**Component:** `agents.py`, `observations.py`
+
+**emevo:** No social observation. Agents perceive conspecifics only through proximity sensor readings (distance/direction). No information about what a conspecific is doing (heading, speed).
+
+**Ours:** When `social_obs = "position_heading_velocity"`, append 10 dims to the observation vector: heading and speed of the 5 closest conspecifics (same species) within proximity range (200 units). obs_dim = 215.
+
+**Reason:** Axis 2 experimental extension. Tests whether richer social information changes evolved reward functions or enables coordinated behavior. The baseline (`social_obs = "position_only"`) remains identical to K&D.
+
+**Risk:** None for baseline replication. Extension configs only affect Axis 2 experiments.
+
+**Discovered:** Phase 2, Axis 2 implementation (Session 9).
+
+---
+
+### D16: Temporal reward context window (Axis 3)
+
+**emevo:** Reward function is instantaneous: `r(t) = w . stimuli(t)`.
+
+**Ours:** When `reward_type = "temporal"`, the reward function operates over a rolling window of the last k stimulus vectors: `r(t) = MLP_θ(stimuli(t-k:t))`. Architecture: input(k*4) → Dense(16, tanh) → Dense(16, tanh) → Dense(1). With k=10: 945 parameters per genome. The obs_buffer (rolling window) is per-agent state, initialized to zeros at birth and shifted each step.
+
+**Reason:** Axis 3 experimental extension. Allows the reward to encode temporal patterns (e.g., fear of an approaching predator whose sensor signal is rising) rather than just instantaneous stimuli. Doya (2002) predicts this should converge toward prediction-error-like reward structures.
+
+**Risk:** None for baseline replication. Extension config only.
+
+**Discovered:** Phase 2, Axis 3 implementation (Session 10).
+
+---
+
+### D17: LSTM policy (Axis 4)
+
+**emevo:** Policy is a feedforward MLP (2 hidden layers, 64 units, tanh).
+
+**Ours:** When `policy_type = "lstm"`, the policy uses an LSTM cell: obs(205) → LSTM(64) → Dense(64, tanh) → policy/value heads. ~73,477 parameters. The LSTM hidden state (c, h) persists across timesteps within one agent's lifetime and is reset to zeros at every birth. It is NOT inherited — it is lifetime state, not genome. PPO training uses truncated BPTT with 128-step chunks (8 chunks per 1024-step rollout).
+
+**Reason:** Axis 4 experimental extension. The 2×2 of (temporal reward × LSTM policy) is a key experimental comparison: FF+instant (K&D baseline), FF+temporal (richer signal), LSTM+instant (memory actor), LSTM+temporal (memory + anticipation).
+
+**Risk:** None for baseline replication. Extension config only.
+
+**Discovered:** Phase 2, Axis 4 implementation (Session 10).
+
+---
+
 ## Differences That Are NOT Deviations
 
 These look like differences but are not, because they don't affect the science:

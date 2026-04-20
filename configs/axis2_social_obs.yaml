@@ -1,0 +1,137 @@
+# Axis 2: Social Behavioral Observation
+# Based on baseline_faithful.yaml — only the observation vector changes.
+# All other parameters identical to K&D faithful replication.
+#
+# The baseline gives agents 205 observation dimensions. Conspecifics appear
+# only through proximity sensor readings — agents know one is nearby but not
+# what it's doing (heading, speed).
+#
+# Axis 2 appends heading and speed of the N closest conspecifics to the
+# observation vector. This lets the policy distinguish:
+#   - A conspecific fleeing at high speed (danger signal)
+#   - A conspecific approaching food at moderate speed (safe to follow)
+#   - A stationary conspecific (possibly dead or blocked)
+#   - A group moving together (coordinated behavior worth joining)
+#
+# Social block: N_SOCIAL_NEIGHBORS x [heading, speed] = 5 x 2 = 10 dims
+# New obs_dim: 205 + 10 = 215
+#
+# Reward genome is unchanged — the 4-weight linear genome operates on the
+# same stimulus scalars regardless of social_obs setting.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis2_social_obs"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "linear"         # 4-weight linear genome — K&D faithful
+social_obs:         "position_heading_velocity"  # Axis 2: heading+speed of neighbors
+policy_type:        "mlp"            # feedforward MLP — K&D faithful
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960              # 960x960 units (Appendix A)
+total_steps:        10_240_000       # 1024 x 10^4 steps (Section 4)
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+# Baseline: 128 + 72 + 2 + 1 + 1 + 1 = 205
+# Social:   5 neighbors x 2 (heading, speed) = 10
+# Total:    205 + 10 = 215
+obs_dim:            215
+n_social_neighbors: 5                # number of closest conspecifics to observe
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150              # (Section 4)
+predator_initial:   10               # (Section 4)
+prey_cap:           450              # (Section 3)
+predator_cap:       50               # (Section 3)
+
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0             # (Appendix A)
+predator_radius:    14.0             # (Appendix A)
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.6
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_deg:         60.0
+predator_mouth_range_min:   40.0
+predator_mouth_range_max:   80.0
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        2.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.1
+zeta_b_prey:        10.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome ───────────────────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# Logging cadence lives in configs/runtime/*.yaml.
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

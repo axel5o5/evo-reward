@@ -1,0 +1,17 @@
+# Runtime profile for local Mac runs (Apple Silicon CPU via jax[cpu]).
+#
+# Measured rate on an M4 MacBook Pro: ~3 steps/s steady state (including
+# PPO updates after step 1024). That makes a full 10.24M-step run take
+# many weeks wall-clock — local Mac is realistic only for short
+# validation runs or as a staging venue for checkpoints that finish on GPU.
+#
+# Cadences aim for:
+#   - checkpoint every ~28 min  (5000 steps at 3 steps/s)
+#   - log line every ~33 sec    (100 steps at 3 steps/s)
+#
+# Log cadence is deliberately chatty — useful for watching dynamics
+# emerge and catching NaN / population-collapse issues early. Raise
+# log_interval_steps if the terminal becomes noisy.
+
+checkpoint_interval_steps: 5_000
+log_interval_steps:        100

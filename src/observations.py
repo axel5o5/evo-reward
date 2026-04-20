@@ -10,13 +10,17 @@ are pure JAX, so the same code runs on CPU or GPU.
 Key technique: jax.vmap over the observer axis, with scatter-min
 (jnp.ndarray.at[bin_idx].min(dist)) for binning closest objects per sensor.
 
-Observation layout (205 dims):
+Observation layout (baseline, 205 dims):
   0-127:   proximity sensors (32, 4) flattened row-major
   128-199: tactile sensors (4, 18) flattened row-major
   200-201: velocity (vx, vy)
   202:     angle
   203:     angular velocity
   204:     energy
+
+Extension: social observation (social_obs = "position_heading_velocity", 215 dims):
+  205-214: social obs (5, 2) -- [heading, speed] x 5 closest conspecifics
+           Sorted by Euclidean distance (closest first), zero-padded.
 """
 
 import math
@@ -244,6 +248,54 @@ def _single_tactile(obs_pos, obs_radius, obs_species, obs_idx,
 
 
 # ---------------------------------------------------------------------------
+# Social observation — heading + speed of N closest conspecifics
+# ---------------------------------------------------------------------------
+
+def _single_social_obs(obs_pos, obs_species, obs_idx,
+                       all_pos, all_active, all_species,
+                       all_angles, all_velocities_xy,
+                       max_range, n_neighbors):
+    """Social observation for one observer. Returns (2 * n_neighbors,).
+
+    For each of the n_neighbors closest conspecifics (same species, active,
+    within max_range), returns [heading, speed] interleaved. Zero-padded
+    if fewer than n_neighbors are visible.
+    """
+    A = all_pos.shape[0]
+
+    # Euclidean distance from observer to all agents
+    delta = all_pos - obs_pos                                          # (A, 2)
+    dist = jnp.linalg.norm(delta, axis=1)                             # (A,)
+
+    # Validity mask: same species, active, not self, within range
+    same_species = (all_species == obs_species)
+    not_self = (jnp.arange(A) != obs_idx)
+    in_range = (dist <= max_range)
+    valid = all_active & same_species & not_self & in_range
+
+    # Mask invalid agents to inf distance for sorting
+    masked_dist = jnp.where(valid, dist, jnp.inf)                     # (A,)
+
+    # Get indices of N closest (ascending distance)
+    sorted_indices = jnp.argsort(masked_dist)                          # (A,)
+    top_n_indices = sorted_indices[:n_neighbors]                       # (N,)
+
+    # Extract heading and speed for top N
+    headings = all_angles[top_n_indices]                               # (N,)
+    speeds = jnp.linalg.norm(all_velocities_xy[top_n_indices], axis=1) # (N,)
+
+    # Zero-pad entries where the neighbor was actually invalid (dist == inf)
+    top_n_dists = masked_dist[top_n_indices]                           # (N,)
+    is_real = jnp.isfinite(top_n_dists)                                # (N,)
+    headings = jnp.where(is_real, headings, 0.0)
+    speeds = jnp.where(is_real, speeds, 0.0)
+
+    # Interleave: [h1, s1, h2, s2, ..., hN, sN]
+    social = jnp.stack([headings, speeds], axis=1).reshape(-1)         # (2*N,)
+    return social
+
+
+# ---------------------------------------------------------------------------
 # Top-level: compute all observations
 # ---------------------------------------------------------------------------
 
@@ -264,8 +316,10 @@ def compute_all_observations(obs_state: dict, config: dict) -> jnp.ndarray:
     food_max = config["food_max"]
     n_sensors = config["n_proximity_sensors"]
     n_tactile_bins = config["n_tactile_sensors"]
+    social_obs = config.get("social_obs", "position_only")
+    n_social = config.get("n_social_neighbors", 0) if social_obs != "position_only" else 0
 
-    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins)
+    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins, social_obs, n_social)
     if cache_key not in _obs_fn_cache:
         _obs_fn_cache[cache_key] = _build_obs_fn(config, max_agents, food_max)
 
@@ -284,6 +338,11 @@ def _build_obs_fn(config, max_agents, food_max):
     tactile_spacing_rad = math.radians(config["tactile_spacing_deg"])
     tactile_half_width = tactile_spacing_rad / 2 + 1e-9
     tactile_bin_centers = jnp.arange(n_tactile_bins) * tactile_spacing_rad
+
+    # Social observation config (compile-time branch)
+    social_obs = config.get("social_obs", "position_only")
+    include_social = (social_obs == "position_heading_velocity")
+    n_neighbors = config.get("n_social_neighbors", 5) if include_social else 0
 
     # Build vmapped proximity functions
     _vmap_prox_agents = jax.vmap(
@@ -309,6 +368,16 @@ def _build_obs_fn(config, max_agents, food_max):
         ),
         in_axes=(0, 0, 0, 0, None, None, None, None, None, None),
     )
+
+    # Build vmapped social observation function (only if social_obs active)
+    if include_social:
+        _vmap_social = jax.vmap(
+            lambda pos, sp, idx, ap, aa, asp, ang, vel: _single_social_obs(
+                pos, sp, idx, ap, aa, asp, ang, vel,
+                max_range, n_neighbors
+            ),
+            in_axes=(0, 0, 0, None, None, None, None, None),
+        )
 
     @jax.jit
     def _compute(obs_state):
@@ -356,18 +425,28 @@ def _build_obs_fn(config, max_agents, food_max):
             food_positions, food_active,
         )  # (A, 4, B)
 
-        # 6. Assemble observation vector (A, 205)
+        # 6. Assemble observation vector
         prox_flat = proximity.reshape(max_agents, -1)       # (A, 128)
         tact_flat = tactile.reshape(max_agents, -1)         # (A, 72)
 
-        obs = jnp.concatenate([
+        parts = [
             prox_flat,                                       # 0-127
             tact_flat,                                       # 128-199
             velocities_xy,                                   # 200-201
             angles[:, None],                                 # 202
             velocities_ang[:, None],                         # 203
             energies[:, None],                               # 204
-        ], axis=1)
+        ]
+
+        # 6.5 Social observation (Axis 2)
+        if include_social:
+            social = _vmap_social(
+                positions, species, obs_indices,
+                positions, is_active, species, angles, velocities_xy,
+            )  # (A, 2*N)
+            parts.append(social)
+
+        obs = jnp.concatenate(parts, axis=1)
 
         # Mask inactive agents to zero
         obs = jnp.where(is_active[:, None], obs, 0.0)

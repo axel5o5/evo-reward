@@ -64,15 +64,18 @@ See `tests/test_phase0.py` — automated checks listed in the Testing section be
 | Mean prey `w_pred` < 0 at step 10M | At least 3 of 5 seeds | Figure 7 |
 | Mean prey `w_prey` > 0 at step 10M | At least 3 of 5 seeds | Figure 7 |
 | Mean prey `w_eat` > 0 at step 10M | All seeds | Figure 7 |
-| Mean predator `w_prey` > 0 at step 10M | At least 3 of 5 seeds | Figure 7 |
+| Mean predator `w_pred` > 0 at step 10M (social reward for other predators — K&D's strongest predator finding) | At least 3 of 5 seeds | main.tex:273 |
+| Mean predator `w_prey` > 0 at step 10M (prey attraction — weaker criterion; K&D reports near-zero in seeds 2 & 4) | At least 2 of 5 seeds | main.tex:273 |
 | Prey population oscillates (not flat, not extinct) | All seeds | Figure 6 |
 | Predator population oscillates | All seeds | Figure 6 |
-| Oscillation period ~1M steps | At least 2 of 5 seeds | Figure 6 |
-| Prey generations in run: ~473–501 | Within ±20% | Section 4 |
-| Predator generations in run: ~47–59 | Within ±20% | Section 4 |
-| No extinction (either species) | All seeds | Section 4 |
+| Oscillation period ~1M steps | At least 2 of 5 seeds | main.tex:257 |
+| Prey generations in run: ~473–501 (default condition only) | Within ±20% (our tolerance, not K&D's) | main.tex:257 |
+| Predator generations in run: ~47–59 (default condition only) | Within ±20% (our tolerance, not K&D's) | main.tex:257 |
+| No extinction (either species, default condition) | All seeds | main.tex:334 |
 
 **Deliverable:** Plots matching K&D Figures 6, 7, and 8 (population dynamics, reward weight trajectories, reward weight KDE scatter). These are generated automatically by `analysis/dashboards.py`.
+
+**Scope note — environmental-variation experiments omitted:** K&D run five conditions total: default (medium mouth, Δn=0.5), small mouth, large mouth, less food (Δn=0.4), more food (Δn=0.6), plus a pitfall experiment (Section 4.4). Phase 1a uses the **default (medium mouth, Δn=0.5)** condition only. The four other environmental conditions and the pitfall experiment are out of scope for Phase 1a — they'd ~5× the compute cost and are not required for the absolute-threshold gate criteria above. Do not claim reproduction of K&D's environmental-sensitivity or pitfall findings from default-only data.
 
 **If replication fails:** Stop. Do not proceed to Phase 1b. Debug using the K&D open-source code (`github.com/oist/emevo`) as ground truth — run their code on the same seed and compare step-by-step. The most likely failure modes, in order:
 1. PPO not converging (agents not learning to eat) — check learning rate, rollout length

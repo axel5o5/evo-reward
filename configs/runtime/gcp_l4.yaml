@@ -1,0 +1,6 @@
+# Runtime profile for GCP L4 GPU runs.
+# L4 runs at ~237 steps/s -> 100k steps ≈ 7 min between saves.
+# No risk of lid-close, so longer intervals are fine.
+
+checkpoint_interval_steps: 100_000
+log_interval_steps:        10_000

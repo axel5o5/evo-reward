@@ -46,6 +46,10 @@ class MetricsLog:
     food_consumption_rate: list = field(default_factory=list)
     # Birth log: (step, child_id, parent_id)
     birth_log: list = field(default_factory=list)
+    # Trajectory sampling (optional, off by default — for post-hoc capacity metrics)
+    trajectory_obs: list = field(default_factory=list)
+    trajectory_actions: list = field(default_factory=list)
+    trajectory_agent_ids: list = field(default_factory=list)
 
 
 def _get_species_agents(world, species: int):
@@ -117,6 +121,22 @@ def record_birth(log: MetricsLog, step: int, child_id: int, parent_id: int) -> M
     return log
 
 
+def record_trajectory_step(
+    log: MetricsLog, obs: np.ndarray, action: np.ndarray,
+    agent_id: int, config: dict,
+) -> MetricsLog:
+    """Optionally record one (obs, action) pair for post-hoc capacity analysis.
+
+    Only appends if config["save_trajectories"] is True. Off by default.
+    """
+    if not config.get("save_trajectories", False):
+        return log
+    log.trajectory_obs.append(np.array(obs, dtype=np.float32))
+    log.trajectory_actions.append(np.array(action, dtype=np.float32))
+    log.trajectory_agent_ids.append(int(agent_id))
+    return log
+
+
 def _make_dir(path: str):
     """Ensure directory exists."""
     os.makedirs(path, exist_ok=True)
@@ -175,6 +195,14 @@ def save_metrics(log: MetricsLog, config: dict, seed: int, out_dir: str) -> None
                 data[fname] = np.array(val, dtype=np.int64)
             else:
                 data[fname] = np.zeros((0, 3), dtype=np.int64)
+        elif fname in ("trajectory_obs", "trajectory_actions"):
+            # List of arrays -> (T, dim) stacked array
+            if val:
+                data[fname] = np.stack(val)
+            else:
+                data[fname] = np.zeros((0,), dtype=np.float32)
+        elif fname == "trajectory_agent_ids":
+            data[fname] = np.array(val, dtype=np.int64) if val else np.zeros((0,), dtype=np.int64)
         else:
             data[fname] = np.array(val)
 
@@ -197,6 +225,14 @@ def load_metrics(path: str) -> MetricsLog:
             arr = data[fname]
             if fname == "birth_log":
                 setattr(log, fname, [tuple(row) for row in arr])
+            elif fname in ("trajectory_obs", "trajectory_actions"):
+                # Keep as list of arrays for consistency
+                if arr.ndim >= 2:
+                    setattr(log, fname, [arr[i] for i in range(len(arr))])
+                else:
+                    setattr(log, fname, [])
+            elif fname == "trajectory_agent_ids":
+                setattr(log, fname, arr.tolist() if len(arr) > 0 else [])
             else:
                 setattr(log, fname, arr.tolist())
     return log

@@ -1,0 +1,10 @@
+# Default runtime config — used if no --runtime is passed to the runner.
+#
+# Conservative middle ground: frequent enough that a laptop crash loses
+# at most ~10-30 min of work, not so chatty that a fast GPU spams logs.
+# Override with configs/runtime/mac.yaml or configs/runtime/gcp_l4.yaml
+# (or --checkpoint-interval / --log-interval CLI flags) for device-
+# specific tuning.
+
+checkpoint_interval_steps: 10_000
+log_interval_steps:        1_000

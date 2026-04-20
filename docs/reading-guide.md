@@ -21,7 +21,7 @@ The single most important paper. Focus on:
 
 - **Section 3** — the simulation model, sensors, energy/metabolism, birth-death dynamics, the reward function (Equation 3), and Algorithm 1 (the simulation loop).
 - **Section 4.1** — the evolved reward analysis. Figures 7, 8, and 12 are the key results we need to reproduce and extend.
-- **Skim the rest** — environmental variations (mouth size, food density, pitfalls) show how ecological conditions shift what evolves.
+- **Environmental variation experiments (mouth size, food density, pitfalls)** — read, don't skim. The predator mouth-size sweep (small/medium/large, Figure 3) produces K&D's "environmental sensitivity" headline finding that larger predator mouths drive stronger evolved fear. Our Phase 1a only replicates the medium condition — if you're deciding whether to extend to the full sweep, read this section properly.
 
 Their code is at `github.com/oist/emevo` and included in our repo under `emevo/`.
 

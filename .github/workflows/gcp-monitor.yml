@@ -1,0 +1,108 @@
+name: GCP Monitor
+
+# Polls each configured GCP project every 10 minutes, writes gcp-status.json
+# to the `gcp-status` orphan branch. The dashboard fetches it from the raw
+# GitHub URL at runtime — this branch is NOT wired to Vercel, so updates
+# don't trigger site rebuilds.
+#
+# First-time setup: see dashboard/ops/GCP_MONITOR.md
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:          # manual "run now" button in the Actions tab
+  push:
+    branches: [main]
+    paths: [scripts/gcp_monitor.py, scripts/gcp_monitor_config.yaml]
+
+# Only one run at a time; cancel stale ones so cron never piles up.
+concurrency:
+  group: gcp-monitor
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write         # needed to push to the gcp-status branch
+      id-token: write         # for workload identity federation (optional auth path)
+
+    steps:
+      - name: Checkout main (for script + config)
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml \
+            google-cloud-compute \
+            google-cloud-storage \
+            google-cloud-bigquery \
+            google-auth
+
+      # ----- Auth ---------------------------------------------------------
+      # Path A (preferred): Workload Identity Federation. No long-lived keys.
+      # Requires GCP_WIF_PROVIDER + GCP_WIF_SERVICE_ACCOUNT secrets.
+      #
+      # Path B (fallback): a service-account JSON in GCP_SA_KEY_DEFAULT.
+      # Partner projects can provide their own via GCP_SA_KEY_<OWNER> secrets
+      # referenced from gcp_monitor_config.yaml (credentials_secret).
+      - name: Authenticate to GCP (WIF)
+        id: auth_wif
+        if: vars.GCP_WIF_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Authenticate to GCP (SA key fallback)
+        if: vars.GCP_WIF_PROVIDER == ''
+        env:
+          GCP_SA_KEY_DEFAULT: ${{ secrets.GCP_SA_KEY_DEFAULT }}
+        run: |
+          if [ -z "$GCP_SA_KEY_DEFAULT" ]; then
+            echo "::error::No GCP auth configured. Set either GCP_WIF_PROVIDER vars or GCP_SA_KEY_DEFAULT secret."
+            exit 1
+          fi
+          echo "$GCP_SA_KEY_DEFAULT" > "$RUNNER_TEMP/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
+
+      # ----- Run worker ---------------------------------------------------
+      - name: Poll project
+        run: |
+          python scripts/gcp_monitor.py \
+            --config scripts/gcp_monitor_config.yaml \
+            --out gcp-status.json
+
+      # ----- Publish ------------------------------------------------------
+      - name: Publish to gcp-status branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config user.name  "gcp-monitor[bot]"
+          git config user.email "gcp-monitor@users.noreply.github.com"
+
+          # Checkout (or create) the orphan branch with just the data file.
+          git fetch origin gcp-status || true
+          if git show-ref --verify --quiet refs/remotes/origin/gcp-status; then
+            git checkout -B gcp-status origin/gcp-status
+          else
+            git checkout --orphan gcp-status
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          mv gcp-status.json ./gcp-status.json 2>/dev/null || true
+          git add gcp-status.json
+          if git diff --staged --quiet; then
+            echo "No changes; skipping commit."
+          else
+            git commit -m "update gcp-status.json [skip ci]"
+            git push origin gcp-status
+          fi

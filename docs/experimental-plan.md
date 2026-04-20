@@ -27,7 +27,7 @@ The codebase supports four architecture modes via two independent config flags. 
 
 **Recommended default for extension experiments:** shared policy + continuous birth-death. This preserves the ecological dynamics that give the project its biological grounding (no designer-imposed fitness function, overlapping generations, energy-driven reproduction) while getting the major computational speedup from amortized PPO. Generational batching is available as a further speedup if needed but is the bigger conceptual departure from K&D.
 
-**Population size:** ~80 per species (tunable), vs. K&D's ~130–150. Can scale up as a robustness check.
+**Population size:** ~80 per species (tunable), vs. K&D's default steady-state of ~350 prey / ~23 predators (Table 1, main.tex:323). Can scale up as a robustness check.
 
 **Reward genome options (always both available in the codebase):**
 
@@ -83,7 +83,7 @@ The closest bridge concept is PBT (Jaderberg et al. 2017), which operates as qua
 
 **H4 (Population dynamics and ecological structure).** Continuous birth-death produces Lotka-Volterra-like oscillations in population sizes. Generational batching produces flat (fixed) population sizes. The oscillatory dynamics create temporally varying selection pressure that may drive different reward equilibria — specifically, fear may need to be *stronger* under continuous dynamics because predation pressure fluctuates and agents must survive the peaks.
 
-**H5 (Qualitative robustness of core result).** Despite the above quantitative differences, we predict that fear (negative w_pred) and social affiliation (positive w_con) emerge under *all four* architecture combinations. These are robust consequences of predator-prey competitive dynamics, not artifacts of K&D's specific lifecycle model. If this hypothesis holds, it's a meaningful robustness result. If it fails for a specific combination, identifying *which* architectural feature is necessary for the phenomenon is itself a contribution.
+**H5 (Qualitative robustness of core result).** Despite the above quantitative differences, we predict that fear (negative w_pred) and social affiliation (positive w_prey) emerge under *all four* architecture combinations. These are robust consequences of predator-prey competitive dynamics, not artifacts of K&D's specific lifecycle model. If this hypothesis holds, it's a meaningful robustness result. If it fails for a specific combination, identifying *which* architectural feature is necessary for the phenomenon is itself a contribution.
 
 **H6 (Baldwin effect strength).** Under independent policy + continuous birth-death (K&D faithful), reward functions that enable fast learning should be selectively favored because fast learners survive longer and reproduce more. Under shared policy, this pressure is weakened because all agents benefit from the shared policy regardless of their individual reward function's "learnability." Measurable via: correlation between reward genome complexity and agent lifetime (should be positive under independent/continuous, weaker under shared).
 
@@ -246,7 +246,7 @@ Standardized plot functions that work on any run's `metrics.npz`:
 
 **Success criteria:**
 
-- Prey evolve negative w_pred (fear) and positive w_con (social affiliation). This is the headline result from K&D.
+- Prey evolve negative w_pred (fear) and positive w_prey (social affiliation toward conspecifics). This is the headline result from K&D.
 - Predators evolve positive w_prey (attraction to prey). Predator reward structure should be simpler than prey.
 - Population dynamics show oscillatory predator-prey cycles (Lotka-Volterra-like).
 - Reward weight trajectories converge within ~100–200 generations.
@@ -257,6 +257,8 @@ Standardized plot functions that work on any run's `metrics.npz`:
 
 **Compute cost:** ~10–24 hours (1–2 runs at K&D's ~10–12 hours per run).
 
+**Scoped out — K&D's environmental-variation experiments:** K&D run six conditions total (main.tex:252, 316–399): default (medium mouth, Δn=0.5), small mouth, large mouth, less food (Δn=0.4), more food (Δn=0.6), and a pitfall variant (Section 4.4). Phase 1a replicates **default only**. Replicating the full matrix would ~5× the compute cost. The Phase 1a gate evaluates absolute thresholds on prey `w_pred`/`w_prey`/`w_eat` and predator `w_pred`/`w_prey`, not cross-condition gradients, so default is sufficient. If we later want to claim reproduction of K&D's "larger mouths → stronger fear" (Section 4.2), "less food → more negative social reward" (Section 4.3), or "fear didn't evolve against static pitfalls" (Section 4.4) findings, the corresponding conditions should be added as single-seed follow-ups.
+
 ### Phase 1b: Simplification validation and architectural comparison
 
 **Goal:** Test how shared policy affects K&D's core dynamics. This is not just validation — it's a controlled experiment testing H1–H3 and H5–H7 (see "Architectural choices as a scientific contribution" above).
@@ -265,7 +267,7 @@ Standardized plot functions that work on any run's `metrics.npz`:
 
 **Compare to Phase 1a (qualitative — testing H5):**
 
-- Does fear (negative w_pred) still emerge? Does social affiliation (positive w_con) still emerge?
+- Does fear (negative w_pred) still emerge? Does social affiliation (positive w_prey) still emerge?
 - Are the reward weight trajectories qualitatively similar?
 - Are population dynamics qualitatively similar?
 - How much faster is the run? (Document the speedup factor.)

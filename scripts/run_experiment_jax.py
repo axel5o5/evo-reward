@@ -9,12 +9,21 @@ only for agents with full rollout buffers, avoiding vmap+lax.cond overhead.
 Usage:
   python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0
   python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0 --max-steps 50000
+  python scripts/run_experiment_jax.py --config configs/baseline_faithful.yaml --seed 0 --resume
 """
 
 import argparse
 import os
 import sys
 import time
+
+# Enable CPU-friendly XLA optimizations (harmless on GPU — flags are ignored
+# by the non-CPU backend). Must be set before `import jax` so XLA picks them
+# up at client init. Override by exporting XLA_FLAGS before invoking.
+os.environ.setdefault(
+    "XLA_FLAGS",
+    "--xla_cpu_enable_fast_math=true --xla_cpu_use_thunk_runtime=true",
+)
 
 import jax
 import jax.numpy as jnp
@@ -28,35 +37,78 @@ from src.environment import _build_physics
 from src.jax_state import SimState, init_simstate
 from src.jax_sim import build_sim_step
 from src.jax_ppo import build_ppo_update_fn
+from src.jax_checkpoint import (
+    save_simstate,
+    load_simstate,
+    find_latest_checkpoint,
+    rotate_checkpoints,
+    checkpoint_path,
+)
+from src import jax_metrics
 
 
-def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
+CHECKPOINTS_TO_KEEP = 3
+
+
+def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
+                       resume=False, resume_from=None):
     """Main simulation loop using SimState + JIT-compiled sim_step_core."""
     total_steps = max_steps if max_steps is not None else config["total_steps"]
     rollout_steps = config["rollout_steps"]
     log_interval = config.get("log_interval_steps", 10_000)
-    ckpt_interval = config.get("checkpoint_interval_steps", 25_000)
+    ckpt_interval = config.get("checkpoint_interval_steps", 100_000)
     max_agents = config["prey_cap"] + config["predator_cap"]
+    exp_name = config.get("experiment_name", "unnamed")
+
+    ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
+    metrics_file = jax_metrics.metrics_path(out_dir, exp_name, seed)
 
     # Build physics space and sim_step
     space, _ = _build_physics(config)
     sim_step_core, ppo_update_fn = build_sim_step(config, space)
 
-    # Initialize state
+    # Initialize state (also serves as the deserialization template)
     rng_key = jax.random.PRNGKey(seed)
     sim_state = init_simstate(config, rng_key)
+
+    # Resume handling
+    latest = find_latest_checkpoint(ckpt_dir)
+    if resume or resume_from is not None:
+        path = resume_from or latest
+        if path is None:
+            sys.exit(
+                f"--resume requested but no checkpoint found in {ckpt_dir}. "
+                f"Run without --resume to start fresh."
+            )
+        sim_state = load_simstate(path, sim_state)
+        print(f"Resumed from {path} at step {int(sim_state.step)}")
+        # Also restore time-series metrics so the saved trajectory is continuous.
+        if os.path.exists(metrics_file):
+            metrics_log = jax_metrics.load(metrics_file)
+            print(f"Restored metrics history: {len(metrics_log.steps)} log points")
+        else:
+            metrics_log = jax_metrics.JaxMetrics()
+            print("Warning: checkpoint found but no metrics.npz — starting fresh metrics")
+    elif latest is not None:
+        sys.exit(
+            f"Checkpoints already exist in {ckpt_dir}.\n"
+            f"  Use --resume to continue from {latest}, or\n"
+            f"  delete the checkpoint dir to start fresh."
+        )
+    else:
+        metrics_log = jax_metrics.JaxMetrics()
 
     n_prey = int(jnp.sum((sim_state.species == 0) & sim_state.is_active))
     n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
     n_food = int(jnp.sum(sim_state.food_active))
 
-    print(f"Starting experiment (JAX runner): {config.get('experiment_name', 'unnamed')}")
+    print(f"Starting experiment (JAX runner): {exp_name}")
     print(f"  Seed: {seed}, Steps: {total_steps}")
     print(f"  Prey: {n_prey}, Predators: {n_pred}, Food: {n_food}")
     print(f"  Max agents: {max_agents}, Rollout steps: {rollout_steps}")
     print()
 
-    # Warmup JIT
+    # Warmup JIT (always advances step by 1, whether fresh or resumed)
     print("Compiling sim_step_core (first call)...")
     t_compile_start = time.time()
     sim_state = sim_step_core(sim_state)
@@ -66,110 +118,175 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results"):
     print()
 
     start_time = time.time()
+    start_step = int(sim_state.step)
 
-    for step in range(1, total_steps):
+    # PPO readiness is batched every PPO_CHECK_EVERY steps to amortize the
+    # host<->device sync (np.array(sim_state.rollout_ptrs) blocks the Python
+    # loop on GPU completion). The tradeoff: when an agent's rollout fills
+    # (ptrs reaches rollout_steps=1024), subsequent sim_step_core calls clip
+    # the write index to slot rollout_steps-1 (jax_sim.py:123), so the final
+    # slot may get overwritten by up to (PPO_CHECK_EVERY - 1) later observations
+    # before PPO fires. At PPO_CHECK_EVERY=10 and rollout_steps=1024 that's
+    # ~0.1% of the rollout. Override with env var for exact-timing comparison.
+    PPO_CHECK_EVERY = int(os.environ.get("EVO_PPO_CHECK_EVERY", "10"))
+
+    def _maybe_fire_ppo(state):
+        """Pull rollout_ptrs+is_active, fire PPO for any ready agents."""
+        ptrs = np.array(state.rollout_ptrs)
+        active = np.array(state.is_active)
+        ready_mask = (ptrs >= rollout_steps) & active
+        ready_slots = np.where(ready_mask)[0]
+        if len(ready_slots) == 0:
+            return state
+        rng, ppo_key = jax.random.split(state.rng_key)
+        ppo_rngs = jax.random.split(ppo_key, max_agents)
+        new_params, new_opt, new_ptrs = ppo_update_fn(
+            state.policy_params, state.policy_opt_states,
+            state.rollout_obs, state.rollout_actions,
+            state.rollout_log_probs, state.rollout_rewards,
+            state.rollout_values, state.rollout_dones,
+            state.rollout_ptrs, state.is_active, ppo_rngs,
+        )
+        return state.replace(
+            policy_params=new_params,
+            policy_opt_states=new_opt,
+            rollout_ptrs=new_ptrs,
+            rng_key=rng,
+        )
+
+    def _log_progress(state, step):
+        """Persist time-series metrics and print a one-line progress summary."""
+        jax.block_until_ready(state.step)
+
+        # Authoritative values go into the persisted metrics log first.
+        jax_metrics.record(metrics_log, state)
+
+        # Extract what we need for the progress line from the just-appended entry.
+        n_prey = metrics_log.prey_population[-1]
+        n_pred = metrics_log.predator_population[-1]
+        n_food = int(jnp.sum(state.food_active))
+        elapsed = time.time() - start_time
+        steps_done = (step + 1) - start_step
+        sps = steps_done / elapsed if elapsed > 0 else 0.0
+        any_active = bool(jnp.any(state.is_active))
+        mean_energy = (
+            float(jnp.mean(state.energies[state.is_active]))
+            if any_active else 0.0
+        )
+        # All 8 reward-weight trajectories (means + stds).
+        # Surfaces the full Phase 1a gate, including the new predator w_pred
+        # criterion (strongest K&D finding) and prey w_eat.
+        py_eat_m,  py_eat_s  = metrics_log.prey_mean_w_eat[-1],  metrics_log.prey_std_w_eat[-1]
+        py_act_m,  py_act_s  = metrics_log.prey_mean_w_act[-1],  metrics_log.prey_std_w_act[-1]
+        py_prey_m, py_prey_s = metrics_log.prey_mean_w_prey[-1], metrics_log.prey_std_w_prey[-1]
+        py_pred_m, py_pred_s = metrics_log.prey_mean_w_pred[-1], metrics_log.prey_std_w_pred[-1]
+        pd_eat_m,  pd_eat_s  = metrics_log.pred_mean_w_eat[-1],  metrics_log.pred_std_w_eat[-1]
+        pd_act_m,  pd_act_s  = metrics_log.pred_mean_w_act[-1],  metrics_log.pred_std_w_act[-1]
+        pd_prey_m, pd_prey_s = metrics_log.pred_mean_w_prey[-1], metrics_log.pred_std_w_prey[-1]
+        pd_pred_m, pd_pred_s = metrics_log.pred_mean_w_pred[-1], metrics_log.pred_std_w_pred[-1]
+        print(
+            f"Step {step+1:>8d}/{total_steps} | "
+            f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
+            f"E={mean_energy:>5.1f} | "
+            f"prey_w eat={py_eat_m:+.2f}±{py_eat_s:.2f} act={py_act_m:+.2f}±{py_act_s:.2f} "
+            f"prey={py_prey_m:+.2f}±{py_prey_s:.2f} pred={py_pred_m:+.2f}±{py_pred_s:.2f} | "
+            f"pred_w eat={pd_eat_m:+.2f}±{pd_eat_s:.2f} act={pd_act_m:+.2f}±{pd_act_s:.2f} "
+            f"prey={pd_prey_m:+.2f}±{pd_prey_s:.2f} pred={pd_pred_m:+.2f}±{pd_pred_s:.2f} | "
+            f"{sps:.1f} sps | "
+            f"{elapsed:.0f}s"
+        )
+
+    for step in range(start_step, total_steps):
         # --- Steps 1-9: JIT-compiled core ---
         sim_state = sim_step_core(sim_state)
 
-        # --- Step 10: PPO update (Python-side, only for ready agents) ---
-        ptrs = np.array(sim_state.rollout_ptrs)
-        active = np.array(sim_state.is_active)
-        ready_mask = (ptrs >= rollout_steps) & active
-        ready_slots = np.where(ready_mask)[0]
-
-        if len(ready_slots) > 0:
-            rng, ppo_key = jax.random.split(sim_state.rng_key)
-            ppo_rngs = jax.random.split(ppo_key, max_agents)
-
-            new_params, new_opt, new_ptrs = ppo_update_fn(
-                sim_state.policy_params, sim_state.policy_opt_states,
-                sim_state.rollout_obs, sim_state.rollout_actions,
-                sim_state.rollout_log_probs, sim_state.rollout_rewards,
-                sim_state.rollout_values, sim_state.rollout_dones,
-                sim_state.rollout_ptrs, sim_state.is_active, ppo_rngs,
-            )
-
-            sim_state = sim_state.replace(
-                policy_params=new_params,
-                policy_opt_states=new_opt,
-                rollout_ptrs=new_ptrs,
-                rng_key=rng,
-            )
+        # --- Step 10: PPO update (batched) ---
+        if (step + 1) % PPO_CHECK_EVERY == 0:
+            sim_state = _maybe_fire_ppo(sim_state)
 
         # --- Logging ---
         if (step + 1) % log_interval == 0:
-            jax.block_until_ready(sim_state.step)
-            n_prey = int(jnp.sum((sim_state.species == 0) & sim_state.is_active))
-            n_pred = int(jnp.sum((sim_state.species == 1) & sim_state.is_active))
-            n_food = int(jnp.sum(sim_state.food_active))
-            elapsed = time.time() - start_time
-            sps = (step + 1) / elapsed
-
-            # Reward weight stats
-            prey_active = (sim_state.species == 0) & sim_state.is_active
-            if jnp.any(prey_active):
-                prey_w = sim_state.reward_weights[prey_active]
-                std_w = float(jnp.std(prey_w[:, 3]))
-            else:
-                std_w = 0.0
-
-            print(f"Step {step+1:>8d}/{total_steps} | "
-                  f"prey={n_prey:>3d} pred={n_pred:>2d} | "
-                  f"food={n_food:>3d} | "
-                  f"{sps:.1f} steps/s | "
-                  f"elapsed={elapsed:.0f}s | "
-                  f"std(w_pred)={std_w:.3f}")
+            _log_progress(sim_state, step)
 
         # --- Checkpointing ---
         if (step + 1) % ckpt_interval == 0:
-            _save_checkpoint_jax(sim_state, config, seed, out_dir)
+            # Fire any pending PPO so the checkpoint reflects the correct
+            # post-update state (ptrs reset etc.) rather than a mid-batch
+            # stale view.
+            sim_state = _maybe_fire_ppo(sim_state)
+            _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+            os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+            jax_metrics.save(metrics_log, metrics_file)
 
-    # Final save
+    # Final flush: fire any pending PPO, then save
+    sim_state = _maybe_fire_ppo(sim_state)
     jax.block_until_ready(sim_state.step)
-    _save_checkpoint_jax(sim_state, config, seed, out_dir)
+    _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+    os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+    jax_metrics.save(metrics_log, metrics_file)
 
     elapsed = time.time() - start_time
-    print(f"\nDone. {total_steps} steps in {elapsed:.1f}s ({total_steps/elapsed:.1f} steps/s)")
+    steps_done = total_steps - start_step
+    print(f"\nDone. {steps_done} steps this invocation in {elapsed:.1f}s "
+          f"({steps_done/elapsed:.1f} steps/s). Final step: {total_steps}")
 
     return sim_state
 
 
-def _save_checkpoint_jax(sim_state, config, seed, out_dir):
-    """Save SimState checkpoint."""
-    exp_name = config.get("experiment_name", "unnamed")
-    ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
-    os.makedirs(ckpt_dir, exist_ok=True)
-
+def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed):
+    """Save full SimState and rotate old checkpoints."""
     step = int(sim_state.step)
-    path = os.path.join(ckpt_dir, f"step_{step:08d}.npz")
+    path = checkpoint_path(out_dir, exp_name, seed, step)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    save_simstate(sim_state, path)
+    rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
 
-    # Save key arrays (not full pytree — too large)
-    active = np.array(sim_state.is_active)
-    np.savez_compressed(
-        path,
-        step=step,
-        is_active=active,
-        species=np.array(sim_state.species),
-        energies=np.array(sim_state.energies),
-        ages=np.array(sim_state.ages),
-        reward_weights=np.array(sim_state.reward_weights),
-        food_active=np.array(sim_state.food_active),
-        food_internal=float(sim_state.food_internal),
-    )
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_RUNTIME_CONFIG = os.path.join(_REPO_ROOT, "configs", "runtime", "default.yaml")
+
+
+def _load_yaml(path: str) -> dict:
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run evo-reward experiment (JAX)")
-    parser.add_argument("--config", required=True, help="Path to YAML config file")
+    parser.add_argument("--config", required=True,
+                        help="Path to YAML science config (physics, reward, PPO params)")
+    parser.add_argument("--runtime", default=DEFAULT_RUNTIME_CONFIG,
+                        help="Path to YAML runtime config (checkpoint / log cadence). "
+                             "Defaults to configs/runtime/default.yaml.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--out-dir", default="results")
+    parser.add_argument("--checkpoint-interval", type=int, default=None,
+                        help="Override checkpoint_interval_steps from --runtime yaml")
+    parser.add_argument("--log-interval", type=int, default=None,
+                        help="Override log_interval_steps from --runtime yaml")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from latest checkpoint in the seed's output dir")
+    parser.add_argument("--resume-from", default=None,
+                        help="Resume from an explicit checkpoint path (overrides --resume auto-detect)")
     args = parser.parse_args()
 
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
+    # Science config is the base; runtime overlays (runtime wins on conflict);
+    # CLI flags win over runtime. Science configs should not define ops keys
+    # anymore — but if they do, runtime still takes precedence.
+    config = _load_yaml(args.config)
+    runtime = _load_yaml(args.runtime)
+    config.update(runtime)
 
-    run_experiment_jax(config, args.seed, args.max_steps, args.out_dir)
+    if args.checkpoint_interval is not None:
+        config["checkpoint_interval_steps"] = args.checkpoint_interval
+    if args.log_interval is not None:
+        config["log_interval_steps"] = args.log_interval
+
+    run_experiment_jax(
+        config, args.seed, args.max_steps, args.out_dir,
+        resume=args.resume, resume_from=args.resume_from,
+    )
 
 
 if __name__ == "__main__":

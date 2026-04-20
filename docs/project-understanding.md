@@ -50,9 +50,9 @@ Kenji Doya (2002) formalized this connection: he argued that the brain's neuromo
 
 The environment is a continuous 2D world, 960×960 units, with rigid-body physics. There are three kinds of entities: prey (blue circles, radius 10), predators (red circles, radius 14), and food (green dots).
 
-Each agent has sensors: 32 proximity sensors spread across a 120-degree forward arc, each returning the inverse distance to the nearest object (1.0 at contact, 0.0 when nothing's in range), plus 18 tactile sensors around its body for detecting contact. The policy network takes all sensor readings plus the agent's own heading, speed, angular velocity, and energy level as input — roughly 54 values total — and outputs forces applied to two rear points on its body, producing differential drive motion.
+Each agent has sensors: 32 proximity sensors spread across a 120-degree forward arc, each with 4 separate channels (prey, predator, food, wall) returning inverse distance (1.0 at contact, 0.0 at max range or beyond), plus 18 tactile bins at 20-degree intervals around the body, also with 4 channels each, detecting contact by type. The policy network takes all sensor readings (32×4 + 18×4 = 200 values) plus the agent's velocity (2), heading (1), angular velocity (1), and energy (1) — 205 dimensions total — and outputs forces applied to two rear points on its body, producing differential drive motion.
 
-Prey eat food by touching it within their forward range. Each food item gives +1 energy. Predators hunt prey by catching them within a forward mouth range (default: 60 degrees, 40–80 units ahead). A successful catch transfers energy from prey to predator. Everyone metabolizes energy at a baseline rate and burns additional energy proportional to motor activity. The world is an energy economy: you must eat to survive, and you must avoid being eaten.
+Prey eat food by touching it within their forward range. Each food item gives +1 energy. Predators hunt prey by catching them within a forward mouth range. K&D define three mouth geometries (small/medium/large, Figure 3) and run each as a distinct experimental condition; our Phase 1a replicates the **medium** condition only (60 degrees, 40–80 units ahead). A successful catch transfers energy from prey to predator. Everyone metabolizes energy at a baseline rate and burns additional energy proportional to motor activity. The world is an energy economy: you must eat to survive, and you must avoid being eaten.
 
 Birth and death are probabilistic, governed by two functions of age and energy:
 - The **hazard function** h(t,e) is the per-step probability of death. It increases with age and increases sharply when energy falls below about 15–20 units. You can live for roughly a million steps in theory, but low energy dramatically shortens your expected lifespan.
@@ -83,13 +83,13 @@ The policy network is NOT inherited. Every newborn starts with a randomly initia
 
 ## What K&D discovered (the result we're replicating)
 
-After running this system for about 10 million steps (roughly 473–501 prey generations), K&D found that:
+After running this system for about 10 million steps (roughly 473–501 prey generations under default conditions — medium mouth, Δn=0.5), K&D found that:
 
-**Fear evolved.** Prey reliably evolved negative `w_pred` — a negative reward signal for predator proximity. This drives PPO to learn avoidance behavior. Nobody programmed fear; evolution discovered that negative reward for predator stimuli produces survival-promoting behavior.
+**Fear evolved** — though not universally. Prey `w_pred` evolved either positively or negatively across seeds, with fear (negative `w_pred`) being the majority outcome (main.tex:271). This drives PPO to learn avoidance behavior. Nobody programmed fear; evolution discovered that negative reward for predator stimuli produces survival-promoting behavior.
 
-**Social affiliation evolved.** Prey reliably evolved positive `w_prey` — positive reward for being near other prey. This drives grouping behavior. Evolution discovered that social proximity reduces predation risk (dilution effect) and is therefore worth rewarding.
+**Social affiliation evolved.** Prey `w_prey` evolved toward positive values in the majority of simulations — positive reward for being near other prey. This drives grouping behavior. Evolution discovered that social proximity reduces predation risk (dilution effect) and is therefore worth rewarding.
 
-**These emerged sequentially.** The v2 of the paper added an important finding: social reward tends to evolve *before* fear. An agent needs to be in a social group before the fear signal becomes strongly adaptive — individual fear without group behavior provides weaker protection than group cohesion with moderate fear.
+**Strategies coexist within a single seed.** In the specific cases where prey `w_pred` was counter-intuitively positive (seeds 2 and 4), social reward also grew strongly positive — suggesting that collective grouping can substitute for individual fear as a survival strategy.
 
 **Reward weight branching.** Within the same population, different lineages evolve different strategies. Some prey develop strong fear with weak social affiliation; others develop strong social affiliation with weak fear. These coexist as alternative evolutionary stable strategies — a computational analog of behavioral polymorphism in nature.
 

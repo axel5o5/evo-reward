@@ -84,8 +84,8 @@ The policy MLP receives, at every step:
 
 ### Predator hunting prey
 
-- Predators hunt by initiating contact within a **mouth range** (the "medium" default is a 60-degree arc, range 40–80 units — see Figure 3)
-- Default mouth range for baseline experiment: **medium (60°)**
+- Predators hunt by initiating contact within a **mouth range**. K&D define three mouth geometries (Figure 3): **small**, **medium** (60° arc, 40–80 unit range), and **large**. The three are used as distinct experimental conditions — K&D's "environmental sensitivity" finding (larger mouths → stronger evolved prey fear) is produced by running all three.
+- **Our replication uses the medium condition only.** The small/large conditions are out of scope for Phase 1a; see `experimental-plan.md` for scope rationale.
 - Energy gain per prey caught: determined by digestion rate `η` — predators gain approximately 6–10 energy units per catch (see energy update equation, Section 3)
 - Predators **cannot** eat food items
 
@@ -134,9 +134,9 @@ Where:
 | `d_b` (predator basal metabolism) | 4 × 10⁻³ | Predator | Table 2 (matches code) |
 | `d_a` (predator motor cost) | 5 × 10⁻⁵ | Predator | Table 2 (matches code) |
 
-> **Code vs. paper (prey only):** Paper Table 2 lists `c_b = 2.5×10⁻³` and `c_a = 1×10⁻⁴`, but the emevo source (`config/env/20251122-predator-square.toml:24-25`) uses `basic_energy_consumption = 1e-4` and `force_energy_consumption = 2.5e-6`. We follow the code. Predator values match between paper and code.
+> **Code vs. paper (prey only):** Paper Table 2 lists `c_b = 2.5×10⁻⁶` and `c_a = 1×10⁻⁴` (reversed from our code values). The emevo source (`config/env/20251122-predator-square.toml:24-25`) uses `basic_energy_consumption = 1e-4` and `force_energy_consumption = 2.5e-6`. **The magnitudes match — Table 2 simply has the `c_a` and `c_b` labels swapped.** We follow the code. Predator values match between paper and code.
 
-**Note from paper:** "Because `0 < ‖f‖ < 114`, `c_a ‖a‖_j` is twice as large as `c_b` when the motor output is maximum. Also, predators consume about 10 times as much energy as prey." This sanity check applies to the paper's Table 2 values; the code values produce different ratios but are what the experiments actually used.
+**Note from paper (main.tex:443):** "Because `0 < ‖f‖ < 114`, `c_a ‖a‖_j` is twice as large as `c_b` when the motor output is maximum." This sanity check only holds with the code's labeling (`c_a=2.5e-6, c_b=1e-4` → motor cost ≈ 2.85 × basal at max), **not** with Table 2's labels (which would give motor cost ≈ 4560 × basal — inconsistent with the paper's own narrative). This is strong evidence that Table 2 has the labels transposed, not the values.
 
 ---
 
@@ -157,7 +157,8 @@ Where `t` is the agent's age in steps and `e` is current energy.
 | `β_h` | 0.2 | 0.2 | Table 3 |
 | `α_t` | 4 × 10⁻⁷ | 2 × 10⁻⁷ | Table 3 |
 | `β_t` | 2 × 10⁻⁶ | 4 × 10⁻⁶ | Table 3 |
-| `ζ` | 10 | 100 | Table 3 |
+
+> **Note:** `ζ` is grouped with hazard parameters in paper Table 3, but per Eq. 2 (hazard) it is NOT a hazard parameter — it appears only in Eq. 3 (birth). See §7.2. Implementing ζ in the hazard function will produce wrong dynamics.
 
 **Additional death rule:** Agents also die deterministically if `e < 0`.
 
@@ -385,105 +386,16 @@ scripts/
 └── run_experiment.py        # Entry point: load config, init world, run loop, save results
 ```
 
-### `baseline_faithful.yaml` — complete parameter listing
+### `baseline_faithful.yaml` — parameter listing
 
-```yaml
-# Identity
-experiment_name: baseline_faithful
-policy_mode: independent
-lifecycle_mode: continuous
-reward_type: linear
-social_obs: position_only
-policy_type: mlp
-coevolution_mode: concurrent
+The authoritative version lives at [`configs/baseline_faithful.yaml`](../configs/baseline_faithful.yaml). It is kept in sync with this spec and with the emevo gecco2026 branch code. Do not duplicate values here — read the file directly so there's one source of truth.
 
-# World
-world_size: 960
-total_steps: 10_240_000
+**Key known deviations from paper text (all documented inline in the yaml and in `emevo-diff.md`):**
 
-# Population
-prey_initial: 150
-predator_initial: 10
-prey_cap: 450
-predator_cap: 50
-
-# Agent bodies
-prey_radius: 10
-predator_radius: 14
-max_motor_norm: 114.0  # F
-
-# Sensors
-n_proximity_sensors: 32
-proximity_fov_deg: 120
-proximity_max_range: 120
-n_tactile_sensors: 18
-tactile_spacing_deg: 20
-
-# Food
-food_max: 100
-food_growth_rate: 0.02  # g
-food_regen_rate: 0.5    # Δn
-
-# Energy — prey
-prey_e_food: 1.0
-prey_c_b: 2.5e-3
-prey_c_a: 1.0e-4
-
-# Energy — predator
-predator_d_b: 4.0e-3
-predator_d_a: 5.0e-5
-predator_eta: 0.6        # digestion rate; confirm exact value from emevo source
-
-# Predator mouth
-predator_mouth_deg: 60   # medium (default)
-predator_mouth_range_min: 40
-predator_mouth_range_max: 80
-
-# Hazard function h(t, e)
-kappa_h: 0.01
-alpha_e: 0.02
-beta_h: 0.2
-alpha_t_prey: 4.0e-7
-alpha_t_pred: 2.0e-7
-beta_t_prey: 2.0e-6
-beta_t_pred: 4.0e-6
-zeta_prey: 10.0    # NOTE: this parameter name is overloaded; check paper's exact formulation
-zeta_pred: 100.0
-
-# Birth function b(e)
-kappa_b: 1.0e-3
-beta_b: 0.1
-zeta_b_prey: 10.0   # inflection point (energy for 50% birth prob)
-zeta_b_pred: 100.0
-
-# Reward genome
-reward_weights_init_std: 0.1
-mutation_df: 2          # t-distribution degrees of freedom
-mutation_scale: 0.4
-weight_clip: 100.0
-
-# Policy network
-policy_hidden_size: 64
-policy_n_layers: 3
-
-# PPO
-gamma: 0.999
-rollout_steps: 1024
-minibatch_size: 256
-ppo_epochs: 10
-clip_epsilon: 0.2
-entropy_coef: 0.001
-gae_lambda: 0.95
-lr: 3.0e-4
-adam_eps: 1.0e-7
-
-# Logging
-checkpoint_interval_steps: 25_000
-log_interval_steps: 10_000
-
-# Seeds (run separately)
-seed: 0  # override per run; K&D used 5 seeds
-```
+- `food_max: 600` (paper Appendix A says 100; code uses 600 — we follow code)
+- `proximity_max_range: 200` (paper says 120; code uses 200 — we follow code)
+- `prey_c_b: 1.0e-4, prey_c_a: 2.5e-6` (paper Table 2 has these labels reversed; magnitudes match — see §6.2 above)
+- ζ is a birth-only parameter (paper Table 3 groups it with hazard params; implementation puts it only in `b(e)`)
 
 ---
 
@@ -497,7 +409,7 @@ The following are not fully specified in the paper and should be verified agains
 4. **Observation vector ordering** — the exact concatenation order of sensors/proprioception matters for weight initialization and PPO stability. Match emevo exactly.
 5. **Value function normalization** — whether K&D normalize advantages or rewards before PPO updates.
 6. **Food regeneration rate parameter interpretation** — Δn = 0.5 means one food item every two steps on average, but the exact formula using the internal counter `n_t` should be verified.
-7. **Zeta parameter in hazard function** — Table 3 lists `ζ = 10 (prey) / 100 (predator)` but this parameter doesn't appear in the hazard function `h(t, e)` as written (it appears in `b(e)`). Verify whether ζ is shared between h and b or separate.
+7. **Zeta parameter in hazard function** — RESOLVED (2026-04-20): Table 3 groups `ζ` with hazard params visually, but Eq. 2 (hazard) does not contain ζ. ζ is a birth-only parameter appearing in Eq. 3. Code (`src/jax_lifecycle.py:91`) uses ζ only in `_batch_birth_prob_jax`, never in `_batch_hazard_prob_jax`. Correct.
 
 ---
 

@@ -71,6 +71,24 @@
       "title": "Sensor bin placement",
       "resolved": false,
       "body_preview": "**Component:** `environment.py:compute_proximity_sensors`\n\n**emevo:** Uses phyjax2d raycast functions for sensor computation. Exact bin placement may differ.\n\n**Ours:** 32 sensor bins evenly dividing ..."
+    },
+    {
+      "id": "D13",
+      "title": "PPO minibatch update is JIT-compiled",
+      "resolved": false,
+      "body_preview": "**Component:** `src/ppo.py`\n\n**emevo:** emevo's PPO implementation details vary; emevo uses JAX throughout so similar JIT patterns likely apply.\n\n**Ours:** The per-minibatch gradient step (`jax.value_..."
+    },
+    {
+      "id": "D14",
+      "title": "Batched policy inference uses power-of-2 padding",
+      "resolved": false,
+      "body_preview": "**Component:** `scripts/run_experiment.py:_get_batched_sampler`\n\n**emevo:** emevo manages population with fixed-capacity JAX arrays (slots), so vmap is always called on the same shape regardless of cu..."
+    },
+    {
+      "id": "D15",
+      "title": "Social observation: heading and speed of conspecifics (Axis 2 extension)",
+      "resolved": false,
+      "body_preview": "**Component:** `agents.py`, `observations.py`\n\n**emevo:** No social observation. Agents perceive conspecifics only through proximity sensor readings (distance/direction). No information about what a c..."
     }
   ]
 }

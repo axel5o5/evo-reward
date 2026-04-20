@@ -1,0 +1,271 @@
+# Local Setup — Mac and Raspberry Pi
+
+This runbook covers running evo-reward on consumer hardware instead of
+a cloud GPU. The Mac is a realistic venue for full Phase 1a runs
+(slower than an L4 but free). The Raspberry Pi is only for validation
+that the code is portable to ARM CPU — it would take months to finish
+a full run and is not a serious training target.
+
+For the GCP L4 path, see [gcp-setup.md](gcp-setup.md).
+
+---
+
+## Prerequisites (both platforms)
+
+Python 3.10+ and pip. On macOS:
+
+```
+brew install python@3.10
+```
+
+On Raspberry Pi OS (Debian-based, 64-bit):
+
+```
+sudo apt-get update
+sudo apt-get install -y python3-pip python3-venv git build-essential
+```
+
+---
+
+## Mac setup (M-series or Intel)
+
+This is the path you'll use if you're running Phase 1a locally to avoid
+cloud costs.
+
+### Install
+
+```
+git clone <repo-url>   # or use your existing local clone
+cd evo-reward
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -U "jax[cpu]"
+pip install -r requirements.txt
+```
+
+### Verify
+
+```
+pytest -x -q
+```
+
+Expect `113 passed, 3 skipped` in about 45 seconds on an M-series Mac
+(somewhat longer on Intel).
+
+Confirm JAX sees the Mac:
+
+```
+python -c "import jax; print(jax.devices())"
+```
+
+On Apple Silicon CPU: `[CpuDevice(id=0)]`.
+
+### Optional: JAX Metal for Apple Silicon — does NOT work (as of 2026-04)
+
+We tried `jax-metal` 0.1.1 with JAX 0.9.2 on an M4 Pro. Metal is
+detected (`[METAL(id=0)]`), but `phyjax2d`'s `ShapeDict` initializer
+calls `jnp.empty(0)`, which triggers a `convert_element_type` code
+path Metal doesn't implement:
+
+```
+jax.errors.JaxRuntimeError: UNIMPLEMENTED: default_memory_space is not supported.
+```
+
+The failure happens inside `init_simstate(...)`, before the first
+sim step — there's no workaround at the runner level. Skip
+`jax-metal` until either phyjax2d stops using `empty` or jax-metal
+ships support for that op. Stick with `pip install -U "jax[cpu]"`.
+
+### Run Phase 1a locally
+
+**Honest reality check.** Measured rate on an M4 MacBook Pro:
+~3 steps/s steady state (including PPO updates after step 1024). L4
+does ~237 steps/s, ~80× faster. A full 10.24M-step run at 3 steps/s is
+roughly:
+
+| Chip                    | Approximate wall clock |
+| ----------------------- | ---------------------- |
+| M4 Pro / Max (measured) | ~40 days               |
+| M2 / M3 (estimated)     | ~50–70 days            |
+| M1 (estimated)          | ~70–100 days           |
+
+The Mac is not a realistic venue for a full Phase 1a run. Useful local
+modes:
+
+1. **Smoke test** (a few thousand steps, minutes) — validates the code
+   works end-to-end on your machine.
+2. **Short validation** (100K–500K steps, 9–45 hours) — enough to see
+   reward weights start drifting; catches bugs without paying for the
+   full run.
+3. **Cross-device staging** — start a run locally, hand off a
+   checkpoint to GCP or Lambda Labs to finish faster. See "Migrating a
+   run between devices" below.
+4. **Background run with no deadline** — just let it run for weeks.
+   Viable if you genuinely don't need results soon.
+
+Run inside a `tmux` so the process survives lid-close, SSH disconnects,
+terminal crashes:
+
+```
+brew install tmux
+tmux new -s phase1a
+source .venv/bin/activate
+python scripts/run_experiment_jax.py \
+  --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
+  --seed 0
+```
+
+Detach with `Ctrl-b d`. Reattach with `tmux attach -t phase1a`.
+
+The `--runtime configs/runtime/mac.yaml` overlay tunes checkpoint and
+log cadence for a laptop running at ~3 steps/s: checkpoints every
+5000 steps (~28 min wall-clock) and log lines every 100 steps
+(~33 sec wall-clock). The log cadence is deliberately chatty — useful
+for watching population dynamics and catching issues like NaN / mass
+agent death early. Without `--runtime`, the runner uses
+`configs/runtime/default.yaml` (10K / 1K — a middle ground). To tweak
+a single invocation without editing yaml, pass `--checkpoint-interval`
+or `--log-interval` directly.
+
+### Recovering from interruption
+
+The Mac runtime profile checkpoints every 25K steps (~30–100MB each
+compressed, grows as rollout buffers fill up; last 3 kept) into
+`results/baseline_faithful/seed_0/checkpoints/`. If the process
+dies — for any reason — you can resume from the latest checkpoint:
+
+```
+python scripts/run_experiment_jax.py \
+  --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
+  --seed 0 \
+  --resume
+```
+
+This is bit-identical to an uninterrupted run (verified by
+`tests/test_checkpoint_jax.py::TestResumeDeterminism`). The trade-off
+is up to 100K steps of work lost — a few minutes to a few hours of
+wall-clock depending on your chip.
+
+If you want to pin to a specific checkpoint:
+
+```
+python scripts/run_experiment_jax.py \
+  --config configs/baseline_faithful.yaml \
+  --runtime configs/runtime/mac.yaml \
+  --seed 0 \
+  --resume-from results/baseline_faithful/seed_0/checkpoints/step_05000000.npz
+```
+
+Without `--resume`, the runner refuses to start if checkpoints already
+exist — this prevents accidental overwrite of an in-progress run.
+
+### Migrating a run between devices
+
+Checkpoints are plain compressed `.npz` files with no device-specific
+content, so you can hand off a run between Mac, Pi, and GCP L4 freely.
+Copy the latest checkpoint to the same relative path on the target
+machine and resume as normal:
+
+```
+# Example: Mac -> GCP L4
+gcloud compute scp --tunnel-through-iap --zone=us-central1-b \
+  --project=evo-reward \
+  results/baseline_faithful/seed_0/checkpoints/step_02000000.npz \
+  evo-reward-gpu:~/evo-reward/results/baseline_faithful/seed_0/checkpoints/
+
+# On the GCP VM:
+python scripts/run_experiment_jax.py \
+  --config configs/baseline_faithful.yaml --seed 0 --resume
+```
+
+Two caveats:
+
+- **Same config and git sha required.** The load path reconstructs the
+  pytree from a fresh template; a shape mismatch raises an error.
+- **Cross-device resume is not bit-identical.** GPU and CPU produce
+  slightly different floating-point results for some ops, so the post-
+  resume trajectory will drift from what would have happened on the
+  original device. This does not affect Phase 1a's emergent outcome —
+  the fear + affiliation result is robust to tiny FP noise — but
+  strict bit-identity only holds when you stay on one device.
+
+---
+
+## Raspberry Pi setup (smoke test only)
+
+Use this path only to verify that the code is portable to ARM CPU. Do
+not attempt a full Phase 1a run — the Pi is not fast enough.
+
+Tested target: Raspberry Pi 5 (8GB), 64-bit Raspberry Pi OS.
+
+### Install Rust for phyjax2d
+
+`phyjax2d` has a Rust-backed component that requires a local toolchain
+on ARM since prebuilt wheels don't always cover Pi:
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+### Install Python deps
+
+```
+git clone <repo-url>
+cd evo-reward
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -U jax   # plain jax — no GPU wheels on Pi
+pip install -r requirements.txt
+```
+
+The `phyjax2d` install will take several minutes on Pi 5 (Rust compiles
+from source). If it fails, ensure Rust is on your PATH:
+`rustc --version` should print a version.
+
+### Validate
+
+Only the test suite is a realistic target. Skip the full runner.
+
+```
+pytest tests/test_checkpoint_jax.py -v
+```
+
+Expected: 9 passed. Total wall-clock on Pi 5: roughly 2–5 minutes.
+
+Then the full suite as a broader smoke test:
+
+```
+pytest -x -q
+```
+
+Expected: 113 passed, 3 skipped. Wall-clock: 5–15 minutes on Pi 5.
+
+If all tests pass, the code is verified portable to ARM. This is the
+Pi's only validation role — don't try to train.
+
+---
+
+## Troubleshooting
+
+**`ImportError: No module named 'phyjax2d'`** — pip install failed
+silently. On Pi, run `pip install --no-binary :all: phyjax2d` to force
+a source build and get a clearer error trace.
+
+**`UNIMPLEMENTED: default_memory_space is not supported`** — `jax-metal`
+is installed and active, but our workload hits a primitive Metal
+doesn't implement (see "Optional: JAX Metal" above — this path is a
+known dead end for now). `pip uninstall jax-metal`.
+
+**Tests pass but `run_experiment_jax.py` is wildly slow** — Python may
+be falling back to 32-bit NumPy on an old libopenblas build. On Mac:
+`brew reinstall openblas`. On Pi: `sudo apt-get install
+libopenblas-dev` and reinstall numpy.
+
+**`Checkpoints already exist`** error on fresh-looking run — you've
+started this seed before. Either pass `--resume`, or delete the
+`results/<exp>/seed_<N>/checkpoints/` directory and start over.

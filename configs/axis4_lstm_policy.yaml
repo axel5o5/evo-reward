@@ -1,0 +1,131 @@
+# Axis 4: LSTM Policy
+# Based on baseline_faithful.yaml — only policy architecture changes.
+# All other parameters identical to K&D faithful replication.
+#
+# The baseline uses a feedforward MLP policy: each action depends only on
+# the current observation. Axis 4 replaces this with an LSTM, giving the
+# agent memory across timesteps within a lifetime.
+#
+# Architecture: obs(205) -> LSTM(64) -> Dense(64, tanh) -> policy/value heads
+# Parameter count: ~73,477 (vs MLP's ~17,541)
+#
+# The LSTM hidden state is lifetime state — it persists across steps within
+# one agent's life but resets to zeros at every birth. It is NOT inherited.
+#
+# PPO uses truncated BPTT with 128-step chunks (8 chunks per rollout).
+# Gradients stop at chunk boundaries; hidden state carries forward.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis4_lstm_policy"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "linear"         # 4-weight linear genome — K&D faithful
+social_obs:         "position_only"  # no heading/velocity of neighbors
+policy_type:        "lstm"           # LSTM policy — Axis 4 extension
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960
+total_steps:        10_240_000
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150
+predator_initial:   10
+prey_cap:           450
+predator_cap:       50
+
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.6
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_deg:         60.0
+predator_mouth_range_min:   40.0
+predator_mouth_range_max:   80.0
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        2.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.1
+zeta_b_prey:        10.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (Linear — K&D faithful) ──────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy Network (LSTM — Axis 4) ─────────────────────────────────────────
+policy_hidden_size:   64             # post-LSTM dense layer hidden size
+policy_n_hidden_layers: 2
+lstm_hidden_size:     64             # LSTM cell hidden dimension
+lstm_chunk_length:    128            # truncated BPTT chunk size for PPO
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# Logging cadence lives in configs/runtime/*.yaml.
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

@@ -183,3 +183,98 @@ class TestEdgeCases:
         obs_state = extract_obs_state(world, config)
         result = compute_all_observations(obs_state, config)
         assert not jnp.any(jnp.isnan(result))
+
+
+class TestSocialObsVectorized:
+    """Verify vectorized social observation matches Python per-agent reference."""
+
+    @pytest.fixture
+    def social_config(self, config):
+        """Extend baseline config with social observation settings."""
+        return {
+            **config,
+            "social_obs": "position_heading_velocity",
+            "obs_dim": 215,
+            "n_social_neighbors": 5,
+        }
+
+    @pytest.fixture
+    def social_world(self, social_config):
+        rng = jax.random.PRNGKey(42)
+        world = init_world(social_config, rng)
+        # Do one physics step to give agents non-trivial velocities
+        actions = {a.agent_id: jnp.array([10.0, -5.0]) for a in world.agents}
+        world = step_physics(world, actions, social_config)
+        return world, social_config
+
+    def test_social_obs_vectorized_matches_reference(self, social_world):
+        """Vectorized social obs (dims 205-214) matches per-agent Python loop."""
+        world, config = social_world
+
+        # Reference: per-agent Python loop
+        ref_obs = []
+        for agent in world.agents:
+            obs = get_observation(world, agent.agent_id, config)
+            ref_obs.append(np.array(obs))
+        ref_obs = np.stack(ref_obs)
+
+        # Vectorized: single call
+        obs_state = extract_obs_state(world, config)
+        vec_obs_all = compute_all_observations(obs_state, config)
+
+        # Gather active agents in same order
+        slots = [world.physics["agent_id_to_slot"][a.agent_id] for a in world.agents]
+        vec_obs = np.array(vec_obs_all[jnp.array(slots)])
+
+        assert ref_obs.shape[1] == 215, f"Expected 215 dims, got {ref_obs.shape[1]}"
+        assert vec_obs.shape[1] == 215, f"Expected 215 dims, got {vec_obs.shape[1]}"
+
+        # Baseline dims (0-204) should match closely
+        np.testing.assert_allclose(
+            vec_obs[:, :205], ref_obs[:, :205], atol=1e-3, rtol=1e-3,
+            err_msg="Baseline dims (0-204) differ between vectorized and reference"
+        )
+
+        # Social dims (205-214) should match closely
+        # Note: tie-breaking order may differ for equidistant neighbors,
+        # so we compare sorted neighbor pairs instead of raw order
+        for i in range(len(world.agents)):
+            ref_social = ref_obs[i, 205:215].reshape(5, 2)
+            vec_social = vec_obs[i, 205:215].reshape(5, 2)
+
+            # Separate real entries (non-zero) from padding
+            ref_real = ref_social[np.any(ref_social != 0, axis=1)]
+            vec_real = vec_social[np.any(vec_social != 0, axis=1)]
+
+            assert ref_real.shape == vec_real.shape, \
+                f"Agent {i}: different number of visible neighbors: " \
+                f"ref={ref_real.shape[0]}, vec={vec_real.shape[0]}"
+
+            if ref_real.shape[0] > 0:
+                # Sort by heading to handle tie-breaking differences
+                ref_sorted = ref_real[np.argsort(ref_real[:, 0])]
+                vec_sorted = vec_real[np.argsort(vec_real[:, 0])]
+                np.testing.assert_allclose(
+                    vec_sorted, ref_sorted, atol=1e-3, rtol=1e-3,
+                    err_msg=f"Agent {i}: social obs entries differ"
+                )
+
+    def test_social_obs_shape_215(self, social_world):
+        """Output shape is (max_agents, 215) with social config."""
+        world, config = social_world
+        obs_state = extract_obs_state(world, config)
+        result = compute_all_observations(obs_state, config)
+        assert result.shape == (world.physics["max_agents"], 215)
+
+    def test_social_obs_inactive_zeroed(self, social_world):
+        """Inactive agent slots have all-zero social obs."""
+        world, config = social_world
+        obs_state = extract_obs_state(world, config)
+        result = compute_all_observations(obs_state, config)
+
+        is_active = np.array(obs_state["is_active"])
+        inactive_mask = ~is_active
+        if inactive_mask.any():
+            inactive_social = np.array(result[inactive_mask, 205:215])
+            assert np.all(inactive_social == 0.0), \
+                "Inactive slots should have zero social obs"

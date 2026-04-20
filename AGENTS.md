@@ -112,7 +112,7 @@ Values below are from the **emevo gecco2026 source code** (ground truth), which 
 | Sensor channels (per sensor) | [prey, predator, food, wall] — winner-take-all | emevo `circle_foraging_with_predator.py:84-111` |
 | Tactile sensors | 18 bins × **4 type channels** = 72 values | emevo source |
 | Velocity in obs | **2D (vx, vy)**, not scalar speed | emevo `circle_foraging.py:744` |
-| Prey c_b / c_a | **1.0e-4 / 2.5e-6** | emevo source (paper Table 2 says 2.5e-3 / 1.0e-4 — code differs) |
+| Prey c_b / c_a | **1.0e-4 / 2.5e-6** | emevo source (paper Table 2 lists 2.5e-6 / 1.0e-4 — labels swapped in paper; magnitudes match) |
 | Predator d_b / d_a | 4.0e-3 / 5.0e-5 | emevo source (matches paper Table 2) |
 | Predator digestive rate (η) | 0.6 | emevo source |
 | Initial energy (both species) | **100.0** | emevo source |
@@ -131,7 +131,7 @@ Values below are from the **emevo gecco2026 source code** (ground truth), which 
 
 **Critical notes:**
 - The 2024 paper used Cauchy (df=1, scale=0.02, clip=±10). The 2025 paper uses t(df=2, scale=0.4, clip=±100). We replicate the 2025 paper. Do not use 2024 values.
-- Prey energy costs in the code are ~25× smaller than in the paper. Use the code values.
+- Prey energy costs: paper Table 2 has the `c_a` / `c_b` labels swapped (magnitudes match code). Use the code values; the paper's own sanity check at main.tex:443 only holds with code labels.
 - The "3-layer MLP" in the paper means 2 hidden layers + 1 output, not 3 hidden layers.
 
 ---
@@ -322,6 +322,27 @@ Session 8 (partial):
      plot_population_dynamics: K&D Fig 6 style (prey/predator pop over time)
      plot_reward_kde: K&D Fig 8/12 style (w_prey vs w_pred scatter, checkpoint or fallback)
   ⏳ Phase 1a: needs GPU — ~46 days on CPU Mac, ~10-12h on A100
+Session 9 complete: Axis 2 — Social behavioral observation
+  ✅ src/agents.py — get_observation() extended with social_obs branch (heading + speed of N closest conspecifics)
+  ✅ src/observations.py — vectorized JAX path extended with _single_social_obs via vmap
+  ✅ configs/axis2_social_obs.yaml — social_obs: position_heading_velocity, obs_dim: 215, n_social_neighbors: 5
+  ✅ analysis/capacity_util.py — compute_social_obs_utilization() binned MI estimator
+  ✅ src/metrics.py — optional trajectory saving (save_trajectories flag, off by default)
+  ✅ tests: 5 social obs tests pass, 51/51 total green (3 skipped), 9/9 vectorized obs green
+  ✅ D15 documented in emevo-diff.md, interfaces.md updated with finalized social obs layout
+Session 10 complete: Axis 3 — Temporal reward context window + Axis 4 — LSTM policy
+  ✅ src/reward.py — TemporalRewardMLP class, init_temporal_genome, compute_temporal_reward (945 params for k=10, h=16)
+  ✅ src/evolution.py — mutate_temporal_genome (flatten/t(df=2)/clip/unflatten, same pattern as MLP)
+  ✅ src/policy.py — LSTMPolicyNetwork class, init_lstm_policy, sample_action_lstm, policy_forward_lstm (73,477 params)
+  ✅ src/jax_ppo.py — build_ppo_update_fn_lstm with truncated BPTT (128-step chunks, 8 per rollout)
+  ✅ src/jax_state.py — SimState: +obs_buffer (max_agents, k, 4), +lstm_hidden (max_agents, 2, 64), +rollout_init_hidden
+  ✅ src/jax_evolution.py — spawn_offspring_jax: obs_buffer/lstm_hidden/rollout_init_hidden reset to zeros at birth
+  ✅ configs/axis3_temporal_reward.yaml — reward_type: temporal, reward_context_window: 10
+  ✅ configs/axis4_lstm_policy.yaml — policy_type: lstm, lstm_hidden_size: 64, lstm_chunk_length: 128
+  ✅ analysis/capacity_util.py — compute_temporal_utilization (autocorrelation + sensitivity ratio)
+  ✅ analysis/capacity_util.py — compute_lstm_utilization (hidden entropy + ablation delta)
+  ✅ tests: 6 temporal + 7 LSTM tests pass, 70/70 total green (3 skipped), no regressions
+  ✅ D16, D17 documented in emevo-diff.md, interfaces.md updated with temporal/LSTM config keys
 Next task: Run Phase 1a on GPU, then validate_replication.py, then launch seeds 1-4.
 
 ---

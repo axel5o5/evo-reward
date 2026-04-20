@@ -12,3 +12,15 @@ dashboard/app/utils/__pycache__/
 
 # Results (large data files)
 results/
+
+# Orchestrator + Claude runtime state (local only)
+.claude-orch-state.json
+.claude/scheduled_tasks.lock
+.claude/session-prompts/
+
+# Dashboard — local/runtime-only files
+dashboard/site/.env.local
+dashboard/site/tsconfig.tsbuildinfo
+# Live data is fetched at runtime from the gcp-status branch;
+# any local copy is only for dev and shouldn't be committed.
+dashboard/site/public/gcp-status.json

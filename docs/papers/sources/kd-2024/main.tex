@@ -1,0 +1,144 @@
+\documentclass[letterpaper]{article}
+
+%%%%% Math
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{mathrsfs}
+\newcommand{\defequal}{\mathrel{\overset{\makebox[0pt]{\mbox{\tiny def}}}{=}}}
+\newcommand{\E}{\mathbb{E}} % Expectation
+\newcommand{\1}{\mathbb{I} } % indicator with no arguments
+\newcommand{\indic}[1]{\1_{#1}} % indicator function
+\DeclareMathOperator*{\argmax}{\arg\max}
+\DeclareMathOperator*{\argmin}{\arg\min}
+%%%%% End: Math
+
+%%%%%% ALife conf recommendation
+\usepackage{natbib}
+\usepackage{alifeconf}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+%%%%%% End: ALife conf recommendation
+
+%%%%% Caption
+\usepackage[bf]{caption}
+\usepackage{subcaption}
+\usepackage[space]{grffile}
+%%%%% End: Graphics
+
+%%%%% Hyperref
+\usepackage{xcolor}
+\definecolor{dark-blue}{rgb}{0.05,0.1,0.75}
+\hypersetup{
+  colorlinks,
+  linkcolor={dark-blue},
+  citecolor={dark-blue},
+  urlcolor={dark-blue}
+}
+%%%%% End: Hyperref
+
+%%%%%% Cut padding
+\setlength{\belowcaptionskip}{-10pt}
+\setlength{\abovedisplayskip}{1pt}
+\setlength{\belowdisplayskip}{3pt}
+%%%%% End: Cut padding
+
+%%%%%% Todo utilities
+\usepackage{todonotes}
+\setuptodonotes{
+  inline,
+  linecolor=blue,
+  backgroundcolor=blue,
+  textcolor=white,
+  bordercolor=blue,
+}
+%%%%% End: Todo utilities
+
+%%%%% Roman number
+\newcounter{num}
+\newcommand{\rnum}[1]{\setcounter{num}{#1}(\roman{num})}
+%%%%% End: Roman number
+
+%%%%% MDP
+\newcommand{\M}{\mathcal{M}} % MDP
+\newcommand{\A}{\mathcal{A}} % Actions
+\newcommand{\X}{\mathcal{S}} % States
+\newcommand{\ah}{\hat{A}} % Estimation of Advantage
+\newcommand{\vh}{\hat{V}} % Estimation of Value
+%%%%% End: MDP
+
+%%%%% Table
+\usepackage{siunitx}
+\usepackage{longtable} % tables that can span several pages
+%%%%% End: Table
+
+%%%%% Graphics
+\graphicspath{{./resources}} % Specifies the directory where pictures are stored
+%%%%% End: Graphics
+
+%%%%% Pseudo codes
+\usepackage[indLines=false]{algpseudocodex}
+\usepackage{algorithm}
+\makeatletter
+\algnewcommand\algorithmiconce{\textbf{Once}}%
+\algdef{SE}[ONCE]{Once}{EndOnce}[1]{\algpx@startIndent\algpx@startCodeCommand\algorithmiconce\ #1\ \algorithmicdo%
+}{\algpx@endIndent\algpx@startEndBlockCommand\algorithmicend\ \algorithmiconce}%
+\pretocmd{\Once}{\algpx@endCodeCommand}{}{}
+\algtext*{EndOnce}%
+\apptocmd{\EndOnce}{\algpx@endIndent}{}{}%
+\pretocmd{\EndOnce}{\algpx@endCodeCommand[1]}{}{}%
+
+\algnewcommand\algorithmicWith{\textbf{With}}%
+\algdef{SE}[WITH]{With}{EndWith}[1]{\algpx@startIndent\algpx@startCodeCommand\algorithmicWith\ #1\ \algorithmicdo%
+}{\algpx@endIndent\algpx@startEndBlockCommand\algorithmicend\ \algorithmicWith}%
+\pretocmd{\With}{\algpx@endCodeCommand}{}{}
+\algtext*{EndWith}%
+\apptocmd{\EndWith}{\algpx@endIndent}{}{}%
+\pretocmd{\EndWith}{\algpx@endCodeCommand[1]}{}{}%
+\makeatother
+%%%%% End: Pseudo Codes
+
+\title{Evolution of Rewards for Food and Motor Action by Simulating Birth and Death}
+\author{
+  Yuji Kanagawa$^{1}$ \and
+  Kenji Doya$^{1}$ \\
+  \mbox{}\\
+  $^1$Okinawa Institute of Science and Technology Graduate University, Japan \\
+  yuji.kanagawa@oist.jp
+} % email of corresponding author
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Begin document, create title and abstract
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+  The reward system is one of the fundamental drivers of animal behaviors and is critical for survival and reproduction. Despite its importance, the problem of how the reward system has evolved is underexplored. In this paper, we try to replicate the evolution of biologically plausible reward functions and investigate how environmental conditions affect evolved rewards' shape. For this purpose, we developed a population-based decentralized evolutionary simulation framework, where agents maintain their energy level to live longer and produce more children. Each agent inherits its reward function from its parent subject to mutation and learns to get rewards via reinforcement learning throughout its lifetime. Our results show that biologically reasonable positive rewards for food acquisition and negative rewards for motor action can evolve from randomly initialized ones. However, we also find that the rewards for motor action diverge into two modes: largely positive and slightly negative. The emergence of positive motor action rewards is surprising because it can make agents too active and inefficient in foraging. In environments with poor and poisonous foods, the evolution of rewards for less important foods tends to be unstable, while rewards for normal foods are still stable. These results demonstrate the usefulness of our simulation environment and energy-dependent birth and death model for further studies of the origin of reward systems.
+\end{abstract}
+
+\input{src/body.tex}
+
+%\subsubsection*{Acknowledgments}\label{sec:ack}
+% Use unnumbered third level headings for the acknowledgments. All acknowledgments, including those to funding agencies, go at the end of the paper. Only add this information once your submission is accepted and deanonymized.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bibliography
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+\bibliographystyle{apalike}
+\bibliography{references}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Appendices
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Retrieve appendix for arxiv?
+% \clearpage
+% \appendix
+% \input{src/appendix.tex}
+
+\end{document}
+\endinput

@@ -3,13 +3,19 @@ agents.py
 ---------
 Observation vector construction, stimulus extraction, reward computation.
 
-Observation vector layout (obs_dim = 205):
+Observation vector layout (baseline, obs_dim = 205):
   Index 0-127:   proximity sensors  (32, 4)  -- [prey, predator, food, wall]
   Index 128-199: tactile collision   (4, 18)  -- [conspecific, other, food, wall]
   Index 200-201: velocity            (2,)     -- (vx, vy)
   Index 202:     angle               (1,)
   Index 203:     angular velocity    (1,)
   Index 204:     energy              (1,)
+
+Extension: social observation (social_obs = "position_heading_velocity"):
+  Index 205-214: social obs (5, 2)  -- [heading, speed] x 5 closest conspecifics
+                 Sorted by Euclidean distance (closest first).
+                 Zero-padded if fewer than n_social_neighbors conspecifics visible.
+                 obs_dim = 215 when active.
 
 Stimulus extraction for reward computation:
   max_s_prey = MAX over 32 sensors of channel 0 (prey), clipped >= 0
@@ -30,11 +36,53 @@ from src.environment import (
 from src.reward import compute_linear_reward
 
 
+def _compute_social_obs_single(agent, agents_list, n_neighbors, max_range):
+    """Compute social observation block for one agent.
+
+    Returns shape (2 * n_neighbors,) float32: [heading_1, speed_1, ..., heading_N, speed_N].
+    Sorted by Euclidean distance (closest first). Zero-padded if fewer than
+    n_neighbors conspecifics are within max_range.
+    """
+    observer_pos = agent.position
+    observer_species = agent.species
+    observer_id = agent.agent_id
+
+    # Collect conspecifics within range
+    neighbors = []
+    for other in agents_list:
+        if other.agent_id == observer_id:
+            continue
+        if other.species != observer_species:
+            continue
+        other_pos = other.position if other.position is not None else jnp.zeros(2)
+        dist = float(jnp.linalg.norm(other_pos - observer_pos))
+        if dist <= max_range:
+            heading = float(other.angle)
+            other_vel = other.velocity if other.velocity is not None else jnp.zeros(2)
+            speed = float(jnp.linalg.norm(other_vel))
+            neighbors.append((dist, heading, speed))
+
+    # Sort by distance ascending (closest first)
+    neighbors.sort(key=lambda x: x[0])
+
+    # Build interleaved block: [h1, s1, h2, s2, ...]
+    social = []
+    for i in range(n_neighbors):
+        if i < len(neighbors):
+            _, heading, speed = neighbors[i]
+            social.extend([heading, speed])
+        else:
+            social.extend([0.0, 0.0])
+
+    return jnp.array(social, dtype=jnp.float32)
+
+
 def get_observation(world, agent_id: int, config: dict) -> jnp.ndarray:
     """
-    Build full 205-dim observation vector for one agent.
+    Build observation vector for one agent.
     Returns: shape (config["obs_dim"],), float32.
     Layout pinned in docs/interfaces.md.
+    config["social_obs"] controls whether social channels are appended.
     """
     agent = None
     for a in world.agents:
@@ -64,6 +112,16 @@ def get_observation(world, agent_id: int, config: dict) -> jnp.ndarray:
         ang_vel,           # 203
         energy,            # 204
     ])
+
+    # Axis 2: social observation — heading + speed of N closest conspecifics
+    social_mode = config.get("social_obs", "position_only")
+    if social_mode == "position_heading_velocity":
+        n_neighbors = config.get("n_social_neighbors", 5)
+        max_range = float(config["proximity_max_range"])
+        social_block = _compute_social_obs_single(
+            agent, world.agents, n_neighbors, max_range
+        )
+        obs = jnp.concatenate([obs, social_block])
 
     return obs
 

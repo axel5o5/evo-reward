@@ -146,6 +146,9 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
         rollout_ptrs=sim_state.rollout_ptrs.at[new_slot].set(0),
         radii=sim_state.radii.at[new_slot].set(child_radius),
         act_ratio=sim_state.act_ratio.at[new_slot].set(jnp.array([child_act_ratio])),
+        obs_buffer=sim_state.obs_buffer.at[new_slot].set(0.0),
+        lstm_hidden=sim_state.lstm_hidden.at[new_slot].set(0.0),
+        rollout_init_hidden=sim_state.rollout_init_hidden.at[new_slot].set(0.0),
         phyjax_stated=new_stated,
         next_agent_id=sim_state.next_agent_id + 1,
     )

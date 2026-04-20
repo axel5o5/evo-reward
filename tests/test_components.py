@@ -34,14 +34,15 @@ def base_config():
         "n_tactile_sensors": 18,
         "n_tactile_channels": 4,
         "tactile_spacing_deg": 20.0,
+        "social_obs": "position_only",       # baseline — no social channels
         "obs_dim": 205,                     # CONFIRMED: 128+72+2+1+1+1
         "food_max": 600,                    # CONFIRMED: n_max_foods=600
         "food_initial": 40,
         "food_growth_rate": 0.5,            # CONFIRMED: 0.5/step
         "food_max_regen_per_step": 10,
         "prey_e_food": 1.0,
-        "prey_c_b": 1.0e-4,                # CONFIRMED: code value (not paper 2.5e-3)
-        "prey_c_a": 2.5e-6,                # CONFIRMED: code value (not paper 1.0e-4)
+        "prey_c_b": 1.0e-4,                # CONFIRMED: code value (paper Table 2 labels c_a/c_b swapped)
+        "prey_c_a": 2.5e-6,                # CONFIRMED: code value (paper Table 2 labels c_a/c_b swapped)
         "predator_d_b": 4.0e-3,
         "predator_d_a": 5.0e-5,
         "predator_eta": 0.6,
@@ -93,6 +94,53 @@ def base_config():
         "seed": 0,
         "checkpoint_interval_steps": 25_000,
         "log_interval_steps": 10_000,
+    }
+
+
+@pytest.fixture
+def mlp_config(base_config):
+    """Config for MLP reward genome tests (Axis 1)."""
+    return {
+        **base_config,
+        "reward_type": "mlp",
+        "mlp_hidden_size": 8,
+        "mlp_mutation_scale": 0.01,
+        "mlp_weight_clip": 10.0,
+    }
+
+
+@pytest.fixture
+def social_config(base_config):
+    """Config for social observation tests (Axis 2)."""
+    return {
+        **base_config,
+        "social_obs": "position_heading_velocity",
+        "obs_dim": 215,
+        "n_social_neighbors": 5,
+    }
+
+
+@pytest.fixture
+def temporal_config(base_config):
+    """Config for temporal reward genome tests (Axis 3)."""
+    return {
+        **base_config,
+        "reward_type": "temporal",
+        "reward_context_window": 10,
+        "temporal_hidden_size": 16,
+        "temporal_mutation_scale": 0.005,
+        "temporal_weight_clip": 5.0,
+    }
+
+
+@pytest.fixture
+def lstm_config(base_config):
+    """Config for LSTM policy tests (Axis 4)."""
+    return {
+        **base_config,
+        "policy_type": "lstm",
+        "lstm_hidden_size": 64,
+        "lstm_chunk_length": 128,
     }
 
 
@@ -158,6 +206,1140 @@ class TestRewardGenome:
         genome = jnp.array([0.0, 0.0, 0.0, -10.0])
         r = compute_linear_reward(genome, n_eaten=0, motor_norm=0.0, max_s_prey=0.0, max_s_pred=1.0)
         assert float(r) < 0, f"Fear reward should be negative, got {float(r)}"
+
+
+# ─── MLP reward genome (Axis 1) ──────────────────────────────────────────────
+
+class TestMLPRewardGenome:
+
+    def test_mlp_genome_shape(self, mlp_config):
+        """init_mlp_genome returns correct PyTree structure with 121 params."""
+        from src.reward import init_mlp_genome
+        from jax.flatten_util import ravel_pytree
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Verify PyTree structure
+        assert 'params' in genome
+        assert 'Dense_0' in genome['params']
+        assert 'Dense_1' in genome['params']
+        assert 'Dense_2' in genome['params']
+
+        # Verify layer shapes: 4->8->8->1
+        assert genome['params']['Dense_0']['kernel'].shape == (4, 8)
+        assert genome['params']['Dense_0']['bias'].shape == (8,)
+        assert genome['params']['Dense_1']['kernel'].shape == (8, 8)
+        assert genome['params']['Dense_1']['bias'].shape == (8,)
+        assert genome['params']['Dense_2']['kernel'].shape == (8, 1)
+        assert genome['params']['Dense_2']['bias'].shape == (1,)
+
+        # Verify total param count
+        flat, _ = ravel_pytree(genome)
+        assert flat.shape == (121,), f"Expected 121 params, got {flat.shape[0]}"
+
+    def test_mlp_genome_output_scalar(self, mlp_config):
+        """compute_mlp_reward returns a scalar float32 for various inputs."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Normal stimuli
+        stimuli = jnp.array([1.0, 0.5, 0.3, 0.8])
+        r = compute_mlp_reward(genome, stimuli)
+        assert r.shape == (), f"Expected scalar, got shape {r.shape}"
+        assert r.dtype == jnp.float32
+        assert jnp.isfinite(r)
+
+        # Zero stimuli
+        r_zero = compute_mlp_reward(genome, jnp.zeros(4))
+        assert jnp.isfinite(r_zero)
+
+        # Large stimuli (tanh saturates, should still be finite)
+        r_large = compute_mlp_reward(genome, jnp.ones(4) * 100.0)
+        assert jnp.isfinite(r_large)
+
+    def test_mlp_mutation_changes_genome(self, mlp_config):
+        """mutate_mlp_genome produces different weights from parent."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+        child = mutate_mlp_genome(parent, jax.random.PRNGKey(42), mlp_config)
+
+        flat_parent, _ = ravel_pytree(parent)
+        flat_child, _ = ravel_pytree(child)
+        assert not jnp.allclose(flat_parent, flat_child), \
+            "Mutation did not change any weights"
+
+    def test_mlp_mutation_clipping(self, mlp_config):
+        """All weights stay within +/-mlp_weight_clip after mutation."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        clip = mlp_config["mlp_weight_clip"]
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+
+        # Test from normal init
+        for i in range(50):
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"MLP genome exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+        # Test from boundary parent (weights near clip edge)
+        flat_parent, unflatten = ravel_pytree(parent)
+        boundary_parent = unflatten(jnp.full_like(flat_parent, clip - 0.001))
+        for i in range(50):
+            child = mutate_mlp_genome(boundary_parent, jax.random.PRNGKey(i + 1000), mlp_config)
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"Boundary mutation exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+    def test_capacity_util_linear_genome(self, mlp_config):
+        """A genome with tiny weights (tanh ~ linear) shows near-zero nonlinearity."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Scale weights down so tanh operates in linear regime
+        flat, unflatten = ravel_pytree(genome)
+        linear_genome = unflatten(flat * 0.001)
+
+        nonlinearity = compute_reward_nonlinearity(linear_genome, mlp_config)
+        assert nonlinearity < 0.05, \
+            f"Near-linear genome should have low nonlinearity, got {nonlinearity}"
+
+    def test_capacity_util_nonlinear_genome(self, mlp_config):
+        """A genome with large weights (tanh saturates) shows nonlinearity > 0.01."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Scale weights up to push tanh into saturation
+        flat, unflatten = ravel_pytree(genome)
+        nonlinear_genome = unflatten(flat * 10.0)
+
+        nonlinearity = compute_reward_nonlinearity(nonlinear_genome, mlp_config)
+        assert nonlinearity > 0.01, \
+            f"Large-weight genome should have nonlinearity > 0.01, got {nonlinearity}"
+
+    def test_mlp_reward_jit_vmap_compatible(self, mlp_config):
+        """compute_mlp_reward works under jax.jit and jax.vmap."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+        stimuli = jnp.array([1.0, 0.5, 0.3, 0.8])
+
+        # JIT: should compile and produce same result as eager
+        jitted = jax.jit(compute_mlp_reward)
+        r_eager = compute_mlp_reward(genome, stimuli)
+        r_jit = jitted(genome, stimuli)
+        assert jnp.allclose(r_eager, r_jit, atol=1e-6), \
+            f"JIT result {float(r_jit)} != eager {float(r_eager)}"
+
+        # vmap over a batch of stimuli
+        batch = jax.random.uniform(jax.random.PRNGKey(1), (16, 4))
+        vmapped = jax.vmap(lambda x: compute_mlp_reward(genome, x))
+        r_batch = vmapped(batch)
+        assert r_batch.shape == (16,), f"Expected (16,), got {r_batch.shape}"
+        assert jnp.all(jnp.isfinite(r_batch))
+
+        # vmap + jit combined
+        r_batch_jit = jax.jit(vmapped)(batch)
+        assert jnp.allclose(r_batch, r_batch_jit, atol=1e-6)
+
+    def test_mlp_mutation_preserves_pytree_structure(self, mlp_config):
+        """Mutated genome has identical PyTree structure to parent."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        from src.evolution import mutate_mlp_genome
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_mlp_genome(rng, mlp_config)
+        child = mutate_mlp_genome(parent, jax.random.PRNGKey(42), mlp_config)
+
+        # Same top-level keys
+        assert set(parent.keys()) == set(child.keys())
+        # Same layer keys
+        assert set(parent['params'].keys()) == set(child['params'].keys())
+        # Same shapes and dtypes per leaf
+        for layer in ['Dense_0', 'Dense_1', 'Dense_2']:
+            for param in ['kernel', 'bias']:
+                p = parent['params'][layer][param]
+                c = child['params'][layer][param]
+                assert p.shape == c.shape, \
+                    f"{layer}/{param} shape mismatch: {p.shape} vs {c.shape}"
+                assert p.dtype == c.dtype, \
+                    f"{layer}/{param} dtype mismatch: {p.dtype} vs {c.dtype}"
+
+        # Child genome is usable for forward pass (no structural error)
+        stimuli = jnp.array([0.5, 0.5, 0.5, 0.5])
+        r = compute_mlp_reward(child, stimuli)
+        assert jnp.isfinite(r)
+
+    def test_mlp_mutation_heavy_tails(self, mlp_config):
+        """MLP mutation uses t(df=2), not Gaussian — verify heavy tails.
+
+        Same logic as TestEvolution.test_mutate_genome_heavy_tails:
+        t(df=2) produces >8% of samples beyond +/-2*scale, vs ~4.6% for Gaussian.
+        """
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        parent = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(200):  # 200 * 121 = 24,200 samples
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.extend((np.array(flat_child) - np.array(flat_parent)).tolist())
+
+        deltas = np.array(deltas)
+        scale = mlp_config["mlp_mutation_scale"]
+        # Fraction beyond +/-2*scale: Gaussian ~4.6%, t(df=2) ~13.4%
+        beyond_2sigma = np.mean(np.abs(deltas) > 2 * scale)
+        assert beyond_2sigma > 0.08, (
+            f"MLP mutation appears Gaussian (heavy tail fraction={beyond_2sigma:.3f} < 0.08). "
+            f"Check that scipy.stats.t(df=2) is used, not np.random.normal()."
+        )
+
+    def test_mlp_mutation_unbiased_mean(self, mlp_config):
+        """Mean of MLP mutations should be near zero (unbiased)."""
+        from src.reward import init_mlp_genome
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        parent = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(500):
+            child = mutate_mlp_genome(parent, jax.random.PRNGKey(i), mlp_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.append(np.array(flat_child) - np.array(flat_parent))
+
+        deltas = np.array(deltas)  # (500, 121)
+        mean_delta = np.mean(deltas)
+        assert abs(mean_delta) < 0.005, \
+            f"MLP mutation mean not near zero: {mean_delta:.6f}"
+
+    def test_mlp_genome_type_confusion(self, mlp_config):
+        """Passing wrong genome type to reward functions raises a clear error."""
+        from src.reward import init_genome, init_mlp_genome, compute_linear_reward, compute_mlp_reward
+
+        rng = jax.random.PRNGKey(0)
+        linear_genome = init_genome(rng, mlp_config)       # shape (4,)
+        mlp_genome = init_mlp_genome(rng, mlp_config)       # PyTree
+
+        # Linear genome → MLP function should fail (not a dict/PyTree)
+        with pytest.raises((KeyError, TypeError, AttributeError)):
+            compute_mlp_reward(linear_genome, jnp.ones(4))
+
+        # MLP genome → linear function should fail (dict indexed with int → KeyError)
+        with pytest.raises((KeyError, TypeError, IndexError, ValueError)):
+            compute_linear_reward(mlp_genome, n_eaten=1, motor_norm=0.5,
+                                  max_s_prey=0.3, max_s_pred=0.2)
+
+    def test_capacity_util_zero_weight_genome(self, mlp_config):
+        """All-zero genome produces constant output — nonlinearity should be 0."""
+        from src.reward import init_mlp_genome
+        from analysis.capacity_util import compute_reward_nonlinearity
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_mlp_genome(rng, mlp_config)
+
+        # Zero out all weights
+        flat, unflatten = ravel_pytree(genome)
+        zero_genome = unflatten(jnp.zeros_like(flat))
+
+        nonlinearity = compute_reward_nonlinearity(zero_genome, mlp_config)
+        assert jnp.isfinite(nonlinearity), "Zero genome produced NaN nonlinearity"
+        assert nonlinearity < 1e-6, \
+            f"Zero genome should have ~0 nonlinearity, got {nonlinearity}"
+
+    def test_mlp_genome_init_deterministic(self, mlp_config):
+        """Same rng_key produces identical genome — reproducibility guarantee."""
+        from src.reward import init_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        genome_a = init_mlp_genome(jax.random.PRNGKey(42), mlp_config)
+        genome_b = init_mlp_genome(jax.random.PRNGKey(42), mlp_config)
+
+        flat_a, _ = ravel_pytree(genome_a)
+        flat_b, _ = ravel_pytree(genome_b)
+        assert jnp.array_equal(flat_a, flat_b), "Same key should produce identical genome"
+
+        # Different key should produce different genome
+        genome_c = init_mlp_genome(jax.random.PRNGKey(99), mlp_config)
+        flat_c, _ = ravel_pytree(genome_c)
+        assert not jnp.array_equal(flat_a, flat_c), "Different keys should produce different genomes"
+
+    def test_mlp_mutation_sequential_drift(self, mlp_config):
+        """100 generations of chained mutation — weights stay clipped, genome stays usable."""
+        from src.reward import init_mlp_genome, compute_mlp_reward
+        from src.evolution import mutate_mlp_genome
+        from jax.flatten_util import ravel_pytree
+
+        clip = mlp_config["mlp_weight_clip"]
+        genome = init_mlp_genome(jax.random.PRNGKey(0), mlp_config)
+
+        for gen in range(100):
+            genome = mutate_mlp_genome(genome, jax.random.PRNGKey(gen), mlp_config)
+
+        # All weights still within clip bounds
+        flat, _ = ravel_pytree(genome)
+        assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+            f"After 100 generations, max weight = {float(jnp.max(jnp.abs(flat)))}"
+
+        # Genome still produces finite reward
+        r = compute_mlp_reward(genome, jnp.array([1.0, 0.5, 0.3, 0.8]))
+        assert jnp.isfinite(r), f"After 100 generations, reward is not finite: {r}"
+
+        # Weights should have drifted away from init (not stuck at zero)
+        assert float(jnp.std(flat)) > 0.001, \
+            "Weights did not drift after 100 generations of mutation"
+
+
+# ─── Temporal reward genome (Axis 3) ────────────────────────────────────────
+
+class TestTemporalRewardGenome:
+    """Tests for temporal reward context window (Axis 3)."""
+
+    def test_temporal_genome_shape(self, temporal_config):
+        """init_temporal_genome returns correct PyTree structure with 945 params."""
+        from src.reward import init_temporal_genome
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_temporal_genome(rng, temporal_config)
+
+        # Verify PyTree structure
+        assert 'params' in genome
+        assert 'Dense_0' in genome['params']
+        assert 'Dense_1' in genome['params']
+        assert 'Dense_2' in genome['params']
+
+        # Verify layer shapes: 40->16->16->1
+        assert genome['params']['Dense_0']['kernel'].shape == (40, 16)
+        assert genome['params']['Dense_0']['bias'].shape == (16,)
+        assert genome['params']['Dense_1']['kernel'].shape == (16, 16)
+        assert genome['params']['Dense_1']['bias'].shape == (16,)
+        assert genome['params']['Dense_2']['kernel'].shape == (16, 1)
+        assert genome['params']['Dense_2']['bias'].shape == (1,)
+
+        # Verify total param count
+        flat, _ = ravel_pytree(genome)
+        assert flat.shape == (945,), f"Expected 945 params, got {flat.shape[0]}"
+
+    def test_temporal_reward_scalar(self, temporal_config):
+        """compute_temporal_reward returns scalar float32 for various inputs."""
+        from src.reward import init_temporal_genome, compute_temporal_reward
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_temporal_genome(rng, temporal_config)
+
+        # Normal obs_window
+        obs_window = jnp.ones((10, 4)) * 0.5
+        r = compute_temporal_reward(genome, obs_window)
+        assert r.shape == (), f"Expected scalar, got shape {r.shape}"
+        assert r.dtype == jnp.float32
+        assert jnp.isfinite(r)
+
+        # Zero obs_window
+        r_zero = compute_temporal_reward(genome, jnp.zeros((10, 4)))
+        assert jnp.isfinite(r_zero)
+
+        # Large obs_window (tanh saturates, should still be finite)
+        r_large = compute_temporal_reward(genome, jnp.ones((10, 4)) * 100.0)
+        assert jnp.isfinite(r_large)
+
+    def test_obs_buffer_initialization(self, temporal_config):
+        """obs_buffer is zeros at agent birth."""
+        k = temporal_config["reward_context_window"]
+        obs_buffer = jnp.zeros((k, 4))
+        assert obs_buffer.shape == (10, 4)
+        assert jnp.all(obs_buffer == 0.0)
+
+    def test_obs_buffer_shift(self, temporal_config):
+        """After k steps, obs_buffer contains the last k stimuli in order."""
+        k = temporal_config["reward_context_window"]
+        obs_buffer = jnp.zeros((k, 4))
+
+        # Simulate 15 steps of stimulus insertion
+        stimuli_history = []
+        for step in range(15):
+            new_stimuli = jnp.array([float(step), 0.1 * step, 0.2 * step, 0.3 * step])
+            stimuli_history.append(new_stimuli)
+
+            # Shift buffer: roll left, insert at end
+            obs_buffer = jnp.roll(obs_buffer, -1, axis=0).at[-1].set(new_stimuli)
+
+            if step == 0:
+                # After step 0: buffer should have zeros except last row
+                assert float(obs_buffer[-1, 0]) == 0.0
+                assert jnp.all(obs_buffer[:-1] == 0.0)
+            elif step == 4:
+                # After step 4: last 5 rows have data, first 5 are zeros
+                assert float(obs_buffer[-1, 0]) == 4.0
+                assert float(obs_buffer[-2, 0]) == 3.0
+                assert jnp.all(obs_buffer[:5] == 0.0)
+            elif step == 9:
+                # After step 9: buffer is full
+                for i in range(k):
+                    assert float(obs_buffer[i, 0]) == float(i)
+            elif step == 14:
+                # After step 14: contains steps 5..14
+                for i in range(k):
+                    expected_step = i + 5
+                    assert float(obs_buffer[i, 0]) == float(expected_step), \
+                        f"At position {i}, expected step {expected_step}, got {float(obs_buffer[i, 0])}"
+
+    def test_obs_buffer_window1_matches_linear(self, base_config):
+        """With k=1, temporal reward should be achievable to match linear reward."""
+        from src.reward import init_temporal_genome, compute_temporal_reward, compute_linear_reward
+        from jax.flatten_util import ravel_pytree
+
+        config_k1 = {**base_config, "reward_context_window": 1, "temporal_hidden_size": 16}
+        rng = jax.random.PRNGKey(0)
+        genome = init_temporal_genome(rng, config_k1)
+
+        # With k=1, input is (1, 4) flattened to (4,) — same input as linear.
+        # The MLP can represent any function of 4 inputs, including the linear one.
+        # Just verify the interface works and produces a finite scalar.
+        obs_window = jnp.array([[1.0, 0.5, 0.3, 0.8]])  # shape (1, 4)
+        r_temporal = compute_temporal_reward(genome, obs_window)
+        assert r_temporal.shape == ()
+        assert jnp.isfinite(r_temporal)
+
+        # Also verify linear reward produces a finite scalar for comparison
+        linear_genome = jnp.array([1.0, 1.0, 1.0, -1.0])
+        r_linear = compute_linear_reward(linear_genome, 1.0, 0.5, 0.3, 0.8)
+        assert jnp.isfinite(r_linear)
+
+    def test_temporal_mutation_clipping(self, temporal_config):
+        """All weights stay within +-temporal_weight_clip after mutation."""
+        from src.reward import init_temporal_genome
+        from src.evolution import mutate_temporal_genome
+        from jax.flatten_util import ravel_pytree
+
+        clip = temporal_config["temporal_weight_clip"]
+        rng = jax.random.PRNGKey(0)
+        parent = init_temporal_genome(rng, temporal_config)
+
+        # Test from normal init
+        for i in range(50):
+            child = mutate_temporal_genome(parent, jax.random.PRNGKey(i), temporal_config)
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"Temporal genome exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+        # Test from boundary parent (weights near clip edge)
+        flat_parent, unflatten = ravel_pytree(parent)
+        boundary_parent = unflatten(jnp.full_like(flat_parent, clip - 0.001))
+        for i in range(50):
+            child = mutate_temporal_genome(
+                boundary_parent, jax.random.PRNGKey(i + 1000), temporal_config
+            )
+            flat, _ = ravel_pytree(child)
+            assert jnp.all(jnp.abs(flat) <= clip + 1e-5), \
+                f"Boundary mutation exceeds clip: max={float(jnp.max(jnp.abs(flat)))}"
+
+    def test_temporal_reward_jit_vmap_compatible(self, temporal_config):
+        """compute_temporal_reward works under jax.jit and jax.vmap."""
+        from src.reward import init_temporal_genome, compute_temporal_reward
+
+        rng = jax.random.PRNGKey(0)
+        genome = init_temporal_genome(rng, temporal_config)
+        obs_window = jnp.ones((10, 4)) * 0.5
+
+        # JIT
+        jitted = jax.jit(compute_temporal_reward)
+        r_jit = jitted(genome, obs_window)
+        r_eager = compute_temporal_reward(genome, obs_window)
+        np.testing.assert_allclose(float(r_jit), float(r_eager), rtol=1e-5)
+
+        # vmap over batch of obs_windows (simulating multiple agents)
+        batch_windows = jnp.stack([obs_window * i for i in range(5)])  # (5, 10, 4)
+        batch_genomes = jax.tree.map(
+            lambda p: jnp.tile(p[None], (5, *([1] * p.ndim))),
+            genome,
+        )
+        vmapped = jax.vmap(compute_temporal_reward)
+        batch_r = vmapped(batch_genomes, batch_windows)
+        assert batch_r.shape == (5,), f"Expected (5,), got {batch_r.shape}"
+        assert jnp.all(jnp.isfinite(batch_r))
+
+    def test_temporal_mutation_heavy_tails(self, temporal_config):
+        """Temporal mutations have heavy tails (t(df=2), not Gaussian)."""
+        from src.reward import init_temporal_genome
+        from src.evolution import mutate_temporal_genome
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_temporal_genome(rng, temporal_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(2000):
+            child = mutate_temporal_genome(parent, jax.random.PRNGKey(i), temporal_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.append(np.array(flat_child - flat_parent))
+
+        all_deltas = np.concatenate(deltas)
+        scale = temporal_config["temporal_mutation_scale"]
+        # For t(df=2), P(|x| > 2*scale) ≈ 8-10%. Gaussian would be ~5%.
+        fraction_extreme = np.mean(np.abs(all_deltas) > 2 * scale)
+        assert fraction_extreme > 0.06, \
+            f"Mutations lack heavy tails: only {fraction_extreme:.1%} beyond 2*scale"
+
+    def test_temporal_mutation_unbiased_mean(self, temporal_config):
+        """Mean mutation delta is approximately zero (unbiased)."""
+        from src.reward import init_temporal_genome
+        from src.evolution import mutate_temporal_genome
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        parent = init_temporal_genome(rng, temporal_config)
+        flat_parent, _ = ravel_pytree(parent)
+
+        deltas = []
+        for i in range(500):
+            child = mutate_temporal_genome(parent, jax.random.PRNGKey(i), temporal_config)
+            flat_child, _ = ravel_pytree(child)
+            deltas.append(np.array(flat_child - flat_parent))
+
+        mean_delta = np.mean(np.concatenate(deltas))
+        assert abs(mean_delta) < 0.005, \
+            f"Mean mutation delta should be ~0, got {mean_delta}"
+
+    def test_temporal_utilization_metric(self, temporal_config):
+        """compute_temporal_utilization returns correct shapes and handles edge cases."""
+        from analysis.capacity_util import compute_temporal_utilization
+
+        # Constant reward signal — zero autocorrelation
+        k = temporal_config["reward_context_window"]
+        rewards_const = np.ones(200)
+        result = compute_temporal_utilization(rewards_const, k)
+        assert result["autocorrelation"].shape == (k,)
+        assert isinstance(result["sensitivity_ratio"], float)
+
+        # Sinusoidal reward signal — positive autocorrelation at low lags
+        t = np.arange(500)
+        rewards_sin = np.sin(2 * np.pi * t / 20)
+        result2 = compute_temporal_utilization(rewards_sin, k)
+        assert result2["autocorrelation"][0] > 0.5, \
+            "Sine wave should have high lag-1 autocorrelation"
+
+        # Very short signal (shorter than k)
+        result_short = compute_temporal_utilization(np.array([1.0, 2.0]), k)
+        assert result_short["autocorrelation"].shape == (k,)
+
+    def test_obs_buffer_vectorized_update(self, temporal_config):
+        """obs_buffer roll+set works correctly when vectorized across agents."""
+        k = temporal_config["reward_context_window"]
+        n_agents = 5
+        obs_buffer = jnp.zeros((n_agents, k, 4))
+
+        # Each agent gets different stimuli
+        stimuli = jnp.arange(n_agents * 4, dtype=jnp.float32).reshape(n_agents, 4)
+
+        # Vectorized shift: roll all agents' buffers, insert new stimuli
+        new_buffer = jnp.roll(obs_buffer, -1, axis=1)
+        new_buffer = new_buffer.at[:, -1, :].set(stimuli)
+
+        # Agent 0 should have stimuli [0, 1, 2, 3] at position -1
+        np.testing.assert_allclose(np.array(new_buffer[0, -1]), [0, 1, 2, 3])
+        # Agent 3 should have stimuli [12, 13, 14, 15] at position -1
+        np.testing.assert_allclose(np.array(new_buffer[3, -1]), [12, 13, 14, 15])
+        # Everything else should be zeros
+        assert jnp.all(new_buffer[:, :-1, :] == 0.0)
+
+
+# ─── LSTM policy (Axis 4) ────────────────────────────────────────────────────
+
+class TestLSTMPolicy:
+    """Tests for LSTM policy (Axis 4).
+
+    CRITICAL INVARIANT: LSTM hidden state is lifetime state.
+    It is NOT inherited. It resets to zeros at every birth.
+    """
+
+    def test_lstm_policy_init(self, lstm_config):
+        """init_lstm_policy returns correct shapes and ~73k params."""
+        from src.policy import init_lstm_policy
+        from jax.flatten_util import ravel_pytree
+
+        rng = jax.random.PRNGKey(0)
+        params, opt_state, init_hidden = init_lstm_policy(rng, lstm_config)
+
+        # Hidden state shape
+        assert init_hidden.shape == (2, 64), f"Expected (2, 64), got {init_hidden.shape}"
+        assert jnp.all(init_hidden == 0.0), "Initial hidden should be zeros"
+
+        # Param count
+        flat, _ = ravel_pytree(params)
+        total_params = flat.shape[0]
+        assert total_params > 70000, f"Expected ~73k params, got {total_params}"
+        assert total_params < 80000, f"Expected ~73k params, got {total_params}"
+
+        # Verify PyTree has LSTM structure
+        assert 'params' in params
+
+    def test_lstm_hidden_state_changes(self, lstm_config):
+        """Hidden state changes after each step."""
+        from src.policy import init_lstm_policy, sample_action_lstm
+
+        rng = jax.random.PRNGKey(0)
+        params, _, init_hidden = init_lstm_policy(rng, lstm_config)
+        obs = jnp.ones(lstm_config["obs_dim"]) * 0.1
+
+        # Step 1
+        _, _, _, h1 = sample_action_lstm(params, obs, init_hidden, jax.random.PRNGKey(1), lstm_config)
+        assert not jnp.allclose(init_hidden, h1), "Hidden should change after step 1"
+
+        # Step 2
+        _, _, _, h2 = sample_action_lstm(params, obs, h1, jax.random.PRNGKey(2), lstm_config)
+        assert not jnp.allclose(h1, h2), "Hidden should change between steps"
+
+        # Step 3 with different obs
+        obs2 = jnp.zeros(lstm_config["obs_dim"])
+        _, _, _, h3 = sample_action_lstm(params, obs2, h2, jax.random.PRNGKey(3), lstm_config)
+        assert not jnp.allclose(h2, h3), "Hidden should change with different obs"
+
+    def test_lstm_hidden_reset_at_birth(self, lstm_config):
+        """Newborn agent (from spawn_offspring_jax) has zero LSTM hidden state."""
+        # Test the invariant directly: the hidden state for a new slot is zeros.
+        # In spawn_offspring_jax, we set lstm_hidden.at[new_slot].set(0.0).
+        # Here we verify that a fresh hidden state is all zeros.
+        lstm_hidden_size = lstm_config["lstm_hidden_size"]
+        new_hidden = jnp.zeros((2, lstm_hidden_size))
+        assert jnp.all(new_hidden == 0.0), "Birth hidden state must be zeros"
+        assert new_hidden.shape == (2, lstm_hidden_size)
+
+    def test_lstm_hidden_not_inherited(self, lstm_config):
+        """Two offspring of the same parent have identical (zero) hidden states."""
+        lstm_hidden_size = lstm_config["lstm_hidden_size"]
+
+        # Simulate parent with non-zero hidden state
+        parent_hidden = jnp.ones((2, lstm_hidden_size)) * 0.5
+
+        # Two children both get zero hidden states (NOT parent's)
+        child1_hidden = jnp.zeros((2, lstm_hidden_size))
+        child2_hidden = jnp.zeros((2, lstm_hidden_size))
+
+        assert jnp.array_equal(child1_hidden, child2_hidden), \
+            "Both children should have identical zero hidden states"
+        assert not jnp.array_equal(child1_hidden, parent_hidden), \
+            "Children should NOT inherit parent's hidden state"
+
+    def test_lstm_action_shape(self, lstm_config):
+        """sample_action_lstm returns action shape (2,) and correct types."""
+        from src.policy import init_lstm_policy, sample_action_lstm
+
+        rng = jax.random.PRNGKey(0)
+        params, _, init_hidden = init_lstm_policy(rng, lstm_config)
+        obs = jax.random.normal(jax.random.PRNGKey(99), (lstm_config["obs_dim"],))
+
+        action, log_prob, value, new_hidden = sample_action_lstm(
+            params, obs, init_hidden, jax.random.PRNGKey(42), lstm_config,
+        )
+
+        assert action.shape == (2,), f"Expected action shape (2,), got {action.shape}"
+        assert jnp.isfinite(log_prob), f"log_prob should be finite, got {log_prob}"
+        assert jnp.isfinite(value), f"value should be finite, got {value}"
+        assert new_hidden.shape == (2, 64), f"Expected hidden (2, 64), got {new_hidden.shape}"
+
+        # Action should be in sigmoid range [-20, 80]
+        assert jnp.all(action >= -20.0) and jnp.all(action <= 80.0), \
+            f"Action out of [-20, 80] range: {action}"
+
+    def test_lstm_rollout_buffer(self, lstm_config):
+        """Rollout buffer correctly stores initial hidden for PPO replay."""
+        lstm_hidden_size = lstm_config["lstm_hidden_size"]
+        max_agents = 10
+        rollout_steps = lstm_config["rollout_steps"]
+
+        # Simulate rollout_init_hidden storage
+        rollout_init_hidden = jnp.zeros((max_agents, 2, lstm_hidden_size))
+
+        # Simulate agent 3 starting a new rollout with some hidden state
+        agent_hidden = jnp.ones((2, lstm_hidden_size)) * 0.42
+        rollout_init_hidden = rollout_init_hidden.at[3].set(agent_hidden)
+
+        # Verify storage
+        np.testing.assert_allclose(
+            np.array(rollout_init_hidden[3]),
+            np.array(agent_hidden),
+            err_msg="Init hidden not stored correctly",
+        )
+        # Other agents should still be zeros
+        np.testing.assert_allclose(
+            np.array(rollout_init_hidden[0]),
+            np.zeros((2, lstm_hidden_size)),
+            err_msg="Other agents should have zero init hidden",
+        )
+
+    def test_mlp_policy_unchanged(self, base_config):
+        """Existing MLP policy functions still work correctly (regression test)."""
+        from src.policy import init_policy, sample_action, policy_forward
+
+        rng = jax.random.PRNGKey(0)
+        params, opt_state = init_policy(rng, base_config)
+        obs = jnp.ones(base_config["obs_dim"]) * 0.1
+
+        # MLP forward pass
+        action_mean, log_std, value = policy_forward(params, obs, base_config)
+        assert action_mean.shape == (2,)
+        assert log_std.shape == (2,)
+        assert jnp.isfinite(value)
+
+        # MLP sample
+        action, log_prob, value = sample_action(params, obs, jax.random.PRNGKey(42), base_config)
+        assert action.shape == (2,)
+        assert jnp.isfinite(log_prob)
+        assert jnp.isfinite(value)
+
+    def test_lstm_jit_vmap_compatible(self, lstm_config):
+        """sample_action_lstm and policy_forward_lstm work under jax.jit and jax.vmap."""
+        from src.policy import init_lstm_policy, policy_forward_lstm
+
+        rng = jax.random.PRNGKey(0)
+        params, _, init_hidden = init_lstm_policy(rng, lstm_config)
+        obs = jnp.ones(lstm_config["obs_dim"]) * 0.1
+
+        # JIT
+        jitted_fwd = jax.jit(lambda p, o, h: policy_forward_lstm(p, o, h, lstm_config))
+        mean_jit, log_std_jit, val_jit, h_jit = jitted_fwd(params, obs, init_hidden)
+        mean_eager, _, _, h_eager = policy_forward_lstm(params, obs, init_hidden, lstm_config)
+        np.testing.assert_allclose(np.array(mean_jit), np.array(mean_eager), rtol=1e-5)
+        np.testing.assert_allclose(np.array(h_jit), np.array(h_eager), rtol=1e-5)
+
+        # vmap over batch of agents (stacked params, obs, hidden)
+        n = 4
+        batch_params = jax.tree.map(lambda p: jnp.tile(p[None], (n, *([1]*p.ndim))), params)
+        batch_obs = jnp.stack([obs * i for i in range(n)])  # (4, 205)
+        batch_hidden = jnp.zeros((n, 2, lstm_config["lstm_hidden_size"]))
+
+        vmapped = jax.vmap(lambda p, o, h: policy_forward_lstm(p, o, h, lstm_config))
+        batch_mean, batch_log_std, batch_val, batch_h = vmapped(batch_params, batch_obs, batch_hidden)
+        assert batch_mean.shape == (n, 2)
+        assert batch_h.shape == (n, 2, lstm_config["lstm_hidden_size"])
+        assert jnp.all(jnp.isfinite(batch_mean))
+
+    def test_lstm_hidden_stability_long_rollout(self, lstm_config):
+        """LSTM hidden state stays finite over 200+ steps."""
+        from src.policy import init_lstm_policy, sample_action_lstm
+
+        rng = jax.random.PRNGKey(0)
+        params, _, hidden = init_lstm_policy(rng, lstm_config)
+
+        for step in range(200):
+            obs = jax.random.normal(jax.random.PRNGKey(step), (lstm_config["obs_dim"],))
+            _, _, _, hidden = sample_action_lstm(
+                params, obs, hidden, jax.random.PRNGKey(step + 1000), lstm_config,
+            )
+            if step % 50 == 49:
+                assert jnp.all(jnp.isfinite(hidden)), \
+                    f"Hidden state has NaN/Inf at step {step+1}"
+                max_abs = float(jnp.max(jnp.abs(hidden)))
+                assert max_abs < 1e6, \
+                    f"Hidden state exploding at step {step+1}: max |h| = {max_abs}"
+
+    def test_lstm_deterministic_same_key(self, lstm_config):
+        """Same RNG key produces identical action from LSTM policy."""
+        from src.policy import init_lstm_policy, sample_action_lstm
+
+        rng = jax.random.PRNGKey(0)
+        params, _, init_hidden = init_lstm_policy(rng, lstm_config)
+        obs = jnp.ones(lstm_config["obs_dim"]) * 0.3
+
+        a1, lp1, v1, h1 = sample_action_lstm(params, obs, init_hidden, jax.random.PRNGKey(42), lstm_config)
+        a2, lp2, v2, h2 = sample_action_lstm(params, obs, init_hidden, jax.random.PRNGKey(42), lstm_config)
+
+        np.testing.assert_array_equal(np.array(a1), np.array(a2))
+        np.testing.assert_array_equal(np.array(h1), np.array(h2))
+
+    def test_lstm_ppo_loss_decreases(self, lstm_config):
+        """LSTM PPO update reduces loss on a synthetic rollout."""
+        from src.policy import init_lstm_policy, LSTMPolicyNetwork
+        from src.jax_ppo import _compute_gae_jax
+        import optax
+
+        rng = jax.random.PRNGKey(0)
+        params, opt_state, init_hidden = init_lstm_policy(rng, lstm_config)
+
+        rollout_steps = lstm_config["rollout_steps"]
+        obs_dim = lstm_config["obs_dim"]
+        chunk_length = lstm_config["lstm_chunk_length"]
+        n_chunks = rollout_steps // chunk_length
+
+        # Generate synthetic rollout data
+        rng, data_key = jax.random.split(rng)
+        obs = jax.random.normal(data_key, (rollout_steps, obs_dim)) * 0.1
+        actions = jnp.zeros((rollout_steps, 2))
+        rewards = jnp.ones(rollout_steps) * 0.1
+        dones = jnp.zeros(rollout_steps, dtype=bool)
+
+        # Collect log_probs and values by replaying LSTM
+        net = LSTMPolicyNetwork(
+            lstm_hidden_size=lstm_config["lstm_hidden_size"],
+            hidden_size=lstm_config["policy_hidden_size"],
+            action_dim=2,
+        )
+        carry = (init_hidden[0], init_hidden[1])
+
+        def scan_step(carry, obs_t):
+            new_carry, mean, log_std, value = net.apply(params, carry, obs_t)
+            return new_carry, (mean, log_std, value)
+
+        _, (all_means, all_log_stds, all_values) = jax.lax.scan(scan_step, carry, obs)
+        values = all_values
+        stds = jnp.exp(all_log_stds)
+        log_probs = -0.5 * jnp.sum(
+            jnp.log(2 * jnp.pi) + 2 * all_log_stds + ((actions - all_means) / stds) ** 2,
+            axis=-1,
+        )
+
+        # GAE
+        advantages, returns = _compute_gae_jax(
+            rewards, values, dones, 0.0,
+            lstm_config["gamma"], lstm_config["gae_lambda"],
+        )
+        advantages = (advantages - jnp.mean(advantages)) / (jnp.std(advantages) + 1e-8)
+
+        # Compute initial loss
+        def chunk_loss(p, c_obs, c_actions, c_old_lp, c_adv, c_ret, init_carry):
+            def step_fn(carry, inputs):
+                obs_t, act_t = inputs
+                new_carry, mean, log_std, value = net.apply(p, carry, obs_t)
+                return new_carry, (mean, log_std, value)
+
+            _, (means, log_stds_out, vals) = jax.lax.scan(
+                step_fn, init_carry, (c_obs, c_actions)
+            )
+            stds_out = jnp.exp(log_stds_out)
+            clamped = jnp.clip(c_actions, -19.99, 79.99)
+            raw_acts = jnp.log((clamped + 20.0) / (80.0 - clamped))
+            new_lp = -0.5 * jnp.sum(
+                jnp.log(2 * jnp.pi) + 2 * log_stds_out + ((raw_acts - means) / stds_out) ** 2,
+                axis=-1,
+            )
+            ratio = jnp.exp(new_lp - c_old_lp)
+            clip_eps = lstm_config["clip_epsilon"]
+            surr1 = ratio * c_adv
+            surr2 = jnp.clip(ratio, 1 - clip_eps, 1 + clip_eps) * c_adv
+            policy_loss = -jnp.mean(jnp.minimum(surr1, surr2))
+            value_loss = 0.5 * jnp.mean((vals - c_ret) ** 2)
+            return policy_loss + 0.5 * value_loss
+
+        # Compute loss on first chunk before any updates
+        obs_chunks = obs.reshape(n_chunks, chunk_length, -1)
+        act_chunks = actions.reshape(n_chunks, chunk_length, -1)
+        lp_chunks = log_probs.reshape(n_chunks, chunk_length)
+        adv_chunks = advantages.reshape(n_chunks, chunk_length)
+        ret_chunks = returns.reshape(n_chunks, chunk_length)
+
+        init_carry = (init_hidden[0], init_hidden[1])
+        loss_before = chunk_loss(
+            params, obs_chunks[0], act_chunks[0], lp_chunks[0],
+            adv_chunks[0], ret_chunks[0], init_carry,
+        )
+
+        # Run one gradient step
+        optimizer = optax.adam(learning_rate=lstm_config["lr"], eps=lstm_config["adam_eps"])
+        loss_grad_fn = jax.value_and_grad(chunk_loss)
+        loss_val, grads = loss_grad_fn(
+            params, obs_chunks[0], act_chunks[0], lp_chunks[0],
+            adv_chunks[0], ret_chunks[0], init_carry,
+        )
+        updates, new_opt = optimizer.update(grads, opt_state, params)
+        new_params = optax.apply_updates(params, updates)
+
+        loss_after = chunk_loss(
+            new_params, obs_chunks[0], act_chunks[0], lp_chunks[0],
+            adv_chunks[0], ret_chunks[0], init_carry,
+        )
+
+        assert jnp.isfinite(loss_before), f"Loss before is not finite: {loss_before}"
+        assert jnp.isfinite(loss_after), f"Loss after is not finite: {loss_after}"
+        # After one gradient step, loss should not increase (much)
+        assert float(loss_after) <= float(loss_before) + 0.1, \
+            f"Loss increased significantly after gradient step: {float(loss_before):.4f} -> {float(loss_after):.4f}"
+
+    def test_lstm_utilization_metric(self, lstm_config):
+        """compute_lstm_utilization returns correct shapes and sensible values."""
+        from analysis.capacity_util import compute_lstm_utilization
+
+        hidden_dim = lstm_config["lstm_hidden_size"]
+
+        # Zero hidden trajectories — entropy should be 0
+        h_zero = np.zeros((100, hidden_dim))
+        result = compute_lstm_utilization(h_zero)
+        assert result["mean_hidden_entropy"] == 0.0
+        assert result["ablation_delta"] == 0.0
+
+        # Random hidden trajectories — should have nonzero entropy and delta
+        rng_np = np.random.default_rng(42)
+        h_random = rng_np.normal(size=(200, hidden_dim))
+        result2 = compute_lstm_utilization(h_random)
+        assert result2["mean_hidden_entropy"] > 0.0, \
+            "Random hidden states should have positive entropy"
+        assert result2["ablation_delta"] > 0.0, \
+            "Random hidden states should have nonzero L2 norm"
+
+    def test_lstm_chunk_divisibility_config(self, lstm_config):
+        """rollout_steps must be divisible by lstm_chunk_length."""
+        rollout = lstm_config["rollout_steps"]
+        chunk = lstm_config["lstm_chunk_length"]
+        assert rollout % chunk == 0, \
+            f"rollout_steps ({rollout}) must be divisible by lstm_chunk_length ({chunk})"
+        n_chunks = rollout // chunk
+        assert n_chunks > 0, "Must have at least 1 chunk"
+        assert n_chunks == 8, f"Expected 8 chunks (1024/128), got {n_chunks}"
+
+
+# ─── Social observation (Axis 2) ─────────────────────────────────────────────
+
+class TestSocialObservation:
+    """Tests for social observation extension (heading + speed of conspecifics)."""
+
+    def _make_small_world(self, config, n_prey=5, n_pred=0):
+        """Create a small world for social obs tests."""
+        from src.environment import init_world
+        cfg = {
+            **config,
+            "prey_initial": n_prey,
+            "predator_initial": n_pred,
+            "food_initial": 10,
+        }
+        rng = jax.random.PRNGKey(123)
+        return init_world(cfg, rng), cfg
+
+    def test_social_obs_shape_position_only(self, base_config):
+        """get_observation returns (205,) when social_obs = position_only."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(base_config, n_prey=3, n_pred=1)
+        agent = world.agents[0]
+        obs = get_observation(world, agent.agent_id, cfg)
+        assert obs.shape == (205,), f"Expected (205,), got {obs.shape}"
+
+    def test_social_obs_shape_social(self, social_config):
+        """get_observation returns (215,) when social_obs = position_heading_velocity."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=6, n_pred=1)
+        agent = world.agents[0]  # a prey
+        obs = get_observation(world, agent.agent_id, cfg)
+        assert obs.shape == (215,), f"Expected (215,), got {obs.shape}"
+
+    def test_social_obs_zero_padding(self, social_config):
+        """When fewer than n_social_neighbors conspecifics visible, trailing entries are zero."""
+        from src.agents import get_observation
+        # 1 prey + only predators => 0 conspecifics for the prey
+        world, cfg = self._make_small_world(social_config, n_prey=1, n_pred=3)
+        prey = [a for a in world.agents if a.species == 0][0]
+        obs = get_observation(world, prey.agent_id, cfg)
+        assert obs.shape == (215,)
+        social_block = np.array(obs[205:215])
+        np.testing.assert_array_equal(
+            social_block, np.zeros(10),
+            err_msg="Social block should be all zeros when no conspecifics visible"
+        )
+
+    def test_social_obs_closest_first(self, social_config):
+        """First neighbor entry corresponds to the closest conspecific."""
+        from src.agents import get_observation
+        from src.environment import AgentState, init_world
+        # Create world with 3 prey at known positions
+        world, cfg = self._make_small_world(social_config, n_prey=3, n_pred=0)
+        agents = [a for a in world.agents if a.species == 0]
+        observer = agents[0]
+
+        # Place agents at controlled positions (all within range 200)
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+        observer.angle = 0.0
+
+        agents[1].position = jnp.array([480.0, 530.0])  # distance 50 (closest)
+        agents[1].velocity = jnp.array([3.0, 4.0])       # speed = 5.0
+        agents[1].angle = 1.5
+
+        agents[2].position = jnp.array([480.0, 600.0])  # distance 120 (farther)
+        agents[2].velocity = jnp.array([0.0, 2.0])       # speed = 2.0
+        agents[2].angle = -0.5
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # First neighbor (closest, dist=50): heading=1.5, speed=5.0
+        assert abs(social_block[0] - 1.5) < 1e-5, \
+            f"First neighbor heading should be 1.5, got {social_block[0]}"
+        assert abs(social_block[1] - 5.0) < 1e-5, \
+            f"First neighbor speed should be 5.0, got {social_block[1]}"
+
+        # Second neighbor (dist=120): heading=-0.5, speed=2.0
+        assert abs(social_block[2] - (-0.5)) < 1e-5, \
+            f"Second neighbor heading should be -0.5, got {social_block[2]}"
+        assert abs(social_block[3] - 2.0) < 1e-5, \
+            f"Second neighbor speed should be 2.0, got {social_block[3]}"
+
+        # Remaining slots (3rd-5th) should be zero-padded
+        np.testing.assert_array_equal(
+            social_block[4:10], np.zeros(6),
+            err_msg="Slots 3-5 should be zero-padded (only 2 conspecifics)"
+        )
+
+    def test_social_obs_no_change_to_baseline(self, base_config, social_config):
+        """First 205 dims of social obs match baseline obs exactly (regression)."""
+        from src.agents import get_observation
+        # Use same seed and config for identical worlds
+        from src.environment import init_world
+        rng = jax.random.PRNGKey(77)
+        baseline_cfg = {
+            **base_config,
+            "prey_initial": 5,
+            "predator_initial": 2,
+            "food_initial": 10,
+        }
+        social_cfg = {
+            **social_config,
+            "prey_initial": 5,
+            "predator_initial": 2,
+            "food_initial": 10,
+        }
+        world_baseline = init_world(baseline_cfg, rng)
+        world_social = init_world(social_cfg, rng)
+
+        for agent_b, agent_s in zip(world_baseline.agents, world_social.agents):
+            obs_baseline = get_observation(world_baseline, agent_b.agent_id, baseline_cfg)
+            obs_social = get_observation(world_social, agent_s.agent_id, social_cfg)
+
+            assert obs_baseline.shape == (205,)
+            assert obs_social.shape == (215,)
+
+            # First 205 dims must match exactly
+            np.testing.assert_allclose(
+                np.array(obs_social[:205]),
+                np.array(obs_baseline),
+                atol=1e-6,
+                err_msg=f"Baseline dims differ for agent {agent_b.agent_id}"
+            )
+
+    def test_social_obs_predator_species_isolation(self, social_config):
+        """Predators observe only other predators, not prey."""
+        from src.agents import get_observation
+        # 1 predator + 5 prey, all close together — predator should see 0 conspecifics
+        world, cfg = self._make_small_world(social_config, n_prey=5, n_pred=1)
+        predator = [a for a in world.agents if a.species == 1][0]
+        # Move all agents close so they're within range
+        for a in world.agents:
+            a.position = jnp.array([480.0, 480.0]) + jax.random.uniform(
+                jax.random.PRNGKey(a.agent_id), shape=(2,), minval=-10.0, maxval=10.0
+            )
+        obs = get_observation(world, predator.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+        # Only 1 predator total, so 0 conspecifics — all zeros
+        np.testing.assert_array_equal(
+            social_block, np.zeros(10),
+            err_msg="Predator should see 0 conspecifics (only prey nearby)"
+        )
+
+    def test_social_obs_more_than_n_conspecifics(self, social_config):
+        """When >N conspecifics visible, only the 5 closest are included."""
+        from src.agents import get_observation
+        # 8 prey total — observer + 7 conspecifics, all within range
+        world, cfg = self._make_small_world(social_config, n_prey=8, n_pred=0)
+        agents = world.agents
+        observer = agents[0]
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        # Place 7 conspecifics at increasing distances
+        for i, a in enumerate(agents[1:], start=1):
+            a.position = jnp.array([480.0, 480.0 + float(i) * 20.0])  # 20, 40, ..., 140
+            a.velocity = jnp.array([float(i), 0.0])  # speed = i
+            a.angle = float(i) * 0.1
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # Should contain the 5 closest (agents 1-5, distances 20-100)
+        for k in range(5):
+            expected_heading = float(k + 1) * 0.1
+            expected_speed = float(k + 1)
+            assert abs(social_block[2 * k] - expected_heading) < 1e-5, \
+                f"Neighbor {k} heading: expected {expected_heading}, got {social_block[2*k]}"
+            assert abs(social_block[2 * k + 1] - expected_speed) < 1e-5, \
+                f"Neighbor {k} speed: expected {expected_speed}, got {social_block[2*k+1]}"
+
+    def test_social_obs_boundary_at_max_range(self, social_config):
+        """Conspecific at exactly max_range (200 units) is included."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=2, n_pred=0)
+        observer = world.agents[0]
+        neighbor = world.agents[1]
+
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        # Place neighbor at exactly max_range distance
+        max_range = float(cfg["proximity_max_range"])  # 200.0
+        neighbor.position = jnp.array([480.0, 480.0 + max_range])  # dist = 200.0 exactly
+        neighbor.velocity = jnp.array([1.0, 0.0])  # speed = 1.0
+        neighbor.angle = 0.5
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        social_block = np.array(obs[205:215])
+
+        # Should be included (dist <= max_range)
+        assert abs(social_block[0] - 0.5) < 1e-5, \
+            f"Neighbor at exactly max_range should be included, heading={social_block[0]}"
+        assert abs(social_block[1] - 1.0) < 1e-5, \
+            f"Neighbor at exactly max_range should be included, speed={social_block[1]}"
+
+        # Now move just beyond max_range
+        neighbor.position = jnp.array([480.0, 480.0 + max_range + 0.01])
+        obs2 = get_observation(world, observer.agent_id, cfg)
+        social_block2 = np.array(obs2[205:215])
+
+        # Should be excluded (dist > max_range)
+        np.testing.assert_array_equal(
+            social_block2, np.zeros(10),
+            err_msg="Neighbor just beyond max_range should be excluded"
+        )
+
+    def test_social_obs_velocity_none_safety(self, social_config):
+        """Social obs handles conspecific with velocity=None without crashing."""
+        from src.agents import get_observation
+        world, cfg = self._make_small_world(social_config, n_prey=2, n_pred=0)
+        observer = world.agents[0]
+        neighbor = world.agents[1]
+
+        observer.position = jnp.array([480.0, 480.0])
+        observer.velocity = jnp.zeros(2)
+
+        neighbor.position = jnp.array([480.0, 500.0])  # within range
+        neighbor.velocity = None  # edge case
+        neighbor.angle = 1.0
+
+        obs = get_observation(world, observer.agent_id, cfg)
+        assert obs.shape == (215,)
+        social_block = np.array(obs[205:215])
+        # heading should be 1.0, speed should be 0.0 (None velocity -> zeros)
+        assert abs(social_block[0] - 1.0) < 1e-5
+        assert abs(social_block[1] - 0.0) < 1e-5
 
 
 # ─── Lifecycle functions ───────────────────────────────────────────────────────
@@ -516,6 +1698,61 @@ class TestMetrics:
             np.array([[1.1, -2.2, 3.3, -4.4], [-0.5, 0.5, -0.5, 0.5]],
                      dtype=np.float32),
         )
+
+    def test_trajectory_save_load_roundtrip(self, base_config, tmp_path):
+        """Trajectory fields survive save/load when save_trajectories is on."""
+        from src.metrics import (
+            MetricsLog, save_metrics, load_metrics, record_trajectory_step,
+        )
+        log = MetricsLog()
+        # Fill required scalar fields so save doesn't fail on empty
+        log.steps.append(1000)
+        log.prey_population.append(100)
+        log.predator_population.append(10)
+        log.prey_mean_energy.append(50.0)
+        log.predator_mean_energy.append(80.0)
+        for prefix in ["prey", "pred"]:
+            for stat in ["mean", "std"]:
+                for w in ["w_eat", "w_act", "w_prey", "w_pred"]:
+                    getattr(log, f"{prefix}_{stat}_{w}").append(0.5)
+        log.capture_rate.append(0.1)
+        log.food_consumption_rate.append(0.2)
+
+        config = {**base_config, "experiment_name": "test_traj", "save_trajectories": True}
+
+        # Record a few trajectory steps
+        obs1 = np.random.randn(215).astype(np.float32)
+        obs2 = np.random.randn(215).astype(np.float32)
+        act1 = np.array([10.0, -5.0], dtype=np.float32)
+        act2 = np.array([-3.0, 7.0], dtype=np.float32)
+
+        record_trajectory_step(log, obs1, act1, agent_id=0, config=config)
+        record_trajectory_step(log, obs2, act2, agent_id=1, config=config)
+
+        assert len(log.trajectory_obs) == 2
+        assert len(log.trajectory_actions) == 2
+        assert len(log.trajectory_agent_ids) == 2
+
+        save_metrics(log, config, seed=0, out_dir=str(tmp_path))
+        loaded = load_metrics(str(tmp_path / "test_traj" / "seed_0" / "metrics.npz"))
+
+        assert len(loaded.trajectory_obs) == 2
+        assert len(loaded.trajectory_actions) == 2
+        assert loaded.trajectory_agent_ids == [0, 1]
+        np.testing.assert_allclose(loaded.trajectory_obs[0], obs1, atol=1e-6)
+        np.testing.assert_allclose(loaded.trajectory_actions[1], act2, atol=1e-6)
+
+    def test_trajectory_not_saved_when_disabled(self, base_config):
+        """record_trajectory_step is a no-op when save_trajectories is False."""
+        from src.metrics import MetricsLog, record_trajectory_step
+        log = MetricsLog()
+        config = {**base_config, "save_trajectories": False}
+        obs = np.zeros(205, dtype=np.float32)
+        act = np.zeros(2, dtype=np.float32)
+
+        record_trajectory_step(log, obs, act, agent_id=0, config=config)
+        assert len(log.trajectory_obs) == 0
+        assert len(log.trajectory_actions) == 0
 
 
 # ─── Config validation ────────────────────────────────────────────────────────

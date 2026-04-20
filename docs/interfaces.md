@@ -38,8 +38,17 @@ class AgentState:
                                    #                 w_pred = other predators
 
     # Policy — NOT inherited, reset fresh at every birth
-    policy_params:     PyTree      # Flax parameter tree for this agent's MLP
+    policy_params:     PyTree      # Flax parameter tree for this agent's MLP or LSTM
     policy_opt_state:  PyTree      # Adam optimizer state
+
+    # Temporal reward buffer (Axis 3) — reset to zeros at birth
+    obs_buffer:     jnp.ndarray   # shape (k, 4), float32 — rolling stimuli window
+                                   # k = config["reward_context_window"] (default 1)
+                                   # Each row = [n_eaten, motor_norm, max_s_prey, max_s_pred]
+
+    # LSTM hidden state (Axis 4) — NOT inherited, reset to zeros at birth
+    lstm_hidden:    jnp.ndarray   # shape (2, lstm_hidden_size), float32 — packed (c, h)
+                                   # This is LIFETIME STATE, not genome.
 
     # PPO rollout buffer — reset at birth, filled over N=1024 steps
     rollout:        RolloutBuffer
@@ -200,19 +209,30 @@ obs_dim: 205   # CONFIRMED: 128 + 72 + 2 + 1 + 1 + 1
 ### Extension: Social Observation (`social_obs: position_heading_velocity`)
 
 Appended after the baseline block. Baseline indices do not change.
+Implemented in Session 9 (Axis 2).
 
 ```
-Index       Field                       Notes
-─────────────────────────────────────────────────────────────
-205         conspecific_1_heading       radians [-π, π], 0-padded if fewer
-206         conspecific_1_speed         ‖v‖, 0-padded if fewer
-207         conspecific_2_heading
-208         conspecific_2_speed
-...         up to N_max_neighbors pairs, zero-padded
-─────────────────────────────────────────────────────────────
+Index   Field                    Shape  Range       Notes
+──────────────────────────────────────────────────────────────────────
+205     conspecific_1_heading    (1,)   [-π, π]     Closest conspecific, 0 if <1 visible
+206     conspecific_1_speed      (1,)   [0, ~10]    ‖v‖ of closest conspecific
+207     conspecific_2_heading    (1,)   [-π, π]     2nd closest
+208     conspecific_2_speed      (1,)   [0, ~10]
+209     conspecific_3_heading    (1,)   [-π, π]     3rd closest
+210     conspecific_3_speed      (1,)   [0, ~10]
+211     conspecific_4_heading    (1,)   [-π, π]     4th closest
+212     conspecific_4_speed      (1,)   [0, ~10]
+213     conspecific_5_heading    (1,)   [-π, π]     5th closest
+214     conspecific_5_speed      (1,)   [0, ~10]
+──────────────────────────────────────────────────────────────────────
+obs_dim = 215  (205 + 5 × 2)
 ```
 
-**This extension is NOT built in Phase 0.** The baseline layout is designed so extensions only append — never insert into existing indices.
+**Visibility:** conspecific must be within `proximity_max_range` (200 units) Euclidean distance.
+**Sorting:** closest first (ascending Euclidean distance from observer center to center).
+**Padding:** zeros for missing neighbors (fewer than `n_social_neighbors` conspecifics visible).
+**Config:** `social_obs: "position_heading_velocity"`, `n_social_neighbors: 5`, `obs_dim: 215`.
+**Conspecific:** same species only (prey sees prey, predator sees predator).
 
 ---
 
@@ -636,9 +656,17 @@ CONFIG_SCHEMA = {
     "experiment_name":           str,
     "policy_mode":               Literal["independent", "shared"],
     "lifecycle_mode":            Literal["continuous", "generational"],
-    "reward_type":               Literal["linear", "mlp"],
+    "reward_type":               Literal["linear", "mlp", "temporal"],
     "social_obs":                Literal["position_only", "position_heading_velocity"],
     "policy_type":               Literal["mlp", "lstm"],
+    # Temporal reward (Axis 3) — only used when reward_type == "temporal"
+    "reward_context_window":     int,      # 10 — rolling window of stimulus vectors
+    "temporal_hidden_size":      int,      # 16 — hidden units per layer
+    "temporal_mutation_scale":   float,    # 0.005 — Student's t scale
+    "temporal_weight_clip":      float,    # 5.0 — clip temporal genome ±5
+    # LSTM policy (Axis 4) — only used when policy_type == "lstm"
+    "lstm_hidden_size":          int,      # 64 — LSTM cell hidden dimension
+    "lstm_chunk_length":         int,      # 128 — truncated BPTT chunk size
     "coevolution_mode":          Literal["concurrent", "alternating"],
     # World
     "world_size":                int,      # 960

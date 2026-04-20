@@ -193,7 +193,7 @@ Every parameter from `baseline_faithful.yaml` in a searchable, filterable table:
 
 | Parameter | Value | Paper Source | Code Source | Notes |
 |-----------|-------|-------------|-------------|-------|
-| `prey_c_b` | 1.0e-4 | Table 2: 2.5e-3 | `20251122-predator-square.toml:24` | **Code differs from paper (25x)** |
+| `prey_c_b` | 1.0e-4 | Table 2: 2.5e-6 (labels c_a/c_b swapped in paper) | `20251122-predator-square.toml:24` | **Paper Table 2 has labels swapped; magnitudes match code** |
 | ... | ... | ... | ... | ... |
 
 Grouped by category (World, Population, Sensors, Energy, etc.). Rows where code and paper disagree are highlighted. Filter to show only discrepancies.
