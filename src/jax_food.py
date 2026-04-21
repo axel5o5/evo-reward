@@ -49,6 +49,11 @@ def check_eating_jax(sim_state, config, contact_mat):
         pred_n_catches: (max_agents,) int32 — number of prey caught per predator
         food_eaten_mask: (food_max,) bool — which food items were eaten
         new_predator_eat_timer: (max_agents,) int32 — updated cooldown state
+        prey_caught_mask: (max_agents,) bool — prey slots that were caught this step
+            (caller must deactivate these; see D20 in docs/emevo-diff.md). Without
+            this the predator gets the energy bonus but the prey keeps existing
+            and can be re-caught every cooldown, which lets predators eat for
+            free forever.
     """
     max_catches = 5  # max prey a single predator can catch per step (per eat event)
 
@@ -203,7 +208,7 @@ def check_eating_jax(sim_state, config, contact_mat):
     )
 
     return (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
-            new_predator_eat_timer)
+            new_predator_eat_timer, prey_caught_mask)
 
 
 def remove_eaten_food_jax(sim_state, food_eaten_mask):

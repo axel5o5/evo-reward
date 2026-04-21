@@ -94,6 +94,47 @@ def test_predator_mean_energy_below_saturation_at_5k(small_config):
 
 
 @pytest.mark.slow
+def test_caught_prey_actually_die(small_config):
+    """D20 regression: catches must reduce prey count.
+
+    Pre-D20, check_eating_jax produced pred_catch_slots but nothing used
+    them to deactivate the prey. Predators collected +eta*prey_energy
+    forever and the prey population stayed pinned at cap. The symptom in
+    replays was 0 deaths across 10K frames with predator energy saturated.
+
+    We look for either (a) total deaths > 0 in 5K steps or (b)
+    next_agent_id moved past initial (prey dying frees slots for
+    successful births). Either is a proxy that agents are cycling."""
+    final = _run(small_config, n_steps=5000, seed=31)
+    n_initial = small_config["prey_initial"] + small_config["predator_initial"]
+    cycled = int(final.next_agent_id) > n_initial
+    assert cycled, (
+        f"No population turnover in 5K steps: next_agent_id="
+        f"{int(final.next_agent_id)} == initial count; looks like "
+        f"caught prey aren't dying (D20 regression)."
+    )
+
+
+@pytest.mark.slow
+def test_predator_energy_not_saturated_at_5k(small_config):
+    """D20 regression: if predators are eating for free (caught prey
+    stay alive and keep being re-caught), their mean energy saturates
+    near `energy_capacity`. Faithful semantics should keep them
+    metabolically balanced — well below the cap on average."""
+    final = _run(small_config, n_steps=5000, seed=32)
+    cap = small_config["energy_capacity"]
+    pred_mask = (final.species == 1) & final.is_active
+    if int(jnp.sum(pred_mask)) == 0:
+        pytest.skip("All predators died — energy test not meaningful")
+    mean_e = float(jnp.mean(final.energies[pred_mask]))
+    assert mean_e < cap * 0.9, (
+        f"Predator mean energy {mean_e:.1f} is saturated (cap*0.9={cap*0.9:.1f}); "
+        f"possible D20 regression (caught prey not deactivated, predators eating "
+        f"the same prey every cooldown)."
+    )
+
+
+@pytest.mark.slow
 def test_reward_weights_measurable_at_5k(small_config):
     """Weights should be finite and not identically equal to the
     initial values across active agents. Stationary weights for

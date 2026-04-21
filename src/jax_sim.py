@@ -162,9 +162,33 @@ def build_sim_step(config, space):
 
         # === 5. Check eating ===
         (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
-         new_predator_eat_timer) = check_eating_jax(sim_state, config, contact_mat)
+         new_predator_eat_timer, prey_caught_mask) = check_eating_jax(
+             sim_state, config, contact_mat
+         )
         sim_state = remove_eaten_food_jax(sim_state, food_eaten_mask)
         sim_state = sim_state.replace(predator_eat_timer=new_predator_eat_timer)
+
+        # D20: deactivate caught prey same-step. Without this the predator
+        # harvests +eta*E but the prey keeps existing and the cooldown lets
+        # the same pair pairwise-feed the predator forever — see docs/emevo-diff.md.
+        circle = sim_state.phyjax_stated.get("circle")
+        new_phys_active = circle.is_active & ~prey_caught_mask
+        new_vel_xy = jnp.where(prey_caught_mask[:, None], 0.0, circle.v.xy)
+        new_vel_ang = jnp.where(prey_caught_mask, 0.0, circle.v.angle)
+        circle = circle.replace(
+            v=pj.Velocity(angle=new_vel_ang, xy=new_vel_xy),
+            is_active=new_phys_active,
+        )
+        sim_state = sim_state.replace(
+            is_active=sim_state.is_active & ~prey_caught_mask,
+            phyjax_stated=sim_state.phyjax_stated.replace(circle=circle),
+            # Drain caught prey energy so any downstream metric / reward tied
+            # to their energy state doesn't pollute stats on the final step.
+            energies=jnp.where(prey_caught_mask, 0.0, sim_state.energies),
+            # Reset rollout ptr to 0 so the freed slot's buffer can fill cleanly
+            # when a future birth reuses it.
+            rollout_ptrs=jnp.where(prey_caught_mask, 0, sim_state.rollout_ptrs),
+        )
 
         # === 6. Compute rewards (vectorized) ===
         prox_all = all_obs[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)

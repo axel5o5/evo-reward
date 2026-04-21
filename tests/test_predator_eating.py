@@ -178,7 +178,7 @@ def _synthetic_contact_mat(state):
 
 def _catch_count(state, config):
     """Run check_eating_jax and return the total predator catches this step."""
-    _, _, pred_n_catches, _, _ = check_eating_jax(
+    _, _, pred_n_catches, _, _, _ = check_eating_jax(
         state, config, _synthetic_contact_mat(state)
     )
     return int(jnp.sum(pred_n_catches))
@@ -233,7 +233,7 @@ class TestCooldown:
         ])
         pred_slot = slots[0]
         assert int(state.predator_eat_timer[pred_slot]) == 0  # ready to eat
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+        _, _, pred_n_catches, _, new_timer, _ = check_eating_jax(
             state, config, _synthetic_contact_mat(state)
         )
         assert int(pred_n_catches[pred_slot]) == 1
@@ -251,7 +251,7 @@ class TestCooldown:
         state = state.replace(
             predator_eat_timer=state.predator_eat_timer.at[pred_slot].set(5)
         )
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+        _, _, pred_n_catches, _, new_timer, _ = check_eating_jax(
             state, config, _synthetic_contact_mat(state)
         )
         assert int(pred_n_catches[pred_slot]) == 0
@@ -270,7 +270,7 @@ class TestCooldown:
         state = state.replace(
             predator_eat_timer=state.predator_eat_timer.at[pred_slot].set(-1)
         )
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+        _, _, pred_n_catches, _, new_timer, _ = check_eating_jax(
             state, config, _synthetic_contact_mat(state)
         )
         assert int(pred_n_catches[pred_slot]) == 1
@@ -290,7 +290,7 @@ class TestIndependentTimers:
             (1, 700.0, 700.0, 0.0),   # predator B, no prey near
         ])
         pred_a, pred_b = slots[0], slots[2]
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+        _, _, pred_n_catches, _, new_timer, _ = check_eating_jax(
             state, config, _synthetic_contact_mat(state)
         )
         # A caught, timer reset to 10

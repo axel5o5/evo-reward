@@ -217,7 +217,7 @@ def main():
     mean, std = time_phase(phase_eating, (sim_state_post_phys, contacts), args.iter)
     phase_times.append(("eating (O(N^2) catch)", mean, std))
 
-    prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask, _ = phase_eating(sim_state_post_phys, contacts)
+    prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask, _, _ = phase_eating(sim_state_post_phys, contacts)
 
     # Phase: energy + births/deaths + food regen
     mean, std = time_phase(
