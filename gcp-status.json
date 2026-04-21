@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-21T14:03:37+00:00",
+  "updated_at": "2026-04-21T14:49:19+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,27 +9,27 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-20T11:58:12.769-07:00",
     "last_started_at": "2026-04-21T06:59:57.209-07:00",
-    "runtime_hours_current": 0.0606,
+    "runtime_hours_current": 0.8222,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 0.0515,
+    "estimated_current_run_usd": 0.6989,
     "labels": {
-      "phase": "1a",
       "experiment": "baseline_faithful",
+      "phase": "1a",
       "seed": "0"
     }
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 91,
-    "latest_step": 1670000,
-    "latest_age_hours": 0.148,
-    "total_gb": 19.6028
+    "count": 97,
+    "latest_step": 1730000,
+    "latest_age_hours": 0.042,
+    "total_gb": 20.6681
   },
   "costs": {
-    "compute_current_run": 0.0515,
-    "nat_since_active": 2.81,
-    "storage_current": 0.2652,
-    "live_estimate_total": 3.13,
+    "compute_current_run": 0.6989,
+    "nat_since_active": 2.84,
+    "storage_current": 0.28,
+    "live_estimate_total": 3.82,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -37,34 +37,34 @@
   "training": {
     "experiment_name": "baseline_faithful",
     "seed": 0,
-    "step": 1675000,
+    "step": 1735000,
     "total_steps": 10240000,
-    "progress_frac": 0.16357,
-    "sps": 25.223,
-    "eta_hours": 94.32,
+    "progress_frac": 0.16943,
+    "sps": 25.179,
+    "eta_hours": 93.83,
     "population": {
       "prey": 450,
       "pred": 50,
-      "food": 600,
-      "mean_energy": 560.5084838867188
+      "food": 598,
+      "mean_energy": 570.4605102539062
     },
     "reward_weights": {
       "prey": {
         "eat": [
-          0.08768351376056671,
-          0.8695052266120911
+          0.08690577745437622,
+          0.8696807622909546
         ],
         "act": [
-          0.07321631908416748,
-          1.1401408910751343
+          0.07227549701929092,
+          1.140540361404419
         ],
         "prey": [
-          0.03525392338633537,
-          0.7768601775169373
+          0.03451765328645706,
+          0.7768719792366028
         ],
         "pred": [
-          0.06979075074195862,
-          0.8822321891784668
+          0.06969254463911057,
+          0.8822565674781799
         ]
       },
       "pred": {
