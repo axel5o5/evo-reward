@@ -155,6 +155,24 @@ action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
 # in configs/runtime/*.yaml — those values do not affect the experiment
 # result, only save/log frequency.
 
+# ─── Replay Recording ────────────────────────────────────────────────────────
+# Captures short trajectory windows during training and uploads them to a
+# public GCS bucket so the dashboard's /replay page can play them back.
+# Cost: a host↔device sync each tick inside the capture window — outside the
+# window recording is free. All fields hot-reloaded on resume.
+#
+# Disable entirely by setting replay_record_interval_steps to 0 (or removing
+# these fields). Leave the bucket empty string to keep replays local only.
+replay_record_interval_steps: 5_000     # flush a replay this often (tight cadence for initial demo; bump to 100_000 for long runs)
+replay_record_length_steps:   500       # frames per replay (~2 MB quantized at this length)
+replay_quantize:              true      # uint16 pos + uint8 energy (~3× smaller)
+replay_bucket:                "evo-reward-replays-public"   # "" → local only
+replay_retention_policy:      "milestones"   # last_n | milestones | logarithmic
+replay_retention_config:
+  keep_last_n: 20                       # last 20 at 5k cadence ≈ 40 MB total
+  keep_at_steps: [0, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000]
+  tolerance:   5_000                    # how close a replay's start_step must be to a pinned step
+
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 # Run separately per seed. K&D used 5 seeds for the main results.
 # Phase 1a: start with seeds 0 and 1; add more after qualitative validation.

@@ -512,6 +512,62 @@
       "inline_comment": "CONFIRMED: sigmoid_scale, not hard clip"
     },
     {
+      "key": "replay_record_interval_steps",
+      "value": 5000,
+      "section": "Replay Recording",
+      "comment": "Captures short trajectory windows during training and uploads them to a public GCS bucket so the dashboard's /replay page can play them back. Cost: a host\u2194device sync each tick inside the capture window \u2014 outside the window recording is free. All fields hot-reloaded on resume. Disable entirely by setting replay_record_interval_steps to 0 (or removing these fields). Leave the bucket empty string to keep replays local only.",
+      "inline_comment": "flush a replay this often (tight cadence for initial demo; bump to 100_000 for long runs)"
+    },
+    {
+      "key": "replay_record_length_steps",
+      "value": 500,
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "frames per replay (~2 MB quantized at this length)"
+    },
+    {
+      "key": "replay_quantize",
+      "value": true,
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "uint16 pos + uint8 energy (~3\u00d7 smaller)"
+    },
+    {
+      "key": "replay_bucket",
+      "value": "evo-reward-replays-public",
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "\"\" \u2192 local only"
+    },
+    {
+      "key": "replay_retention_policy",
+      "value": "milestones",
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "last_n | milestones | logarithmic"
+    },
+    {
+      "key": "keep_last_n",
+      "value": null,
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "last 20 at 5k cadence \u2248 40 MB total"
+    },
+    {
+      "key": "keep_at_steps",
+      "value": null,
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": ""
+    },
+    {
+      "key": "tolerance",
+      "value": null,
+      "section": "Replay Recording",
+      "comment": "",
+      "inline_comment": "how close a replay's start_step must be to a pinned step"
+    },
+    {
       "key": "seed",
       "value": 0,
       "section": "Reproducibility",

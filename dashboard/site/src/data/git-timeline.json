@@ -442,6 +442,15 @@
       "session": null
     },
     {
+      "hash": "2f28b855",
+      "message": "[Docs] Clarify mutation distribution description in technical spec",
+      "body": "Replace imprecise \"Cauchy-like\" with accurate characterization:\nt(df=2) is heavier-tailed than Gaussian but lighter than Cauchy (t(df=1)).\n\nhttps://claude.ai/code/session_01CfqePfbPWBHtKqgyuvvg6M",
+      "date": "2026-04-18 21:36:21 +0000",
+      "author": "Claude",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "c61668df",
       "message": "[Docs] Add GCP VM setup runbook for Phase 1a",
       "body": "End-to-end runbook for provisioning a g2-standard-8 + L4 VM on GCP and\nrunning the K&D baseline replication. Captures the gotchas hit during\nfirst provisioning: per-project gcloud configs, all-regions GPU quota\nrequest, zone stockout fallback, Cloud NAT + IAP path for projects\nthat forbid external IPs on VMs, minimal DL image needing apt+venv\nsetup, and tar+scp for private-repo upload.",
@@ -752,6 +761,195 @@
       "message": "[Docs] TODO: git-clone repo on VMs so git pull works",
       "body": "Captures the deploy-key auth approach, scoped change list across\nspot_orchestrator.py and vm_startup.sh, migration path (just let the\ncurrent VM finish \u2014 next VM gets the new flow), and acceptance criteria.\n\nDeferred from 2026-04-20 because Phase 1a is mid-run. Not blocking.",
       "date": "2026-04-20 16:30:49 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "76c2d9e4",
+      "message": "[Dashboard] GCP monitor + PIN-gated control plane on /gcp page",
+      "body": "Read path: scripts/gcp_monitor.py polls Compute + Storage every 10 min\nvia .github/workflows/gcp-monitor.yml and publishes gcp-status.json to\nan orphan gcp-status branch (no Vercel rebuild). GcpMonitor.tsx fetches\nvia VITE_GCP_STATUS_URL, renders VM / Checkpoints / Costs cards, polls\nevery 30s.\n\nWrite path: api/action.ts (Vercel) PIN-gates workflow_dispatch to\n.github/workflows/gcp-action.yml, which auths via WIF and runs gcloud\nstop/start/restart/delete. ControlPanel component adds PIN field +\nbuttons with destructive-confirm for Delete.\n\nCost model: compute runtime x hourly rate + NAT 24/7 since configured\ntimestamp + pro-rata GCS storage. Optional BigQuery billing reconciliation.\n\nscripts/gcloud-env.sh now also pins GOOGLE_APPLICATION_CREDENTIALS so\nPython google-cloud libs don't bleed between parallel gcloud projects.\n\nEnd-to-end runbook: dashboard/ops/GCP_MONITOR.md.\n\nDeferred: spot<->on-demand switch (needs orchestrator refactor to read\na runtime flag instead of a CLI arg); force-sync and tail-log (need\nSSH-through-IAP in workflow).",
+      "date": "2026-04-20 17:55:33 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "24a91839",
+      "message": "Merge pull request #1 from axel5o5/dev/extensions",
+      "body": null,
+      "date": "2026-04-20 17:56:30 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d09f1029",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 21:57:17 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5c280fb8",
+      "message": "[Dashboard] Proxy gcp-status.json through Vercel for private repo",
+      "body": "raw.githubusercontent.com returns 404 for private repos without auth.\nSince evo-reward is private, the site can't fetch gcp-status.json\ndirectly. Add api/status.ts that reads the raw file with the same\nGH_DISPATCH_TOKEN used by api/action.ts (needs Contents: Read added\nto the PAT's scopes) and passes it through.\n\nGcpMonitor.tsx now defaults to /api/status when VITE_GCP_STATUS_URL\nis unset. Local dev still works by setting VITE_GCP_STATUS_URL to a\npublic/ file. Fallback logic uses the setState updater form to avoid\nclobbering a real fetch after a transient network blip.\n\nShort edge-cache on the proxy (s-maxage=20) so many clients share a\nsingle GitHub fetch, reducing rate-limit pressure on the PAT.",
+      "date": "2026-04-20 18:08:38 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "60e0813a",
+      "message": "Merge pull request #2 from axel5o5/dev/extensions",
+      "body": "[Dashboard] Proxy gcp-status.json through Vercel for private repo",
+      "date": "2026-04-20 18:09:29 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "16343c8b",
+      "message": "[Infra] Fix gcp-monitor workflow branch-switch collision",
+      "body": "Two bugs surfaced on the first post-main-merge monitor runs:\n\n1. After the first run created the gcp-status branch, every subsequent\n   run failed at `git checkout -B gcp-status origin/gcp-status` because\n   the freshly-written gcp-status.json (untracked, in the workspace)\n   would clobber the tracked file on the target branch. Git refuses.\n   Write to $RUNNER_TEMP and copy in after the branch switch.\n\n2. GCP_MONITOR.md step 1 didn't include iamcredentials.googleapis.com\n   in the API enable list. WIF needs it to mint impersonated tokens;\n   without it every monitor run fails with SERVICE_DISABLED and the\n   dashboard shows a yellow partial-data banner.",
+      "date": "2026-04-20 18:21:30 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "80e75ae2",
+      "message": "Merge pull request #3 from axel5o5/dev/extensions",
+      "body": "[Infra] Fix gcp-monitor workflow branch-switch collision",
+      "date": "2026-04-20 18:22:46 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "013d9111",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 22:24:06 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1e104495",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 22:25:22 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "70145f9e",
+      "message": "[Dashboard] Run identity + training progress on /gcp page",
+      "body": "Adds:\n- spot_orchestrator.py sets VM labels on creation (experiment from\n  config.experiment_name, phase from new --phase flag, seed from --seed).\n  Labels show up on the VM card as run identity with a GitHub link to\n  the config file.\n- run_experiment_jax.py writes progress.json at every log interval to\n  results/<exp>/seed_<N>/progress.json. Atomic replace so the gcs-sync\n  sidecar never catches a half-written file.\n- gcp_monitor.py gains probe_training(): looks up the current VM's\n  progress.json by its experiment+seed labels (falls back to the freshest\n  progress.json in the bucket if labels absent). Payload now carries a\n  `training` field with step / sps / ETA / population / full 8-weight\n  reward state plus an evolution-detected flag (max|mean| > 2x init std).\n- GcpMonitor.tsx: VMCard shows run identity + config link, new\n  TrainingCard mirrors status.py's colored weight lines with a progress\n  bar. Empty state tells user to wait for first progress.json.\n\nAlso:\n- status.py: move command-string concatenation out of the f-string\n  expression so Python 3.11 (PEP 701 only from 3.12) can parse. This\n  broke after switching to the evo-reward conda env.\n\nThe currently-running VM won't populate the training card until the\nrunner is updated on it (either via orchestrator restart or manual SSH\n+ tmux restart). New runs get it automatically.",
+      "date": "2026-04-20 18:44:02 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ddc797e8",
+      "message": "Merge pull request #4 from axel5o5/dev/extensions",
+      "body": "[Dashboard] Run identity + training progress on /gcp page",
+      "date": "2026-04-20 18:44:47 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5de8a0c4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 22:45:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "89eecf0d",
+      "message": "[Docs] Collaborator access guide for GCP viewer/IAP/bucket reader",
+      "body": "Short reference for a partner who has been granted:\n- roles/viewer\n- roles/iap.tunnelResourceAccessor\n- roles/compute.osLogin\n- roles/storage.objectViewer\n\nCovers gcloud setup, VM inspection, IAP SSH, downloading checkpoints +\nprogress.json, local use of status.py, and what IAM blocks (start/stop,\nwrite to bucket) with pointers back to the dashboard for those.",
+      "date": "2026-04-20 18:55:50 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "274b7c16",
+      "message": "Merge pull request #5 from axel5o5/docs/partner-access",
+      "body": "[Docs] Collaborator access guide + tech-spec mutation-distribution fix",
+      "date": "2026-04-20 18:57:14 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4cb308ee",
+      "message": "[Dashboard] Fix stale data: switch status proxy to Contents API",
+      "body": "Symptom: dashboard showed /api/status data up to ~5 min behind the\ngcp-status branch even though the branch was current. Root cause:\nraw.githubusercontent.com is Fastly-cached per-POP. Vercel's iad1\nregion's POP cached the previous version for ~5 min, while direct\nbrowser fetches landed on a different POP and saw the new content.\n\nFix: switch to the Contents API (api.github.com) with the \"raw\"\nmedia type. Not Fastly-cached \u2014 served directly. Also add\ncache: \"no-store\" on the fetch and trim the Vercel edge cache\nfrom 20s to 10s so fresh publishes land faster.",
+      "date": "2026-04-20 19:06:58 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1153886f",
+      "message": "Merge pull request #6 from axel5o5/fix/status-proxy-uncached",
+      "body": "[Dashboard] Fix stale /api/status: use Contents API instead of raw.*",
+      "date": "2026-04-20 19:07:24 -0400",
+      "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1a99432a",
+      "message": "[Dashboard+Docs] Align K&D expectations with paper \u00a74.2 medium-mouth bimodality",
+      "body": "Reading docs/papers/sources/kd-2025/main.tex \u00a74.2 (default condition =\nmedium mouth + \u0394n=0.5) revealed our success criteria + dashboard\ncoloring over-simplify the paper's actual findings.\n\nDocs (technical-spec \u00a714):\n- Split criteria into Core / Predator-side / Environmental, matching the\n  paper's structure.\n- Criterion 1 (prey w_pred) now explicitly notes the bimodality K&D\n  describe: seeds 2 & 4 (\"P2 lineage\") evolve counter-intuitively\n  positive w_pred, expected to correlate with strongly positive w_prey.\n  Our 3/5 threshold still works; just documenting the \"why.\"\n- Criterion 3 split into 3 (prey w_eat universal >0) and 4 (prey w_act\n  consistently >0, which the old spec didn't mention at all).\n- Added criterion 5 (predator w_eat >0 in 3/5 medium mouth \u2014 noting the\n  paper's mouth-size sensitivity per \u00a74.3).\n- Added criterion 6 (predator w_pred \"almost positively\" \u2014 the social\n  following finding we weren't gating on).\n- Added criterion 7 (predator w_prey >0 most seeds, with the coupling\n  to prey w_pred K&D describe).\n- Added criterion 9 (steady-state population near K&D Table 1 defaults\n  ~349 prey / ~23 pred \u2014 catches cap-pinning bugs).\n- Noted predator w_act is explicitly bimodal; don't gate on sign.\n\nDashboard (GcpMonitor.tsx TrainingCard):\n- prey.w_pred color-coding changed from wantSign=\"-\" to null because\n  K&D expect bimodal, not unilaterally negative. Note now explains\n  both outcomes.\n- prey.w_act now wantSign=\"+\" (it should be positive, was shown as\n  informational-only).\n- pred.w_eat note softened to \"medium mouth\" so the color expectation\n  is scoped; wantSign=\"+\" retained for our condition.\n- pred.w_prey note mentions the coupling to prey.w_pred.\n- Added an amber \"at cap\" callout when population hits prey_cap=450\n  or predator_cap=50, pointing at K&D steady-state for comparison.\n  Silent when numbers are below caps.\n\nNo code-logic changes; purely documentation + UI copy.",
+      "date": "2026-04-20 19:14:01 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "74481196",
+      "message": "[Dashboard] Custom Tooltip component + rich K&D context on every card",
+      "body": "Adds a Tooltip component (pure Tailwind, no deps, hover+keyboard-focus)\nand wires rich explanations into every non-obvious row on /gcp:\n\nVM card:\n- Runtime / Hourly rate / Current run cost \u2014 what resets at Stop/Start\n  and where the pricing comes from.\n- Run \u2014 how labels are set (experiment/phase/seed from spot_orchestrator).\n\nCheckpoints card:\n- Count / Latest step / Last saved / Bucket size \u2014 cadence, retention,\n  expected freshness per runtime config.\n\nCosts card:\n- Live estimate (now) \u2014 formula breakdown.\n- Each line below it \u2014 what resets when, the $0.044/hr NAT fact, why\n  billing-actual lags, etc.\n\nTraining card:\n- Rate row \u2014 sps definition, ETA caveat, A100-vs-L4 perf note.\n- Population row \u2014 K&D Table 1 steady-state baselines.\n- \"at cap\" callout \u2014 upgraded from browser tooltip to Tooltip component\n  with threshold context (still amber, fades in).\n- Evolution detected badge \u2014 explains the max|mean|>0.2 threshold and\n  what it does and doesn't imply.\n- All 8 weight labels \u2014 per-weight K&D paper quote (\u00a74.2 / \u00a74.3) on\n  expected sign distribution, bimodality where applicable, and what the\n  stimulus is. Bullets the P1 vs P2 lineage story on prey.w_pred.\n\nTooltip itself:\n- Fixed width (w-64 default) so line wrapping is predictable.\n- side=\"top\" default, \"bottom\" for cards where top would clip.\n- `plain` prop skips the dotted-underline affordance (for pills like\n  the evolution-detected badge).\n- Keyboard-focusable with visible focus ring. Hover and keyboard-focus\n  both reveal. Pointer-events-none on the popover so it doesn't trap\n  cursor.\n\nRow component gains an optional `tip` prop alongside `title` \u2014 use `tip`\nfor rich ReactNode content via Tooltip, `title` for simple browser\ntooltips (a few existing callers unchanged).",
+      "date": "2026-04-20 19:20:28 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "687ba880",
+      "message": "[Dashboard] Remove Card overflow-hidden so tooltips can escape the border",
+      "body": "Tooltips positioned above rows near the top of a card were being\nclipped by the Card's outer overflow-hidden \u2014 not a z-index problem,\nwhich only affects stacking order, but an overflow-container problem\nthat clips any descendant visually exceeding the bounds.\n\nThe overflow-hidden wasn't earning its keep: no child has a background\nthat would bleed past the rounded corners (only the outer div has a\nbackground; header/body/footer are padding + border separators).\n\nRemoving it lets Tooltip's absolute-positioned popover render freely\noutside the card. z-30 still stacks it above sibling cards correctly.\n\nProgress bar keeps its own overflow-hidden \u2014 needed to clip the fill\nto its rounded container.",
+      "date": "2026-04-20 20:18:16 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cf15cd82",
+      "message": "redesign GCP Montiro page",
+      "body": null,
+      "date": "2026-04-20 21:57:27 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "57207681",
+      "message": "[Replay] Scrubbable 2D canvas replays + GCS pipeline",
+      "body": "New /replay page in the dashboard plays back per-step predator/prey\ntrajectories on a Canvas 2D renderer. Source is pluggable via\nVITE_REPLAYS_BASE_URL: same-origin /replays/ for committed files, or a\npublic GCS bucket for hands-off production use \u2014 no dashboard backend.\n\nPipeline:\n  scripts/replay_recorder.py  \u2014 in-line ring buffer hooks into the\n    training loop, captures only inside the window leading up to each\n    flush boundary (zero cost outside). Quantizes positions to uint16\n    (~0.015-unit precision in a 960-unit world) and energy to uint8,\n    shrinking files ~3x.\n  scripts/replay_upload.py    \u2014 upload, list, delete, index rebuild on\n    gs://evo-reward-replays-public/.\n  scripts/replay_retention.py \u2014 three retention policies (last_n,\n    milestones, logarithmic) with a pluggable registry. Applied after\n    each upload; evicted replays are deleted from GCS.\n  scripts/replay.py           \u2014 CLI: list, fetch, render, all, clean,\n    list-remote, prune (with --dry-run), delete.\n  scripts/replay_render.py    \u2014 simulated re-sim from a saved checkpoint\n    for watching runs that predate the in-line recorder.\n  scripts/setup_replays_bucket.sh \u2014 one-time gcloud commands to create\n    the public-read + CORS-enabled bucket.\n\nscripts/run_experiment_jax.py calls recorder.step(state, step+1) each\ntick; boundary check uses the Python loop variable so recording adds\nzero host sync outside the window.\n\nThe React loader (replayLoader.ts) eagerly dequantizes uint16/uint8\nsections into Float32Array so the canvas renderer stays dtype-agnostic;\nfalls back to zero-copy views for legacy float32 replays.",
+      "date": "2026-04-20 23:37:36 -0400",
       "author": "Axel Browne",
       "phase": null,
       "session": null
