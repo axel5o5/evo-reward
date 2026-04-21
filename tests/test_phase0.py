@@ -55,19 +55,19 @@ def config():
         "predator_d_b": 4.0e-3,
         "predator_d_a": 5.0e-5,
         "predator_eta": 0.6,
-        "predator_mouth_deg": 60.0,
-        "predator_mouth_range_min": 40.0,
-        "predator_mouth_range_max": 80.0,
+        "predator_mouth_tactile_bins": [0, 1, 17],
+        "predator_eat_interval": 10,
+
         "kappa_h": 0.01,
         "alpha_e": 0.02,
         "beta_h": 0.2,
         "alpha_t_prey": 4.0e-7,
         "alpha_t_pred": 2.0e-7,
-        "beta_t_prey": 2.0e-6,
+        "beta_t_prey": 4.0e-6,
         "beta_t_pred": 4.0e-6,
         "kappa_b": 1.0e-3,
-        "beta_b": 0.1,
-        "zeta_b_prey": 10.0,
+        "beta_b": 0.4,
+        "zeta_b_prey": 15.0,
         "zeta_b_pred": 100.0,
         "energy_share_ratio": 0.4,
         "spawn_spread": 100.0,
@@ -312,19 +312,19 @@ class TestBirthProbability:
         from src.lifecycle import birth_prob
 
         # Prey at e=100: b = κ_b / (1 + exp(ζ - β_b*e))
-        # = 1e-3 / (1 + exp(10 - 0.1*100)) = 1e-3 / (1 + exp(0)) = 1e-3 / 2 = 5e-4
+        # = 1e-3 / (1 + exp(15 - 0.4*100)) = 1e-3 / (1 + exp(-25)) ≈ 1e-3
         b100 = birth_prob(100.0, species=0, config=config)
-        expected = 1e-3 / (1 + math.exp(10 - 0.1 * 100))
+        expected = config["kappa_b"] / (1 + math.exp(config["zeta_b_prey"] - config["beta_b"] * 100))
         assert abs(b100 - expected) < 1e-8, f"b(100) = {b100}, expected {expected}"
 
-        # Prey at e=200: b = 1e-3 / (1 + exp(10 - 20)) = 1e-3 / (1 + exp(-10))
+        # Prey at e=200 still ≈ κ_b (sigmoid saturated further toward max)
         b200 = birth_prob(200.0, species=0, config=config)
-        expected200 = 1e-3 / (1 + math.exp(10 - 0.1 * 200))
+        expected200 = config["kappa_b"] / (1 + math.exp(config["zeta_b_prey"] - config["beta_b"] * 200))
         assert abs(b200 - expected200) < 1e-8, f"b(200) = {b200}, expected {expected200}"
 
-        # Predator at e=100: b = 1e-3 / (1 + exp(100 - 10)) ≈ 0 (very low)
+        # Predator at e=100: exponent = 100 - 0.4*100 = 60, b ≈ 0
         b_pred = birth_prob(100.0, species=1, config=config)
-        assert b_pred < 1e-30, f"Predator b(100) should be ~0, got {b_pred}"
+        assert b_pred < 1e-20, f"Predator b(100) should be ~0, got {b_pred}"
 
 
 # ─── Offspring Fresh Policy ──────────────────────────────────────────────────

@@ -64,7 +64,7 @@ REQUIRED_CONFIG_KEYS = {
     "food_max", "food_initial", "food_growth_rate", "food_max_regen_per_step",
     "energy_capacity", "prey_e_food", "prey_c_b", "prey_c_a",
     "predator_d_b", "predator_d_a", "predator_eta",
-    "predator_mouth_deg", "predator_mouth_range_min", "predator_mouth_range_max",
+    "predator_mouth_tactile_bins", "predator_eat_interval",
     "kappa_h", "alpha_e", "beta_h",
     "alpha_t_prey", "alpha_t_pred", "beta_t_prey", "beta_t_pred",
     "kappa_b", "beta_b", "zeta_b_prey", "zeta_b_pred",

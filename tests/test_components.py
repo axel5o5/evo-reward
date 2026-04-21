@@ -46,20 +46,20 @@ def base_config():
         "predator_d_b": 4.0e-3,
         "predator_d_a": 5.0e-5,
         "predator_eta": 0.6,
-        "predator_mouth_deg": 60.0,
-        "predator_mouth_range_min": 40.0,
-        "predator_mouth_range_max": 80.0,
+        "predator_mouth_tactile_bins": [0, 1, 17],
+        "predator_eat_interval": 10,
+
         "energy_capacity": 1000.0,
         "kappa_h": 0.01,
         "alpha_e": 0.02,
         "beta_h": 0.2,
         "alpha_t_prey": 4.0e-7,
         "alpha_t_pred": 2.0e-7,
-        "beta_t_prey": 2.0e-6,
+        "beta_t_prey": 4.0e-6,
         "beta_t_pred": 4.0e-6,
         "kappa_b": 1.0e-3,
-        "beta_b": 0.1,
-        "zeta_b_prey": 10.0,
+        "beta_b": 0.4,
+        "zeta_b_prey": 15.0,
         "zeta_b_pred": 100.0,
         "energy_share_ratio": 0.4,          # CONFIRMED: 0.4 (not 0.5)
         "spawn_spread": 100.0,              # CONFIRMED: neighbor_stddev=100.0
@@ -1379,8 +1379,8 @@ class TestLifecycle:
         """Birth function matches formula at known inputs."""
         from src.lifecycle import birth_prob
         # b(e) = κ_b / (1 + exp(ζ - β_b * e))
-        # prey: κ_b=1e-3, ζ=10, β_b=0.1
-        # at e=100: b = 1e-3 / (1 + exp(10 - 10)) = 1e-3 / 2 = 0.5e-3
+        # prey: κ_b=1e-3, ζ=15, β_b=0.4
+        # at e=100: b = 1e-3 / (1 + exp(15 - 40)) ≈ 1e-3 (sigmoid saturated)
         b = birth_prob(energy=100.0, species=0, config=base_config)
         expected = base_config["kappa_b"] / (1 + np.exp(base_config["zeta_b_prey"] - base_config["beta_b"] * 100.0))
         assert abs(b - expected) < 1e-6, f"Birth prob mismatch: {b} vs {expected}"

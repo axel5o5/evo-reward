@@ -72,6 +72,11 @@ class SimState:
     lstm_hidden: jnp.ndarray         # (max_agents, 2, lstm_hidden_size) packed (c, h)
     rollout_init_hidden: jnp.ndarray # (max_agents, 2, lstm_hidden_size) h_0 for PPO replay
 
+    # --- Predator eating cooldown (K&D eat_interval, see emevo-diff.md D18) ---
+    predator_eat_timer: jnp.ndarray # (max_agents,) int32: counts down; predator can catch
+                                    # only when <= 0. Resets to predator_eat_interval on catch.
+                                    # Applies only to predator slots; prey values unused.
+
     # --- RNG & bookkeeping ---
     rng_key: jnp.ndarray            # PRNGKey
     step: jnp.ndarray               # scalar int32
@@ -231,6 +236,10 @@ def init_simstate(config: dict, rng_key) -> SimState:
         jnp.ones((max_agents, 1)),
     )
 
+    # Predator eat-timer: 0 means "ready to catch". Starts at 0 so initial
+    # predators can catch on step 0 (matches emevo's reset value).
+    predator_eat_timer = jnp.zeros(max_agents, dtype=jnp.int32)
+
     return SimState(
         is_active=is_active,
         species=species_arr,
@@ -260,6 +269,7 @@ def init_simstate(config: dict, rng_key) -> SimState:
         obs_buffer=obs_buffer,
         lstm_hidden=lstm_hidden,
         rollout_init_hidden=rollout_init_hidden,
+        predator_eat_timer=predator_eat_timer,
         rng_key=rng_key,
         step=jnp.int32(0),
         next_agent_id=jnp.int32(n_initial),
@@ -406,6 +416,7 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         obs_buffer=jnp.zeros((max_agents, k, 4)),
         lstm_hidden=jnp.zeros((max_agents, 2, lstm_hidden_size)),
         rollout_init_hidden=jnp.zeros((max_agents, 2, lstm_hidden_size)),
+        predator_eat_timer=jnp.zeros(max_agents, dtype=jnp.int32),
         rng_key=world.rng_key if world.rng_key is not None else jax.random.PRNGKey(0),
         step=jnp.int32(world.step),
         next_agent_id=jnp.int32(max_aid),

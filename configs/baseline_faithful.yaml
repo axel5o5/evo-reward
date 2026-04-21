@@ -82,27 +82,29 @@ predator_d_a:           5.0e-5       # CONFIRMED: predator_force_ec = 5e-5 (matc
 # VERIFIED: config/env/20251122-predator-square.toml:40
 predator_eta:           0.6          # CONFIRMED: predator_digestive_rate = 0.6
 
-# ─── Predator Mouth ──────────────────────────────────────────────────────────
-predator_mouth_deg:         60.0     # medium mouth (Figure 3; K&D also run small/large as separate conditions — we replicate medium only)
-predator_mouth_range_min:   40.0     # (Section 3 / Figure 3)
-predator_mouth_range_max:   80.0     # (Section 3 / Figure 3)
+# ─── Predator Mouth (emevo tactile-bin mechanic; see emevo-diff.md D18) ─────
+# emevo gecco2026: predator_mouth_range = [0, 1, 17]  # 20° × 3 bins = 60° front arc
+# Catch: predator touches prey (dist ≤ sum_radii) AND prey falls in one of
+# these tactile bins. "Radial distance range" [40,80] was our bug; fixed.
+predator_mouth_tactile_bins: [0, 1, 17]   # medium mouth; K&D also run small/large (scope-out)
+predator_eat_interval:       10            # 10-step cooldown between catches
 
 # ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
 # h(t,e) = κ_h * (1 - 1/(1 + α_e·exp(-β_h·e))) * α_t·exp(β_t·t)
-kappa_h:            0.01             # (Table 3)
-alpha_e:            0.02             # (Table 3)
-beta_h:             0.2              # (Table 3)
-alpha_t_prey:       4.0e-7           # (Table 3, prey)
-alpha_t_pred:       2.0e-7           # (Table 3, predator)
-beta_t_prey:        2.0e-6           # (Table 3, prey)
-beta_t_pred:        4.0e-6           # (Table 3, predator)
+kappa_h:            0.01             # emevo: scale = 0.01 (both species)
+alpha_e:            0.02             # emevo: alpha = 0.02 (both species)
+beta_h:             0.2              # emevo: slope = 0.2 (both species)
+alpha_t_prey:       4.0e-7           # emevo 20240916-sel-a4e7-d15: alpha_age = 4e-7
+alpha_t_pred:       2.0e-7           # emevo 20241229-predator-d100: alpha_age = 2e-7
+beta_t_prey:        4.0e-6           # emevo 20240916-sel-a4e7-d15: beta = 4e-6 (was 2e-6: D18 bug)
+beta_t_pred:        4.0e-6           # emevo 20241229-predator-d100: beta = 4e-6
 
 # ─── Birth Function b(e) ─────────────────────────────────────────────────────
 # b(e) = κ_b / (1 + exp(ζ - β_b·e))
-kappa_b:            1.0e-3           # (Table 3)
-beta_b:             0.1              # (Table 3)
-zeta_b_prey:        10.0             # (Table 3, ζ=10 for prey → ~20-30 energy needed)
-zeta_b_pred:        100.0            # (Table 3, ζ=100 for predator → ~240-260 needed)
+kappa_b:            1.0e-3           # emevo: scale = 1e-3 (both species)
+beta_b:             0.4              # emevo: slope = 0.4 (both species; was 0.1: D18 bug)
+zeta_b_prey:        15.0             # emevo 20240916-sel-a4e7-d15: delay = 15 (was 10: D18 bug)
+zeta_b_pred:        100.0            # emevo 20241229-predator-d100: delay = 100
 
 # ─── Offspring ───────────────────────────────────────────────────────────────
 # VERIFIED: config/env/20251122-predator-square.toml:26,10

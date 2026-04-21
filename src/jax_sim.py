@@ -147,10 +147,10 @@ def build_sim_step(config, space):
         )
 
         # === 5. Check eating ===
-        prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask = check_eating_jax(
-            sim_state, config
-        )
+        (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
+         new_predator_eat_timer) = check_eating_jax(sim_state, config)
         sim_state = remove_eaten_food_jax(sim_state, food_eaten_mask)
+        sim_state = sim_state.replace(predator_eat_timer=new_predator_eat_timer)
 
         # === 6. Compute rewards (vectorized) ===
         prox_all = all_obs[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)

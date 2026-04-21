@@ -22,13 +22,26 @@ def _wrap_angle(a):
 def check_eating_jax(sim_state, config):
     """Detect eating events for all agents. Pure JAX, JIT-compatible.
 
+    Predator catching semantics (matches emevo's circle_foraging_with_predator
+    per gecco2026 branch; see docs/emevo-diff.md D18):
+      * **Contact**: predator and prey physically touch — Euclidean distance
+        ≤ sum of radii. No "radial range" — predators catch only prey they
+        can touch, not prey 40-80 units away.
+      * **Mouth**: the prey must fall into one of the tactile bins listed in
+        config['predator_mouth_tactile_bins'] (default [0, 1, 17] = 60°
+        front arc, same bin layout as our tactile sensors in observations.py).
+      * **Cooldown**: each predator has its own eat-timer that decrements
+        per step and resets to config['predator_eat_interval'] on a catch.
+        A predator can only catch when timer <= 0.
+
     Returns:
-        prey_n_eaten: (max_agents,) int32 — food count eaten by each agent (0 for non-prey/inactive)
-        pred_catch_slots: (max_agents, max_catches) int32 — slot indices of caught prey (-1 = empty)
+        prey_n_eaten: (max_agents,) int32 — food count eaten by each agent
+        pred_catch_slots: (max_agents, max_catches) int32 — caught prey slot indices (-1 = empty)
         pred_n_catches: (max_agents,) int32 — number of prey caught per predator
         food_eaten_mask: (food_max,) bool — which food items were eaten
+        new_predator_eat_timer: (max_agents,) int32 — updated cooldown state
     """
-    max_catches = 5  # max prey a single predator can catch per step
+    max_catches = 5  # max prey a single predator can catch per step (per eat event)
 
     # Extract state
     circle = sim_state.phyjax_stated.get("circle")
@@ -39,15 +52,20 @@ def check_eating_jax(sim_state, config):
     energies = sim_state.energies
     food_pos = sim_state.food_positions
     food_active = sim_state.food_active
+    radii = sim_state.radii                                       # (A,)
+    predator_eat_timer = sim_state.predator_eat_timer             # (A,) int32
 
     max_agents = positions.shape[0]
     food_max = food_pos.shape[0]
 
     prey_radius = config["prey_radius"]
     fov_half = math.radians(config["proximity_fov_deg"]) / 2.0
-    mouth_range_min = config.get("predator_mouth_range_min", 40.0)
-    mouth_range_max = config.get("predator_mouth_range_max", 80.0)
-    mouth_half_rad = math.radians(config.get("predator_mouth_deg", 60.0)) / 2.0
+
+    # Tactile-bin mouth geometry — see emevo predator_mouth_range = [0, 1, 17]
+    n_tactile_bins = config["n_tactile_sensors"]
+    tactile_spacing_rad = math.radians(config["tactile_spacing_deg"])
+    mouth_bin_indices = tuple(config.get("predator_mouth_tactile_bins", [0, 1, 17]))
+    eat_interval = config.get("predator_eat_interval", 10)
 
     # ---- Prey eating food ----
     # Pairwise distances: (max_agents, food_max)
@@ -82,23 +100,46 @@ def check_eating_jax(sim_state, config):
     # Zero out non-prey agents
     prey_n_eaten = jnp.where(prey_mask, prey_n_eaten, 0)
 
-    # ---- Predator catching prey ----
+    # ---- Predator catching prey (emevo-faithful: contact + tactile-bin + cooldown) ----
     # Pairwise distances: (max_agents, max_agents) — pred×prey
     diffs_agents = positions[None, :, :] - positions[:, None, :]  # (A, A, 2)
     dists_agents = jnp.linalg.norm(diffs_agents, axis=-1)         # (A, A)
 
-    # Mouth range check
-    in_range = (dists_agents >= mouth_range_min) & (dists_agents <= mouth_range_max)
+    # Contact: distance ≤ sum of radii (predator_radius + prey_radius).
+    # Uses the same "touching" convention as observations.py::_single_tactile
+    # line 195-196 so catch detection is consistent with what agents sense.
+    contact_thresh = radii[:, None] + radii[None, :]              # (A, A)
+    in_contact = dists_agents <= contact_thresh
 
-    # Mouth angle check
+    # Tactile-bin assignment — nearest bin to the angle-from-heading of each prey
     angles_to_agents = jnp.arctan2(diffs_agents[:, :, 1], diffs_agents[:, :, 0])
-    angle_diffs_agents = jnp.abs(_wrap_angle(angles_to_agents - angles[:, None]))
-    in_mouth = angle_diffs_agents <= mouth_half_rad
+    # Bin centers: 0°, 20°, 40°, ... around the agent
+    bin_centers = jnp.arange(n_tactile_bins) * tactile_spacing_rad
+    bin_half_width = tactile_spacing_rad / 2.0
+    # Angle of prey relative to predator's heading (A pred, A prey, B bins)
+    angle_rel = _wrap_angle(angles_to_agents[:, :, None] - angles[:, None, None]
+                            - bin_centers[None, None, :])
+    nearest_bin = jnp.argmin(jnp.abs(angle_rel), axis=-1)         # (A, A)
+    # In-bin only if prey is within ±half_width of nearest bin center
+    in_bin = jnp.take_along_axis(
+        jnp.abs(angle_rel), nearest_bin[..., None], axis=-1
+    )[..., 0] <= bin_half_width                                    # (A, A)
 
-    # Valid: active predator × active prey + in range + in mouth
+    # In mouth: nearest bin is one of the mouth bins
+    is_mouth_bin = jnp.zeros_like(nearest_bin, dtype=bool)
+    for b in mouth_bin_indices:
+        is_mouth_bin = is_mouth_bin | (nearest_bin == b)
+    in_mouth = in_bin & is_mouth_bin                               # (A, A)
+
+    # Cooldown: predator can only catch when timer <= 0
+    can_eat = predator_eat_timer <= 0                              # (A,)
+
+    # Valid: active predator × active prey + in contact + in mouth + can_eat
     pred_mask = (species == 1) & is_active                        # (A,)
     prey_target_mask = (species == 0) & is_active                 # (A,)
-    valid_catch = in_range & in_mouth & pred_mask[:, None] & prey_target_mask[None, :]  # (A, A)
+    valid_catch = (in_contact & in_mouth
+                   & pred_mask[:, None] & prey_target_mask[None, :]
+                   & can_eat[:, None])                            # (A, A)
 
     # Deduplication: each prey caught by nearest valid predator
     valid_catch_dists = jnp.where(valid_catch, dists_agents, jnp.inf)
@@ -143,7 +184,19 @@ def check_eating_jax(sim_state, config):
     # Zero out non-predator agents
     pred_n_catches = jnp.where(pred_mask, pred_n_catches, 0)
 
-    return prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask
+    # Cooldown update (mirrors emevo's circle_foraging_with_predator step):
+    #   timer = eat_interval if caught_this_step else max(timer - 1, floor)
+    # Countdown is clipped at -1 so it doesn't underflow for agents that never
+    # catch (semantics-preserving: "<=0 means ready"). For non-predators the
+    # value is irrelevant; we still decrement so the array layout stays uniform.
+    caught_this_step = pred_n_catches > 0
+    decremented = jnp.maximum(predator_eat_timer - 1, -1)
+    new_predator_eat_timer = jnp.where(
+        caught_this_step, jnp.int32(eat_interval), decremented
+    )
+
+    return (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
+            new_predator_eat_timer)
 
 
 def remove_eaten_food_jax(sim_state, food_eaten_mask):

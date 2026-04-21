@@ -72,9 +72,9 @@ predator_d_a:           5.0e-5
 predator_eta:           0.6
 
 # ─── Predator Mouth ──────────────────────────────────────────────────────────
-predator_mouth_deg:         60.0
-predator_mouth_range_min:   40.0
-predator_mouth_range_max:   80.0
+predator_mouth_tactile_bins: [0, 1, 17]   # emevo gecco2026 medium mouth (60° front arc)
+predator_eat_interval:       10            # cooldown between catches
+
 
 # ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
 kappa_h:            0.01
@@ -82,13 +82,13 @@ alpha_e:            0.02
 beta_h:             0.2
 alpha_t_prey:       4.0e-7
 alpha_t_pred:       2.0e-7
-beta_t_prey:        2.0e-6
+beta_t_prey:        4.0e-6           # emevo: beta = 4e-6 (was 2e-6, D18 bug)
 beta_t_pred:        4.0e-6
 
 # ─── Birth Function b(e) ─────────────────────────────────────────────────────
 kappa_b:            1.0e-3
-beta_b:             0.1
-zeta_b_prey:        10.0
+beta_b:             0.4              # emevo: slope = 0.4 (was 0.1, D18 bug)
+zeta_b_prey:        15.0             # emevo: delay = 15 (was 10, D18 bug)
 zeta_b_pred:        100.0
 
 # ─── Offspring ───────────────────────────────────────────────────────────────

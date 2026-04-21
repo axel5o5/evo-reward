@@ -332,6 +332,63 @@ Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-pad
 
 ---
 
+### [D18] Predator feeding mechanics — bug, FIXED 2026-04-21
+
+**emevo (gecco2026):**
+1. Catch is gated by `predator_eat_timer <= 0` — each predator has its own
+   countdown that resets to `predator_eat_interval = 10` on a catch and
+   decrements per step otherwise. Effectively one "eat event" per 10 steps.
+2. Catch requires physical contact (distance ≤ sum of radii) in one of
+   the tactile bins listed in `predator_mouth_range = [0, 1, 17]` (3
+   frontal 20°-wide bins, total 60° arc). Predators cannot catch prey
+   they aren't touching. Source:
+   [`circle_foraging_with_predator.py` gecco2026 branch](https://github.com/oist/emevo/blob/gecco2026/src/emevo/environments/circle_foraging_with_predator.py),
+   `step()` + `_collect_tactile()` + `predator_eat_timer` update at the
+   bottom of the step function.
+
+**Ours — BEFORE fix (buggy):**
+1. No eat-interval cooldown. Predators could catch every step.
+2. `predator_mouth_range_min/max = [40, 80]` interpreted as a radial
+   distance range — predators caught prey 40–80 units away (2–6 body
+   lengths, not touching).
+3. Extra config-value mismatches uncovered while reviewing emevo TOMLs:
+   `beta_b = 0.1` (should be 0.4), `zeta_b_prey = 10` (should be 15),
+   `beta_t_prey = 2e-6` (should be 4e-6).
+
+**Ours — AFTER fix:** matches emevo. `SimState` gains a new field
+`predator_eat_timer: (max_agents,) int32`, initialized to 0 (ready).
+`check_eating_jax` now uses contact-based distance + tactile-bin check
++ cooldown gating, and returns the updated timer. Config keys
+`predator_mouth_deg`, `predator_mouth_range_min`, `predator_mouth_range_max`
+are replaced by `predator_mouth_tactile_bins: [0, 1, 17]` and
+`predator_eat_interval: 10`.
+
+**Why it matters (the real-world impact):**
+The bug was discovered after running Phase 1a seed 0 for 1.67M steps on
+GCP. Predator reward weights were **identical to 3 decimal places for
+the final 1M steps** — zero evolution. Root cause: predators were
+catching ~10× faster than K&D intended (continuous catches + permissive
+geometry), saturated mean energy at ~999 (cap 1000), and the K&D hazard
+function `h(t,e) = κ_h · (1 − 1/(1+α_e·exp(−β_h·e))) · α_t·exp(β_t·t)`
+vanishes (via `exp(−β_h·1000)` = rounding-error zero) at that energy.
+No deaths → no slot turnover → mutated offspring could never be
+introduced → reward genome frozen at initialization. PPO still learned
+normally per-agent, but without selection on the reward weights, the
+population-level reward-weight means stayed at the N(0, σ²_init)
+distribution.
+
+**Risk of regression:** test_predator_eating.py pins the corrected
+semantics (contact + mouth-bin + cooldown + independent per-predator
+timers). Also, old SimState checkpoints from the buggy run lack the
+`predator_eat_timer` field and cannot be loaded by the new code —
+this is intentional; those runs produced no valid training data.
+
+**Discovered:** Phase 1a seed 0 attempt, 2026-04-21. Re-diagnosed
+with the help of an independent agent that confirmed "reward_weights
+at step 100K vs step 800K: max |Δ| = 0.000000" for predators.
+
+---
+
 ### D17: LSTM policy (Axis 4)
 
 **emevo:** Policy is a feedforward MLP (2 hidden layers, 64 units, tanh).
