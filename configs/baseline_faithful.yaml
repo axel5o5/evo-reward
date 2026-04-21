@@ -169,8 +169,12 @@ replay_quantize:              true      # uint16 pos + uint8 energy (~3× smalle
 replay_bucket:                "evo-reward-replays-public"   # "" → local only
 replay_retention_policy:      "milestones"   # last_n | milestones | logarithmic
 replay_retention_config:
-  keep_last_n: 20                       # last 20 at 5k cadence ≈ 40 MB total
-  keep_at_steps: [0, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000]
+  keep_last_n: 20                       # last 20 at 100k cadence ≈ 1.6 GB total
+  # step_00804501 is the first real-run replay ever captured — predators
+  # spinning in circles, ~7.8% through training. Pinned forever as the
+  # "before" to compare emergent behavior against. Tolerance 5_000 covers
+  # the 4501-step offset from the nearest 100k boundary.
+  keep_at_steps: [0, 100_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
   tolerance:   5_000                    # how close a replay's start_step must be to a pinned step
 
 # ─── Reproducibility ─────────────────────────────────────────────────────────

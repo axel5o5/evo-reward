@@ -971,6 +971,15 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "9ca49011",
+      "message": "[Replay] Longer clips, less frequent \u2014 10k frames every 100k steps",
+      "body": "Initial 5k/500 cadence was too bursty (~every 3.3 min wall) and clips\nwere too short to actually watch behavior unfold. 100k/10k flushes every\n~67 min of wall time with 10k-frame clips (~2.8 min on-screen at 60 fps),\nat ~80 MB per clip quantized. Retention still pins milestones + last 20,\nso steady-state bucket size \u2248 1.6 GB.",
+      "date": "2026-04-21 00:19:18 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }

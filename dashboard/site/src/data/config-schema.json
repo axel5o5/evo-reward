@@ -551,13 +551,13 @@
       "value": null,
       "section": "Replay Recording",
       "comment": "",
-      "inline_comment": "last 20 at 5k cadence \u2248 40 MB total"
+      "inline_comment": "last 20 at 100k cadence \u2248 1.6 GB total"
     },
     {
       "key": "keep_at_steps",
       "value": null,
       "section": "Replay Recording",
-      "comment": "",
+      "comment": "step_00804501 is the first real-run replay ever captured \u2014 predators spinning in circles, ~7.8% through training. Pinned forever as the \"before\" to compare emergent behavior against. Tolerance 5_000 covers the 4501-step offset from the nearest 100k boundary.",
       "inline_comment": ""
     },
     {
