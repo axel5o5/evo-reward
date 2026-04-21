@@ -37,6 +37,7 @@ class ReplayRecorder:
         seed: int,
         local_out_root: str | os.PathLike,
         bucket: str | None = None,
+        run_tag: str = "",
     ):
         self.interval = int(config.get("replay_record_interval_steps", 0) or 0)
         self.length = int(config.get("replay_record_length_steps", 1000) or 0)
@@ -46,6 +47,7 @@ class ReplayRecorder:
 
         self.exp_name = exp_name
         self.seed = seed
+        self.run_tag = run_tag
         self.max_agents = int(config["prey_cap"]) + int(config["predator_cap"])
         self.food_max = int(config["food_max"])
         self.world_size = float(config["world_size"])
@@ -55,7 +57,9 @@ class ReplayRecorder:
         self.retention_policy = str(config.get("replay_retention_policy", "last_n"))
         self.retention_config = dict(config.get("replay_retention_config", {"keep_last_n": 10}))
 
-        self.local_root = Path(local_out_root) / exp_name / f"seed_{seed}"
+        # local_out_root is already `<out_dir>/<exp>/seed_<N>[/<run_tag>]/replays`
+        # when called from the runner, so don't re-append exp/seed here.
+        self.local_root = Path(local_out_root)
         self.local_root.mkdir(parents=True, exist_ok=True)
 
         self._alloc_buffer()
@@ -208,15 +212,19 @@ class ReplayRecorder:
 
         try:
             replay_upload.upload_replay(
-                out_dir, self.exp_name, self.seed, start_step, self.bucket
+                out_dir, self.exp_name, self.seed, start_step, self.bucket,
+                run_tag=self.run_tag,
             )
         except Exception as e:
             print(f"[replay] upload failed: {e!r}")
             return
 
         try:
+            # Scope retention to just this (exp, seed, run_tag) so milestones
+            # from other runs in the same bucket aren't collateral damage.
             deleted = replay_upload.prune(
                 self.retention_policy, self.retention_config, self.bucket,
+                exp=self.exp_name, seed=self.seed, run_tag=self.run_tag,
             )
         except Exception as e:
             print(f"[replay] retention pass failed: {e!r}")

@@ -45,6 +45,8 @@ from src.jax_checkpoint import (
     find_latest_checkpoint,
     rotate_checkpoints,
     checkpoint_path,
+    list_run_tags,
+    run_dir,
 )
 from src import jax_metrics
 from scripts.replay_recorder import ReplayRecorder
@@ -54,8 +56,12 @@ CHECKPOINTS_TO_KEEP = 3
 
 
 def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
-                       resume=False, resume_from=None):
-    """Main simulation loop using SimState + JIT-compiled sim_step_core."""
+                       resume=False, resume_from=None, run_tag=""):
+    """Main simulation loop using SimState + JIT-compiled sim_step_core.
+
+    `run_tag` isolates this run's checkpoints, replays, metrics, and progress
+    under <out_dir>/<exp>/seed_<N>/<run_tag>/. Empty tag = legacy untagged
+    layout, still supported for old runs but not recommended for new ones."""
     total_steps = max_steps if max_steps is not None else config["total_steps"]
     rollout_steps = config["rollout_steps"]
     log_interval = config.get("log_interval_steps", 10_000)
@@ -63,8 +69,9 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     max_agents = config["prey_cap"] + config["predator_cap"]
     exp_name = config.get("experiment_name", "unnamed")
 
-    ckpt_dir = os.path.join(out_dir, exp_name, f"seed_{seed}", "checkpoints")
-    metrics_file = jax_metrics.metrics_path(out_dir, exp_name, seed)
+    run_root = run_dir(out_dir, exp_name, seed, run_tag)
+    ckpt_dir = os.path.join(run_root, "checkpoints")
+    metrics_file = jax_metrics.metrics_path(out_dir, exp_name, seed, run_tag)
 
     # Build physics space and sim_step
     space, _ = _build_physics(config)
@@ -124,14 +131,17 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     # Bucket defaults to EVO_REWARD_REPLAYS_BUCKET (or the upload module's
     # DEFAULT_BUCKET). Set config["replay_bucket"] to "" to disable uploads
     # and only write locally.
-    replay_local_root = os.path.join(out_dir, exp_name, f"seed_{seed}", "replays")
+    replay_local_root = os.path.join(run_root, "replays")
     replay_bucket_cfg = config.get("replay_bucket")
     replay_bucket = (
         replay_bucket_cfg if replay_bucket_cfg is not None
         else os.environ.get("EVO_REWARD_REPLAYS_BUCKET")
     )
     replay_bucket = replay_bucket or None  # empty string → disabled
-    recorder = ReplayRecorder(config, exp_name, seed, replay_local_root, bucket=replay_bucket)
+    recorder = ReplayRecorder(
+        config, exp_name, seed, replay_local_root,
+        bucket=replay_bucket, run_tag=run_tag,
+    )
     if recorder.enabled:
         print(f"Replay recorder: every {recorder.interval:,} steps, "
               f"capturing last {recorder.length} frames, "
@@ -180,7 +190,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     # Progress file lands next to checkpoints so the gcs-sync sidecar picks
     # it up for free. Dashboard monitor reads this via the GCS API so it
     # can show training progress without SSHing the VM.
-    progress_file = os.path.join(out_dir, exp_name, f"seed_{seed}", "progress.json")
+    progress_file = os.path.join(run_root, "progress.json")
 
     def _log_progress(state, step):
         """Persist time-series metrics and print a one-line progress summary."""
@@ -285,14 +295,14 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             # post-update state (ptrs reset etc.) rather than a mid-batch
             # stale view.
             sim_state = _maybe_fire_ppo(sim_state)
-            _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+            _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag)
             os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
             jax_metrics.save(metrics_log, metrics_file)
 
     # Final flush: fire any pending PPO, then save
     sim_state = _maybe_fire_ppo(sim_state)
     jax.block_until_ready(sim_state.step)
-    _save_checkpoint_jax(sim_state, out_dir, exp_name, seed)
+    _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag)
     os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
     jax_metrics.save(metrics_log, metrics_file)
 
@@ -304,10 +314,10 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     return sim_state
 
 
-def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed):
+def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag=""):
     """Save full SimState and rotate old checkpoints."""
     step = int(sim_state.step)
-    path = checkpoint_path(out_dir, exp_name, seed, step)
+    path = checkpoint_path(out_dir, exp_name, seed, step, run_tag)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     save_simstate(sim_state, path)
     rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
@@ -340,6 +350,15 @@ def main():
                         help="Resume from latest checkpoint in the seed's output dir")
     parser.add_argument("--resume-from", default=None,
                         help="Resume from an explicit checkpoint path (overrides --resume auto-detect)")
+    parser.add_argument("--run-tag", default=None,
+                        help="Isolates this run's checkpoints, replays, metrics, and "
+                             "progress under <out_dir>/<exp>/seed_<N>/<run_tag>/. "
+                             "Default: auto-generate a UTC timestamp (e.g. "
+                             "'2026-04-21T1447Z'). Pass '' for the legacy untagged layout.")
+    parser.add_argument("--run-name", default=None,
+                        help="Optional human-readable suffix appended to the auto-timestamp "
+                             "run_tag, e.g. 'post-d19' → '2026-04-21T1447Z_post-d19'. "
+                             "Ignored when --run-tag is given explicitly.")
     args = parser.parse_args()
 
     # Science config is the base; runtime overlays (runtime wins on conflict);
@@ -354,10 +373,46 @@ def main():
     if args.log_interval is not None:
         config["log_interval_steps"] = args.log_interval
 
+    run_tag = _resolve_run_tag(
+        out_dir=args.out_dir,
+        exp_name=config.get("experiment_name", "unnamed"),
+        seed=args.seed,
+        explicit=args.run_tag,
+        run_name=args.run_name,
+        resume=args.resume or args.resume_from is not None,
+    )
+    print(f"Run tag: {run_tag or '(legacy untagged)'}")
+
     run_experiment_jax(
         config, args.seed, args.max_steps, args.out_dir,
         resume=args.resume, resume_from=args.resume_from,
+        run_tag=run_tag,
     )
+
+
+def _resolve_run_tag(*, out_dir: str, exp_name: str, seed: int,
+                     explicit: str | None, run_name: str | None,
+                     resume: bool) -> str:
+    """Pick the run_tag for this invocation.
+
+    Priority:
+      1. `--run-tag` explicit (including empty string → legacy layout)
+      2. `--resume`: reuse the most recent existing run_tag for this
+         (exp, seed); error if none exist.
+      3. fresh: UTC timestamp, optionally suffixed with `--run-name`.
+    """
+    if explicit is not None:
+        return explicit
+
+    if resume:
+        existing = list_run_tags(out_dir, exp_name, seed)
+        if existing:
+            return existing[-1]
+        # Fall back to legacy untagged — older runs predate run_tag.
+        return ""
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H%MZ")
+    return f"{ts}_{run_name}" if run_name else ts
 
 
 if __name__ == "__main__":

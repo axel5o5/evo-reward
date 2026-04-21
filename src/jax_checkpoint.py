@@ -110,7 +110,35 @@ def rotate_checkpoints(ckpt_dir: str, keep: int = 3) -> None:
         os.unlink(path)
 
 
-def checkpoint_path(out_dir: str, experiment_name: str, seed: int, step: int) -> str:
+def list_run_tags(out_dir: str, experiment_name: str, seed: int) -> list[str]:
+    """List existing run_tag directories under <out_dir>/<exp>/seed_<N>/ that
+    contain a checkpoints/ subdir. Returns sorted (lexicographic = time-order
+    for ISO timestamps) list; empty if the seed dir doesn't exist or only
+    holds a legacy untagged layout."""
+    seed_dir = os.path.join(out_dir, experiment_name, f"seed_{seed}")
+    if not os.path.isdir(seed_dir):
+        return []
+    tags = []
+    for name in os.listdir(seed_dir):
+        candidate = os.path.join(seed_dir, name, "checkpoints")
+        if os.path.isdir(candidate):
+            tags.append(name)
+    return sorted(tags)
+
+
+def run_dir(out_dir: str, experiment_name: str, seed: int, run_tag: str = "") -> str:
+    """Directory root for everything written by a single run.
+
+    Layout (with run_tag):    <out_dir>/<exp>/seed_<N>/<run_tag>/
+    Layout (legacy, no tag):  <out_dir>/<exp>/seed_<N>/
+    The legacy layout is kept readable for resuming older runs.
+    """
+    base = os.path.join(out_dir, experiment_name, f"seed_{seed}")
+    return os.path.join(base, run_tag) if run_tag else base
+
+
+def checkpoint_path(out_dir: str, experiment_name: str, seed: int, step: int,
+                    run_tag: str = "") -> str:
     """Canonical path for a checkpoint at a given step."""
-    ckpt_dir = os.path.join(out_dir, experiment_name, f"seed_{seed}", "checkpoints")
+    ckpt_dir = os.path.join(run_dir(out_dir, experiment_name, seed, run_tag), "checkpoints")
     return os.path.join(ckpt_dir, f"step_{step:08d}.npz")

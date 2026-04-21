@@ -122,6 +122,10 @@ def load(path: str) -> JaxMetrics:
     return log
 
 
-def metrics_path(out_dir: str, experiment_name: str, seed: int) -> str:
-    """Canonical path for a seed's metrics.npz."""
-    return os.path.join(out_dir, experiment_name, f"seed_{seed}", "metrics.npz")
+def metrics_path(out_dir: str, experiment_name: str, seed: int,
+                 run_tag: str = "") -> str:
+    """Canonical path for a seed's metrics.npz. Respects run_tag layout."""
+    base = os.path.join(out_dir, experiment_name, f"seed_{seed}")
+    if run_tag:
+        base = os.path.join(base, run_tag)
+    return os.path.join(base, "metrics.npz")

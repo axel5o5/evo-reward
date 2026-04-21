@@ -172,12 +172,24 @@ def rebuild_index(bucket: str | None = None,
 
 
 def prune(policy: str, policy_config: dict, bucket: str | None = None,
-          dry_run: bool = False) -> list[ReplayRef]:
+          dry_run: bool = False,
+          exp: str | None = None, seed: int | None = None,
+          run_tag: str | None = None) -> list[ReplayRef]:
     """Apply retention policy; delete losers from GCS. Returns refs that were
     (or would be) deleted. Index is rebuilt after a real delete.
+
+    When `exp` / `seed` / `run_tag` are provided, the policy is applied only
+    to that subset so one run's retention pass can't evict another run's
+    milestones. `run_tag=""` matches legacy untagged replays explicitly.
     """
     refs = list_remote_replays(bucket)
-    to_delete = apply_policy(policy, refs, policy_config)
+    scoped = [
+        r for r in refs
+        if (exp is None or r.exp == exp)
+        and (seed is None or r.seed == seed)
+        and (run_tag is None or r.run_tag == run_tag)
+    ]
+    to_delete = apply_policy(policy, scoped, policy_config)
     if dry_run:
         return to_delete
     for r in to_delete:
