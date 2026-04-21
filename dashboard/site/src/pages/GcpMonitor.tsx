@@ -215,7 +215,33 @@ function Tooltip({
   );
 }
 
-function VMCard({ vm }: { vm: VM }) {
+// Compact stat for hero strip: small caps label above a big value.
+function Stat({
+  label, value, emphasized = false, tip,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  emphasized?: boolean;
+  tip?: React.ReactNode;
+}) {
+  const labelNode = (
+    <span className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      {label}
+    </span>
+  );
+  return (
+    <div>
+      {tip ? <Tooltip content={tip} side="bottom">{labelNode}</Tooltip> : labelNode}
+      <div className={`font-mono text-gray-900 dark:text-gray-100 ${emphasized ? "text-2xl font-semibold" : "text-lg"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// Hero strip: at-a-glance status + run identity + progress + key numbers.
+// The supporting cards below render everything else in detail.
+function HeroCard({ vm, t, costs }: { vm: VM; t: Training | null; costs: Costs }) {
   const provLabel = vm.provisioning === "SPOT" ? "spot" :
                     vm.provisioning === "STANDARD" ? "on-demand" :
                     vm.provisioning.toLowerCase();
@@ -223,52 +249,108 @@ function VMCard({ vm }: { vm: VM }) {
   const phase = vm.labels.phase;
   const seed = vm.labels.seed;
   const hasRunIdentity = !!(experiment || phase || seed);
+  const pct = t ? t.progress_frac * 100 : 0;
 
   return (
-    <Card title="VM">
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`px-2 py-0.5 text-xs rounded-full ${statusClasses(vm.status)}`}>
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <span className={`px-2.5 py-1 text-sm font-medium rounded-full ${statusClasses(vm.status)}`}>
           {vm.status}
         </span>
-        <span className="font-mono text-sm text-gray-800 dark:text-gray-200">{vm.name}</span>
+        <span className="font-mono text-base text-gray-800 dark:text-gray-200">{vm.name}</span>
         {vm.provisioning !== "UNKNOWN" && (
           <span className="text-xs text-gray-500 dark:text-gray-400">({provLabel})</span>
         )}
+        {hasRunIdentity && (
+          <>
+            <span className="text-gray-300 dark:text-gray-700 mx-1">·</span>
+            <Tooltip
+              side="bottom"
+              content={<>Run identity is set by <code>spot_orchestrator.py</code> as VM labels on creation. <strong>experiment</strong>: from <code>experiment_name</code> in the config YAML. <strong>phase</strong>: from <code>--phase</code> CLI flag (1a / 1b / 2 / ...). <strong>seed</strong>: from <code>--seed</code> CLI flag. Monitor uses <code>experiment</code> + <code>seed</code> to find the matching progress.json in GCS.</>}
+            >
+              <span className="font-mono text-sm text-gray-700 dark:text-gray-300">
+                {experiment || "?"}
+                {phase && <span className="text-gray-400"> · phase {phase}</span>}
+                {seed !== undefined && <span className="text-gray-400"> · seed {seed}</span>}
+              </span>
+            </Tooltip>
+            {experiment && (
+              <a
+                href={configUrlFor(experiment)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="Link to the config YAML on GitHub main. Static link — assumes experiment name matches configs/<name>.yaml by convention."
+              >
+                configs/{experiment}.yaml ↗
+              </a>
+            )}
+          </>
+        )}
+        {t?.evolution_detected && (
+          <Tooltip
+            plain
+            side="bottom"
+            content={<>Shorthand from <code>validate_replication.py</code>: true when max|mean| of any of the 8 evolved weights exceeds <strong>0.2</strong> (2× the initial weight std of 0.1). Indicates evolution has moved the population mean outside the initial noise band; does NOT mean any specific K&D gate has passed.</>}
+          >
+            <span className="ml-auto text-[11px] px-2 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+              evolution detected
+            </span>
+          </Tooltip>
+        )}
       </div>
 
-      {hasRunIdentity && (
-        <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800 text-xs">
-          <Tooltip
-            content={<>Run identity is set by <code>spot_orchestrator.py</code> as VM labels on creation. <strong>experiment</strong>: from <code>experiment_name</code> in the config YAML. <strong>phase</strong>: from <code>--phase</code> CLI flag (1a / 1b / 2 / ...). <strong>seed</strong>: from <code>--seed</code> CLI flag. Monitor uses <code>experiment</code> + <code>seed</code> to find the matching progress.json in GCS.</>}
-          >
-            <span className="text-gray-500 dark:text-gray-400 mb-1 inline-block">Run</span>
-          </Tooltip>
-          <div className="font-mono text-gray-900 dark:text-gray-100">
-            {experiment || "?"}
-            {phase && <span className="text-gray-400"> · phase {phase}</span>}
-            {seed !== undefined && <span className="text-gray-400"> · seed {seed}</span>}
+      {t ? (
+        <div className="mb-5">
+          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1.5">
+            <span>Step {t.step.toLocaleString()} / {t.total_steps.toLocaleString()}</span>
+            <span className="font-mono">{pct.toFixed(2)}%</span>
           </div>
-          {experiment && (
-            <a
-              href={configUrlFor(experiment)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
-              title="Link to the config YAML on GitHub main. Static link — assumes experiment name matches configs/<name>.yaml by convention."
-            >
-              configs/{experiment}.yaml ↗
-            </a>
-          )}
+          <div className="h-3 rounded bg-gray-200 dark:bg-gray-800 overflow-hidden">
+            <div
+              className="h-full bg-blue-500 dark:bg-blue-600 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="mb-5 text-sm text-gray-500 dark:text-gray-400 italic">
+          No training progress yet — waiting for first <code className="not-italic text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> sync.
         </div>
       )}
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Stat
+          label="Live cost"
+          emphasized
+          value={usd(costs.live_estimate_total)}
+          tip={<>Sum of <strong>VM compute (current run)</strong> + <strong>Cloud NAT (since active)</strong> + <strong>GCS storage (pro-rata MTD)</strong>. Fast-update live estimate — NOT authoritative. Billing actual (in Costs card below) is the ground truth but lags ~24h.</>}
+        />
+        <Stat
+          label="Rate"
+          value={t ? `${t.sps.toFixed(1)} sps` : "—"}
+          tip={<>Steps-per-second averaged since the runner started (reset at each restart). K&D reported ~10.24M steps in ~40h on an A100; we run on L4 which is ~40% slower, so ~60-70h is typical.</>}
+        />
+        <Stat
+          label="ETA"
+          value={t && t.eta_hours != null ? hoursToDuration(t.eta_hours) : "—"}
+          tip={<>Time remaining at the current sps. In practice sps fluctuates with GPU memory pressure and PPO-update cadence, so this drifts across a run.</>}
+        />
+        <Stat
+          label="Runtime"
+          value={hoursToDuration(vm.runtime_hours_current)}
+          tip={<>Hours since the VM's <code>last_start_timestamp</code>. Resets on Stop/Start and on spot preemption. Does <em>not</em> accumulate across interruptions — see Costs card for cumulative spend.</>}
+        />
+      </div>
+    </div>
+  );
+}
+
+function VMCard({ vm }: { vm: VM }) {
+  return (
+    <Card title="VM detail">
       <Row label="Zone" value={vm.zone || "—"} />
       <Row label="Machine" value={vm.machine_type || "—"} />
-      <Row
-        label="Runtime (current)"
-        value={hoursToDuration(vm.runtime_hours_current)}
-        tip={<>Hours since the VM's <code>last_start_timestamp</code>. Resets on Stop/Start and on spot preemption. Does <em>not</em> accumulate across interruptions — see Costs card for cumulative spend.</>}
-      />
       <Row
         label="Hourly rate"
         value={vm.hourly_rate_usd != null ? `$${vm.hourly_rate_usd.toFixed(3)}/h` : "—"}
@@ -312,7 +394,6 @@ function WeightLine({
 }
 
 function TrainingCard({ t }: { t: Training }) {
-  const pct = (t.progress_frac * 100);
   const pop = t.population;
   const prey = t.reward_weights.prey;
   const pred = t.reward_weights.pred;
@@ -320,45 +401,9 @@ function TrainingCard({ t }: { t: Training }) {
 
   return (
     <Card
-      title={
-        <span>
-          Training
-          {t.evolution_detected && (
-            <Tooltip
-              plain
-              content={<>Shorthand from <code>validate_replication.py</code>: true when max|mean| of any of the 8 evolved weights exceeds <strong>0.2</strong> (2× the initial weight std of 0.1). Indicates evolution has moved the population mean outside the initial noise band; does NOT mean any specific K&D gate has passed.</>}
-            >
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 normal-case">
-                evolution detected
-              </span>
-            </Tooltip>
-          )}
-        </span>
-      }
+      title="Population & reward weights"
       footer={`progress.json age: ${hoursToDuration(t.progress_file_age_hours)}${fresh ? "" : " — may be stale"}`}
     >
-      <div className="mb-3">
-        <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-          <span>Step {t.step.toLocaleString()} / {t.total_steps.toLocaleString()}</span>
-          <span className="font-mono">{pct.toFixed(2)}%</span>
-        </div>
-        <div className="h-2 rounded bg-gray-200 dark:bg-gray-800 overflow-hidden">
-          <div
-            className="h-full bg-blue-500 dark:bg-blue-600 transition-all"
-            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-          />
-        </div>
-      </div>
-
-      <Row
-        label="Rate"
-        value={<span>{t.sps.toFixed(1)} sps
-          {t.eta_hours != null && (
-            <span className="text-gray-400 ml-1">· ETA {hoursToDuration(t.eta_hours)}</span>
-          )}
-        </span>}
-        tip={<>Steps-per-second averaged since the runner started (reset at each restart). ETA assumes the current rate holds — in practice sps fluctuates with GPU memory pressure and PPO-update cadence. K&D reported ~10.24M steps in ~40h on an A100; we run on L4 which is ~40% slower, so ~60-70h is typical.</>}
-      />
       {pop && (
         <>
           <Row
@@ -460,18 +505,7 @@ function CheckpointsCard({ c }: { c: Checkpoints }) {
 
 function CostsCard({ costs }: { costs: Costs }) {
   return (
-    <Card title="Costs (USD)">
-      <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
-        <Tooltip
-          content={<>Sum of <strong>VM compute (current run)</strong> + <strong>Cloud NAT (since active)</strong> + <strong>GCS storage (pro-rata MTD)</strong>. This is a fast-update live estimate — NOT authoritative. <strong>Billing actual</strong> below is the ground truth but lags ~24h.</>}
-          side="bottom"
-        >
-          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 inline-block">Live estimate (now)</span>
-        </Tooltip>
-        <div className="text-2xl font-mono font-semibold text-gray-900 dark:text-gray-100">
-          {usd(costs.live_estimate_total)}
-        </div>
-      </div>
+    <Card title="Costs breakdown (USD)">
       <Row
         label="VM compute (current run)"
         value={usd(costs.compute_current_run)}
@@ -781,21 +815,25 @@ export default function GcpMonitor() {
 
       {payload && (
         <>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-            <VMCard vm={payload.vm} />
-            <CheckpointsCard c={payload.checkpoints} />
-            <CostsCard costs={payload.costs} />
-          </div>
+          <HeroCard vm={payload.vm} t={payload.training} costs={payload.costs} />
 
-          {payload.training ? (
-            <div className="mt-6">
-              <TrainingCard t={payload.training} />
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            <div className="md:col-span-2">
+              {payload.training ? (
+                <TrainingCard t={payload.training} />
+              ) : (
+                <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                  No population or reward-weight data yet. The runner writes <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> every log interval; the gcs-sync sidecar pushes it to GCS every 5 min. Expect this card to populate within a few minutes of training starting.
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="mt-6 p-4 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-              No training progress reported yet. The runner writes <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> every log interval; the gcs-sync sidecar pushes it to GCS every 5 min. Expect this card to appear within a few minutes of training starting.
+
+            <div className="space-y-4">
+              <VMCard vm={payload.vm} />
+              <CheckpointsCard c={payload.checkpoints} />
+              <CostsCard costs={payload.costs} />
             </div>
-          )}
+          </div>
 
           <div className="mt-6 max-w-md">
             <ControlPanel vmStatus={payload.vm.status} />
