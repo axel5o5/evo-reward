@@ -219,11 +219,12 @@ def analyze(data: dict, config: dict) -> dict:
             "max": round(max(pred_energy_per_frame), 1),
         },
         "red_flags": _red_flags(catches, feedings, births, pred_energy_per_frame,
-                                 pred_pop, config),
+                                 pred_pop, config, prey_pop=prey_pop),
     }
 
 
-def _red_flags(catches, feedings, births, pred_e, pred_pop, config):
+def _red_flags(catches, feedings, births, pred_e, pred_pop, config,
+               prey_pop=None):
     flags = []
     cap = float(config.get("energy_capacity", 1000.0))
     pred_active = any(p > 0 for p in pred_pop)
@@ -242,6 +243,22 @@ def _red_flags(catches, feedings, births, pred_e, pred_pop, config):
         )
     if births == 0:
         flags.append("ZERO_BIRTHS: no births in this window — evolution cannot happen.")
+
+    # Extinction-risk watchdog. K&D §4.2 steady-state populations are ~349 prey
+    # / ~23 predators; Lotka-Volterra oscillation trough should not approach
+    # zero. Threshold is conservative: a dip to 30 prey (~10x below SS) or
+    # 5 predators means a crash is likely, even accounting for oscillation.
+    if prey_pop is not None and min(prey_pop) < 30:
+        flags.append(
+            f"PREY_EXTINCTION_RISK: prey dropped to {min(prey_pop)} in this window "
+            f"(K&D steady state ~349). Oscillation trough is deeper than expected — "
+            f"check predator efficiency and birth rates."
+        )
+    if min(pred_pop) < 5:
+        flags.append(
+            f"PREDATOR_EXTINCTION_RISK: predators dropped to {min(pred_pop)} "
+            f"(K&D steady state ~23). Check catch rate and predator energy dynamics."
+        )
     return flags
 
 
