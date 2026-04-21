@@ -30,8 +30,26 @@ from scripts.replay_retention import ReplayRef, apply_policy
 DEFAULT_BUCKET = os.environ.get("EVO_REWARD_REPLAYS_BUCKET", "evo-reward-replays-public")
 PROJECT_ID = "evo-reward"
 
-# gs://<bucket>/<exp>/seed_<N>/step_<start:08d>/{meta.json,frames.bin}
-_PATH_RE = re.compile(r"^([^/]+)/seed_(\d+)/step_(\d+)/meta\.json$")
+# Optional default tag for uploaded replays, e.g. "post_d18_fix". An empty
+# string yields the legacy layout with no tag segment.
+DEFAULT_RUN_TAG = os.environ.get("EVO_REPLAY_RUN_TAG", "")
+
+# Layouts:
+#   legacy (untagged): gs://<bucket>/<exp>/seed_<N>/step_<start:08d>/{meta,frames}
+#   tagged:            gs://<bucket>/<exp>/seed_<N>/<tag>/step_<start:08d>/{meta,frames}
+# Tag must be a single path segment without slashes. See docs/emevo-diff.md D18
+# for the motivating use case (pre- vs post-bugfix runs).
+_PATH_RE = re.compile(
+    r"^([^/]+)/seed_(\d+)/(?:([^/]+)/)?step_(\d+)/meta\.json$"
+)
+
+
+def _prefix(exp: str, seed: int, start_step: int, run_tag: str = "") -> str:
+    """Build the GCS object-key prefix for a replay (no bucket, no trailing '/')."""
+    step_part = f"step_{start_step:08d}"
+    if run_tag:
+        return f"{exp}/seed_{seed}/{run_tag}/{step_part}"
+    return f"{exp}/seed_{seed}/{step_part}"
 
 
 def _client():
@@ -44,10 +62,17 @@ def _bucket(name: str | None = None):
 
 
 def upload_replay(local_dir: Path, exp: str, seed: int, start_step: int,
-                  bucket: str | None = None) -> str:
-    """Upload meta.json + frames.bin from `local_dir` to the bucket. Returns remote prefix."""
+                  bucket: str | None = None,
+                  run_tag: str | None = None) -> str:
+    """Upload meta.json + frames.bin from `local_dir` to the bucket.
+
+    If `run_tag` is None, DEFAULT_RUN_TAG (env var EVO_REPLAY_RUN_TAG) is used.
+    An empty tag preserves the legacy untagged path layout.
+    Returns remote prefix (without bucket scheme).
+    """
+    tag = DEFAULT_RUN_TAG if run_tag is None else run_tag
     b = _bucket(bucket)
-    prefix = f"{exp}/seed_{seed}/step_{start_step:08d}"
+    prefix = _prefix(exp, seed, start_step, tag)
     for name in ("meta.json", "frames.bin"):
         src = local_dir / name
         if not src.exists():
@@ -63,33 +88,40 @@ def upload_replay(local_dir: Path, exp: str, seed: int, start_step: int,
 
 
 def list_remote_replays(bucket: str | None = None) -> list[ReplayRef]:
-    """Scan the bucket, return a ReplayRef per discovered meta.json."""
+    """Scan the bucket, return a ReplayRef per discovered meta.json.
+
+    Tolerates both the legacy untagged layout and the tagged layout:
+      <exp>/seed_<N>/step_<NNN>/meta.json
+      <exp>/seed_<N>/<tag>/step_<NNN>/meta.json
+    """
     b = _bucket(bucket)
     out: list[ReplayRef] = []
     for blob in b.list_blobs():
         m = _PATH_RE.match(blob.name)
         if not m:
             continue
-        exp, seed_s, start_s = m.group(1), m.group(2), m.group(3)
-        # Pair the meta with the sibling frames.bin to get the full size.
-        frames = b.blob(f"{exp}/seed_{seed_s}/step_{start_s}/frames.bin")
+        exp, seed_s, tag, start_s = m.group(1), m.group(2), m.group(3) or "", m.group(4)
+        remote_path = _prefix(exp, int(seed_s), int(start_s), tag)
+        frames = b.blob(f"{remote_path}/frames.bin")
         size = (blob.size or 0) + (frames.size or 0 if frames.exists() else 0)
         out.append(ReplayRef(
             exp=exp,
             seed=int(seed_s),
             start_step=int(start_s),
             size_bytes=size,
-            remote_path=f"{exp}/seed_{seed_s}/step_{start_s}",
+            remote_path=remote_path,
+            run_tag=tag,
         ))
-    out.sort(key=lambda r: (r.exp, r.seed, r.start_step))
+    out.sort(key=lambda r: (r.exp, r.seed, r.run_tag, r.start_step))
     return out
 
 
 def delete_replay(exp: str, seed: int, start_step: int,
-                  bucket: str | None = None) -> int:
+                  bucket: str | None = None,
+                  run_tag: str = "") -> int:
     """Delete both blobs for a replay. Returns number of blobs removed."""
     b = _bucket(bucket)
-    prefix = f"{exp}/seed_{seed}/step_{start_step:08d}"
+    prefix = _prefix(exp, seed, start_step, run_tag)
     removed = 0
     for name in ("meta.json", "frames.bin"):
         blob = b.blob(f"{prefix}/{name}")
@@ -126,6 +158,7 @@ def rebuild_index(bucket: str | None = None,
             "n_frames": meta.get("n_frames", 0),
             "path": r.remote_path,
             "size_bytes": r.size_bytes,
+            "run_tag": r.run_tag,
         })
 
     payload = json.dumps({"replays": entries}, indent=2).encode("utf-8")
@@ -148,7 +181,7 @@ def prune(policy: str, policy_config: dict, bucket: str | None = None,
     if dry_run:
         return to_delete
     for r in to_delete:
-        delete_replay(r.exp, r.seed, r.start_step, bucket=bucket)
+        delete_replay(r.exp, r.seed, r.start_step, bucket=bucket, run_tag=r.run_tag)
     if to_delete:
         rebuild_index(bucket)
     return to_delete

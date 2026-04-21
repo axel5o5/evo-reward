@@ -26,6 +26,9 @@ class ReplayRef:
     # Optional fields the caller can fill in — policies should tolerate their absence.
     size_bytes: int = 0
     remote_path: str = ""
+    # Run tag — inserted between seed_N and step_NNN when present, e.g.
+    # "pre_d18". Empty string = legacy untagged path (bucket root layout).
+    run_tag: str = ""
 
 
 # ----------------------------- policies ---------------------------------------
