@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-21T01:00:12+00:00",
+  "updated_at": "2026-04-21T01:44:42+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,27 +9,27 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-20T11:58:12.769-07:00",
     "last_started_at": "2026-04-20T11:58:20.486-07:00",
-    "runtime_hours_current": 6.0305,
+    "runtime_hours_current": 6.7725,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 5.1259,
+    "estimated_current_run_usd": 5.7566,
     "labels": {
-      "seed": "0",
+      "phase": "1a",
       "experiment": "baseline_faithful",
-      "phase": "1a"
+      "seed": "0"
     }
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 50,
-    "latest_step": 500000,
-    "latest_age_hours": 0.154,
-    "total_gb": 8.3448
+    "count": 57,
+    "latest_step": 570000,
+    "latest_age_hours": 0.135,
+    "total_gb": 9.4315
   },
   "costs": {
-    "compute_current_run": 5.1259,
-    "nat_since_active": 2.23,
-    "storage_current": 0.1099,
-    "live_estimate_total": 7.47,
+    "compute_current_run": 5.7566,
+    "nat_since_active": 2.27,
+    "storage_current": 0.1244,
+    "live_estimate_total": 8.15,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -37,16 +37,16 @@
   "training": {
     "experiment_name": "baseline_faithful",
     "seed": 0,
-    "step": 505000,
+    "step": 575000,
     "total_steps": 10240000,
-    "progress_frac": 0.04932,
-    "sps": 25.292,
-    "eta_hours": 106.92,
+    "progress_frac": 0.05615,
+    "sps": 25.297,
+    "eta_hours": 106.13,
     "population": {
       "prey": 450,
       "pred": 50,
       "food": 600,
-      "mean_energy": 310.12884521484375
+      "mean_energy": 328.6020812988281
     },
     "reward_weights": {
       "prey": {
