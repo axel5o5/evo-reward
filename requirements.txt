@@ -27,6 +27,11 @@ scipy>=1.10.0      # needed for scipy.stats.t (mutation distribution)
 # ─── Configuration and I/O ───────────────────────────────────────────────────
 pyyaml>=6.0
 
+# ─── GCS (replay uploader) ───────────────────────────────────────────────────
+# scripts/replay_upload.py pushes replay trajectories + index.json to the
+# public replays bucket from inside the training loop.
+google-cloud-storage>=2.10.0
+
 # ─── Visualization ───────────────────────────────────────────────────────────
 matplotlib>=3.7.0
 
