@@ -47,6 +47,7 @@ from src.jax_checkpoint import (
     checkpoint_path,
 )
 from src import jax_metrics
+from scripts.replay_recorder import ReplayRecorder
 
 
 CHECKPOINTS_TO_KEEP = 3
@@ -118,6 +119,26 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     t_compile_end = time.time()
     print(f"  Compiled in {t_compile_end - t_compile_start:.1f}s")
     print()
+
+    # Replay recorder — off unless replay_record_interval_steps is set in config.
+    # Bucket defaults to EVO_REWARD_REPLAYS_BUCKET (or the upload module's
+    # DEFAULT_BUCKET). Set config["replay_bucket"] to "" to disable uploads
+    # and only write locally.
+    replay_local_root = os.path.join(out_dir, exp_name, f"seed_{seed}", "replays")
+    replay_bucket_cfg = config.get("replay_bucket")
+    replay_bucket = (
+        replay_bucket_cfg if replay_bucket_cfg is not None
+        else os.environ.get("EVO_REWARD_REPLAYS_BUCKET")
+    )
+    replay_bucket = replay_bucket or None  # empty string → disabled
+    recorder = ReplayRecorder(config, exp_name, seed, replay_local_root, bucket=replay_bucket)
+    if recorder.enabled:
+        print(f"Replay recorder: every {recorder.interval:,} steps, "
+              f"capturing last {recorder.length} frames, "
+              f"{'quantized' if recorder.quantize else 'raw'}, "
+              f"bucket={replay_bucket or '(local only)'}, "
+              f"retention={recorder.retention_policy}")
+        print()
 
     start_time = time.time()
     start_step = int(sim_state.step)
@@ -244,6 +265,11 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     for step in range(start_step, total_steps):
         # --- Steps 1-9: JIT-compiled core ---
         sim_state = sim_step_core(sim_state)
+
+        # --- Replay recording (zero-cost outside the window) ---
+        # Pass step+1 as a plain Python int so the recorder's boundary check
+        # doesn't force a host sync on sim_state.step every tick.
+        recorder.step(sim_state, step + 1)
 
         # --- Step 10: PPO update (batched) ---
         if (step + 1) % PPO_CHECK_EVERY == 0:

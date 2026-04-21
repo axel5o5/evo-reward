@@ -14,6 +14,7 @@ const DeviationTracker = lazy(() => import("./pages/DeviationTracker"));
 const DocsViewer = lazy(() => import("./pages/DocsViewer"));
 const References = lazy(() => import("./pages/References"));
 const GcpMonitor = lazy(() => import("./pages/GcpMonitor"));
+const Replay = lazy(() => import("./pages/Replay"));
 
 function useTheme() {
   const [dark, setDark] = useState(() => {
@@ -91,6 +92,7 @@ const NAV_ITEMS = [
   { path: "/references", label: "References", description: "Annotated paper bibliography" },
   { path: "/docs", label: "Documentation", description: "Rendered markdown docs" },
   { path: "/gcp", label: "GCP Monitor", description: "Live GCP jobs + accumulated cost" },
+  { path: "/replay", label: "Replay", description: "Scrub through re-simulated checkpoints" },
 ];
 
 export default function App() {
@@ -153,6 +155,7 @@ export default function App() {
               <Route path="/references" element={<References />} />
               <Route path="/docs" element={<DocsViewer />} />
               <Route path="/gcp" element={<GcpMonitor />} />
+              <Route path="/replay" element={<Replay />} />
             </Routes>
           </Suspense>
         </main>

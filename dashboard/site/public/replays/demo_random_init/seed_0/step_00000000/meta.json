@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "start_step": 0,
+  "n_frames": 500,
+  "max_agents": 500,
+  "food_max": 600,
+  "world_size": 960.0,
+  "sections": {
+    "pos": {
+      "offset": 0,
+      "length": 2000000,
+      "dtype": "float32",
+      "shape": [
+        500,
+        500,
+        2
+      ]
+    },
+    "angle": {
+      "offset": 2000000,
+      "length": 1000000,
+      "dtype": "float32",
+      "shape": [
+        500,
+        500
+      ]
+    },
+    "energy": {
+      "offset": 3000000,
+      "length": 1000000,
+      "dtype": "float32",
+      "shape": [
+        500,
+        500
+      ]
+    },
+    "alive": {
+      "offset": 4000000,
+      "length": 250000,
+      "dtype": "uint8",
+      "shape": [
+        500,
+        500
+      ]
+    },
+    "food_pos": {
+      "offset": 4250000,
+      "length": 2400000,
+      "dtype": "float32",
+      "shape": [
+        500,
+        600,
+        2
+      ]
+    },
+    "food_active": {
+      "offset": 6650000,
+      "length": 300000,
+      "dtype": "uint8",
+      "shape": [
+        500,
+        600
+      ]
+    },
+    "step_nums": {
+      "offset": 6950000,
+      "length": 2000,
+      "dtype": "int32",
+      "shape": [
+        500
+      ]
+    },
+    "species": {
+      "offset": 6952000,
+      "length": 2000,
+      "dtype": "int32",
+      "shape": [
+        500
+      ]
+    },
+    "radii": {
+      "offset": 6954000,
+      "length": 2000,
+      "dtype": "float32",
+      "shape": [
+        500
+      ]
+    }
+  },
+  "frames_bin": "frames.bin",
+  "frames_bin_size": 6956000
+}

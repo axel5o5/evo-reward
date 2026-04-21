@@ -1,0 +1,20 @@
+{
+  "replays": [
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "start_step": 700000,
+      "n_frames": 1000,
+      "path": "baseline_faithful/seed_0/step_00700000",
+      "size_bytes": 13908000
+    },
+    {
+      "exp": "demo_random_init",
+      "seed": 0,
+      "start_step": 0,
+      "n_frames": 500,
+      "path": "demo_random_init/seed_0/step_00000000",
+      "size_bytes": 6956000
+    }
+  ]
+}

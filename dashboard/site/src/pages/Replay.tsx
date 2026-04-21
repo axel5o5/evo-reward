@@ -1,0 +1,326 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReplayCanvas from "../components/ReplayCanvas";
+import {
+  ReplayData,
+  ReplayIndex,
+  ReplayIndexEntry,
+  fetchIndex,
+  fetchReplay,
+  replaysBaseUrl,
+} from "../lib/replayLoader";
+
+const SPEEDS = [0.25, 0.5, 1, 2, 4];
+
+export default function Replay() {
+  const [index, setIndex] = useState<ReplayIndex | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ReplayIndexEntry | null>(null);
+  const [data, setData] = useState<ReplayData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [showHeading, setShowHeading] = useState(true);
+  const [energyAlpha, setEnergyAlpha] = useState(true);
+
+  // --- load index on mount ---
+  useEffect(() => {
+    fetchIndex()
+      .then((idx) => {
+        setIndex(idx);
+        if (idx.replays.length > 0 && !selected) setSelected(idx.replays[0]);
+      })
+      .catch((e) => setIndexError(String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- load selected replay ---
+  useEffect(() => {
+    if (!selected) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    setData(null);
+    setFrameIdx(0);
+    setPlaying(false);
+    fetchReplay(selected)
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setLoadError(String(e));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  // --- playback loop ---
+  const rafRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number>(0);
+  const accumRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!playing || !data) return;
+
+    const BASE_FPS = 60;
+    const step = (now: number) => {
+      if (lastTickRef.current === 0) lastTickRef.current = now;
+      const dt = (now - lastTickRef.current) / 1000;
+      lastTickRef.current = now;
+      accumRef.current += dt * BASE_FPS * speed;
+      const advance = Math.floor(accumRef.current);
+      if (advance > 0) {
+        accumRef.current -= advance;
+        setFrameIdx((idx) => {
+          const next = idx + advance;
+          if (next >= data.meta.n_frames - 1) {
+            setPlaying(false);
+            return data.meta.n_frames - 1;
+          }
+          return next;
+        });
+      }
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTickRef.current = 0;
+      accumRef.current = 0;
+    };
+  }, [playing, speed, data]);
+
+  // Grouped entries for the dropdown: exp → seed → start_step.
+  const grouped = useMemo(() => {
+    const byExp: Record<string, Record<number, ReplayIndexEntry[]>> = {};
+    for (const r of index?.replays ?? []) {
+      (byExp[r.exp] ??= {})[r.seed] ??= [];
+      byExp[r.exp][r.seed].push(r);
+    }
+    return byExp;
+  }, [index]);
+
+  const togglePlay = useCallback(() => {
+    if (!data) return;
+    if (frameIdx >= data.meta.n_frames - 1) setFrameIdx(0);
+    setPlaying((p) => !p);
+  }, [data, frameIdx]);
+
+  const selectKey = (entry: ReplayIndexEntry) =>
+    `${entry.exp}|${entry.seed}|${entry.start_step}`;
+
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-6">
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Replay</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Deterministic re-simulation of a saved checkpoint — watch the predator/prey
+          dynamics unfold step by step. Source:{" "}
+          <code className="text-xs">{replaysBaseUrl()}</code>
+        </p>
+      </header>
+
+      {indexError && (
+        <div className="mb-4 p-3 rounded bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-sm">
+          Could not load replay index: {indexError}
+          <div className="mt-1 text-xs opacity-80">
+            Generate one with{" "}
+            <code>python scripts/replay.py all --exp &lt;name&gt; --seed &lt;n&gt; --steps 1000</code>
+          </div>
+        </div>
+      )}
+
+      {index && index.replays.length === 0 && (
+        <div className="p-6 border border-dashed border-gray-300 dark:border-gray-700 rounded text-gray-600 dark:text-gray-400">
+          No replays yet. Render one with{" "}
+          <code>python scripts/replay.py all --exp baseline_faithful --seed 0 --steps 1000</code>.
+        </div>
+      )}
+
+      {index && index.replays.length > 0 && (
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left: controls */}
+          <aside className="lg:w-72 flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                Replay
+              </label>
+              <select
+                className="w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                value={selected ? selectKey(selected) : ""}
+                onChange={(e) => {
+                  const key = e.target.value;
+                  for (const r of index.replays) {
+                    if (selectKey(r) === key) {
+                      setSelected(r);
+                      return;
+                    }
+                  }
+                }}
+              >
+                {Object.entries(grouped).flatMap(([exp, seeds]) =>
+                  Object.entries(seeds).flatMap(([seed, entries]) =>
+                    entries.map((r) => (
+                      <option key={selectKey(r)} value={selectKey(r)}>
+                        {exp} — seed {seed} — step {r.start_step.toLocaleString()} (+{r.n_frames})
+                      </option>
+                    ))
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={togglePlay}
+                disabled={!data}
+                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {playing ? "Pause" : "Play"}
+              </button>
+              <button
+                onClick={() => {
+                  setPlaying(false);
+                  setFrameIdx(0);
+                }}
+                disabled={!data}
+                className="px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm disabled:opacity-50"
+              >
+                ⏮
+              </button>
+              <button
+                onClick={() => {
+                  setPlaying(false);
+                  setFrameIdx((i) => Math.max(0, i - 1));
+                }}
+                disabled={!data}
+                className="px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm disabled:opacity-50"
+              >
+                −1
+              </button>
+              <button
+                onClick={() => {
+                  setPlaying(false);
+                  setFrameIdx((i) =>
+                    data ? Math.min(data.meta.n_frames - 1, i + 1) : i
+                  );
+                }}
+                disabled={!data}
+                className="px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm disabled:opacity-50"
+              >
+                +1
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                Speed
+              </label>
+              <div className="flex gap-1">
+                {SPEEDS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSpeed(s)}
+                    className={`px-2 py-1 rounded text-xs font-mono border transition ${
+                      speed === s
+                        ? "bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-200"
+                        : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    {s}×
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showHeading}
+                  onChange={(e) => setShowHeading(e.target.checked)}
+                />
+                Show heading
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={energyAlpha}
+                  onChange={(e) => setEnergyAlpha(e.target.checked)}
+                />
+                Fade low-energy
+              </label>
+            </div>
+
+            <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800 pt-3 space-y-1">
+              <div>
+                Prey <span className="inline-block w-2 h-2 rounded-full bg-green-400 align-middle" />{" "}
+                Predator{" "}
+                <span className="inline-block w-2 h-2 rounded-full bg-red-400 align-middle" /> Food{" "}
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-400 align-middle" />
+              </div>
+              <div>
+                Determinism: replay is bit-for-bit faithful for ≤ one rollout (1024 steps)
+                from the saved state; policies then diverge from training since no PPO
+                update fires.
+              </div>
+            </div>
+          </aside>
+
+          {/* Right: canvas + scrub */}
+          <section className="flex-1 flex flex-col gap-3">
+            <div className="aspect-square w-full max-w-[720px] mx-auto border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-950">
+              {loading && (
+                <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+                  Loading replay…
+                </div>
+              )}
+              {loadError && (
+                <div className="w-full h-full flex items-center justify-center text-red-600 dark:text-red-400 text-sm p-4 text-center">
+                  {loadError}
+                </div>
+              )}
+              {data && !loading && (
+                <ReplayCanvas
+                  data={data}
+                  frameIdx={frameIdx}
+                  showHeading={showHeading}
+                  energyAlpha={energyAlpha}
+                  className="w-full h-full"
+                />
+              )}
+            </div>
+
+            {data && (
+              <div className="max-w-[720px] w-full mx-auto">
+                <input
+                  type="range"
+                  min={0}
+                  max={data.meta.n_frames - 1}
+                  value={frameIdx}
+                  onChange={(e) => {
+                    setPlaying(false);
+                    setFrameIdx(parseInt(e.target.value, 10));
+                  }}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs font-mono text-gray-500 dark:text-gray-400 mt-1">
+                  <span>frame {frameIdx + 1} / {data.meta.n_frames}</span>
+                  <span>sim step {data.stepNums[frameIdx].toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
