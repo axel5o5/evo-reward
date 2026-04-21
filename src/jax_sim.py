@@ -59,6 +59,12 @@ def build_sim_step(config, space):
     ppo_update_fn = build_ppo_update_fn(config)
 
     # Physics stepper
+    # D19 fix: also return a per-substep "did-touch" bool array, reduced via
+    # max across substeps. emevo's circle_foraging.py::nstep uses the same
+    # pattern: `contact.penetration >= 0.0` per substep, then jnp.max(axis=0).
+    # This lets check_eating_jax detect contacts that happened DURING a
+    # substep but were separated by the velocity solver before the step end
+    # — exactly the catches our old post-step distance check was missing.
     @jax.jit
     def physics_step(stated, solver, act_p1, act_p2, f1, f2):
         circle = stated.get("circle")
@@ -68,11 +74,14 @@ def build_sim_step(config, space):
 
         def body(carry, _):
             st, sol = carry
-            st, sol, _contact = pj.step(space, st, sol)
-            return (st, sol), None
+            st, sol, contact = pj.step(space, st, sol)
+            return (st, sol), contact.penetration >= 0.0
 
-        (stated, solver), _ = jax.lax.scan(body, (stated, solver), None, length=N_PHYSICS_ITER)
-        return stated, solver
+        (stated, solver), nstep_contacts = jax.lax.scan(
+            body, (stated, solver), None, length=N_PHYSICS_ITER
+        )
+        contacts = jnp.max(nstep_contacts, axis=0)  # (n_pair,) bool
+        return stated, solver, contacts
 
     @jax.jit
     def sim_step_core(sim_state):
@@ -135,10 +144,15 @@ def build_sim_step(config, space):
         f1 = jnp.concatenate([jnp.zeros_like(f1_raw), f1_raw], axis=1)
         f2 = jnp.concatenate([jnp.zeros_like(f2_raw), f2_raw], axis=1)
 
-        new_stated, new_solver = physics_step(
+        new_stated, new_solver, contacts_flat = physics_step(
             sim_state.phyjax_stated, sim_state.phyjax_solver,
             sim_state.act_p1, sim_state.act_p2, f1, f2,
         )
+
+        # Build (A, A) symmetric "did-touch" matrix from per-pair contact flags.
+        # emevo's nstep helper in gecco2026 circle_foraging.py does the same:
+        # per-substep penetration>=0 → max-reduce → get_contact_mat.
+        contact_mat = space.get_contact_mat("circle", "circle", contacts_flat)
 
         sim_state = sim_state.replace(
             phyjax_stated=new_stated, phyjax_solver=new_solver,
@@ -148,7 +162,7 @@ def build_sim_step(config, space):
 
         # === 5. Check eating ===
         (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
-         new_predator_eat_timer) = check_eating_jax(sim_state, config)
+         new_predator_eat_timer) = check_eating_jax(sim_state, config, contact_mat)
         sim_state = remove_eaten_food_jax(sim_state, food_eaten_mask)
         sim_state = sim_state.replace(predator_eat_timer=new_predator_eat_timer)
 

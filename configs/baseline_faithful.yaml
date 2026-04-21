@@ -165,18 +165,18 @@ action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
 #
 # Disable entirely by setting replay_record_interval_steps to 0 (or removing
 # these fields). Leave the bucket empty string to keep replays local only.
-replay_record_interval_steps: 100_000   # flush a replay this often (~67 min wall at 25 sps)
+replay_record_interval_steps: 20_000    # flush a replay this often (~13 min wall at 25 sps)
 replay_record_length_steps:   10_000    # frames per replay (~80 MB quantized; ~2.8 min on-screen at 60 fps)
 replay_quantize:              true      # uint16 pos + uint8 energy (~3× smaller)
 replay_bucket:                "evo-reward-replays-public"   # "" → local only
 replay_retention_policy:      "milestones"   # last_n | milestones | logarithmic
 replay_retention_config:
-  keep_last_n: 20                       # last 20 at 100k cadence ≈ 1.6 GB total
-  # step_00804501 is the first real-run replay ever captured — predators
-  # spinning in circles, ~7.8% through training. Pinned forever as the
-  # "before" to compare emergent behavior against. Tolerance 5_000 covers
-  # the 4501-step offset from the nearest 100k boundary.
-  keep_at_steps: [0, 100_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  keep_last_n: 100                      # last 100 at 20k cadence ≈ 8 GB total (public bucket cost is trivial)
+  # Early-dense pins give us fine-grained coverage of the first 500k steps
+  # (where behavior changes fastest) plus coarse milestones out to 10M.
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
   tolerance:   5_000                    # how close a replay's start_step must be to a pinned step
 
 # ─── Reproducibility ─────────────────────────────────────────────────────────

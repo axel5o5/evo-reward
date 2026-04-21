@@ -387,6 +387,69 @@ this is intentional; those runs produced no valid training data.
 with the help of an independent agent that confirmed "reward_weights
 at step 100K vs step 800K: max |Δ| = 0.000000" for predators.
 
+**Coupled fix:** the D18 fix alone was not sufficient — see D19 below.
+Phase 1a was restarted with D18+D19 bundled together on 2026-04-21.
+
+---
+
+### [D19] Slot↔body mismatch + post-step contact miss — bug, FIXED 2026-04-21
+
+**emevo (gecco2026):** per-species slot ranges aren't exposed explicitly
+because emevo uses separate physics bodies per agent; phyjax2d bakes
+body radius into the slot index at builder time. emevo's step also
+captures per-substep contacts directly via
+`(state, solver), contacts = jax.lax.scan(... contact.penetration >= 0.0)`
+and uses `space.get_contact_mat("circle", "circle", contacts)` to
+detect eating (gecco2026 `circle_foraging.py::nstep`).
+
+**Ours — BEFORE fix (buggy, post-D18):**
+1. **Slot↔body mismatch.** `init_simstate` placed initial predators
+   contiguous after initial prey (slots `n_prey..n_prey+n_pred-1`).
+   But `_build_physics` had already bound prey-radius (10) bodies to
+   slots `[0, prey_cap)` and predator-radius (14) bodies to
+   `[prey_cap, max_agents)`. Result: our "predators" lived in prey-sized
+   physics bodies — wrong mass, wrong inertia, and a smaller collision
+   surface. Births reused a species-agnostic "lowest free slot" search,
+   so offspring hit the wrong body too.
+2. **Post-step distance check missed mid-step contacts.** `check_eating_jax`
+   computed `dist ≤ sum_radii` at the *end* of each sim step, after
+   phyjax2d's velocity solver had already separated colliders across
+   5 physics substeps. Many real collisions happened inside a substep
+   and showed distance > threshold by step-end.
+
+Net effect: predators observed almost no catches, predator energy
+drained, births were nearly impossible — so D18's reward-weight
+freeze persisted even after D18 shipped. Phase 1a seed 0 ran for 70K
+steps with **1 birth total**.
+
+**Ours — AFTER fix:**
+1. **Species-reserved slots.** `init_simstate` places prey at
+   `[0, prey_cap)` and predators at `[prey_cap, max_agents)`. The
+   static `species` and `radii` arrays are derived from slot index,
+   guaranteeing agreement with phyjax2d's per-slot body radii.
+   `process_births_and_deaths_jax` picks the first inactive slot
+   within the parent's species range.
+2. **Emevo-style contact plumbing.** `physics_step` emits
+   `contact.penetration >= 0.0` per substep, max-reduces across
+   substeps, and `sim_step_core` calls
+   `space.get_contact_mat("circle", "circle", contacts)` to build an
+   (A, A) bool matrix passed to `check_eating_jax`, which uses it in
+   place of the distance check.
+
+**Risk of regression:** `tests/test_simstate_invariants.py` pins the
+slot↔body invariant directly (`state.radii[i] == physics.radius[i]`
+for every slot). `tests/test_birth_invariants.py` pins the
+species-correct offspring slot. `tests/test_sim_dynamics.py` includes
+slow-marked integration tests that fail immediately if catches or
+births stall. `tests/test_params_match_emevo.py` pins the hardcoded
+constants (hazard, birth, reward coefficients, physics iter count)
+that would otherwise drift silently.
+
+**Discovered:** Phase 1a post-D18 restart, 2026-04-21. Checkpoint
+inspection showed 1 birth / 70K steps and predator weights unchanged
+across 60K steps. Root cause surfaced by an audit agent that compared
+our init layout to phyjax2d's `_build_physics` radius assignment.
+
 ---
 
 ### D17: LSTM policy (Axis 4)

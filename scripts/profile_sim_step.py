@@ -111,15 +111,19 @@ def build_phase_fns(config, space):
 
         def body(carry, _):
             st, sol = carry
-            st, sol, _c = pj.step(space, st, sol)
-            return (st, sol), None
+            st, sol, contact = pj.step(space, st, sol)
+            return (st, sol), contact.penetration >= 0.0
 
-        (stated, solver), _ = jax.lax.scan(body, (stated, solver), None, length=N_PHYSICS_ITER)
-        return sim_state.replace(phyjax_stated=stated, phyjax_solver=solver)
+        (stated, solver), nstep_contacts = jax.lax.scan(
+            body, (stated, solver), None, length=N_PHYSICS_ITER
+        )
+        contacts = jnp.max(nstep_contacts, axis=0)
+        return sim_state.replace(phyjax_stated=stated, phyjax_solver=solver), contacts
 
     @jax.jit
-    def phase_eating(sim_state):
-        return check_eating_jax(sim_state, config)
+    def phase_eating(sim_state, contacts):
+        contact_mat = space.get_contact_mat("circle", "circle", contacts)
+        return check_eating_jax(sim_state, config, contact_mat)
 
     @jax.jit
     def phase_energy_births_food(sim_state, prey_n_eaten, pred_catch_slots, pred_n_catches,
@@ -206,14 +210,14 @@ def main():
     mean, std = time_phase(phase_physics, (sim_state, all_actions), args.iter)
     phase_times.append(("physics (phyjax2d)", mean, std))
 
-    sim_state_post_phys = phase_physics(sim_state, all_actions)
+    sim_state_post_phys, contacts = phase_physics(sim_state, all_actions)
     jax.block_until_ready(sim_state_post_phys.step)
 
     # Phase: eating (this is the O(N^2) one)
-    mean, std = time_phase(phase_eating, (sim_state_post_phys,), args.iter)
+    mean, std = time_phase(phase_eating, (sim_state_post_phys, contacts), args.iter)
     phase_times.append(("eating (O(N^2) catch)", mean, std))
 
-    prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask = phase_eating(sim_state_post_phys)
+    prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask, _ = phase_eating(sim_state_post_phys, contacts)
 
     # Phase: energy + births/deaths + food regen
     mean, std = time_phase(

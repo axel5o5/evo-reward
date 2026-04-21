@@ -19,20 +19,29 @@ def _wrap_angle(a):
     return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
 
 
-def check_eating_jax(sim_state, config):
+def check_eating_jax(sim_state, config, contact_mat):
     """Detect eating events for all agents. Pure JAX, JIT-compatible.
 
     Predator catching semantics (matches emevo's circle_foraging_with_predator
-    per gecco2026 branch; see docs/emevo-diff.md D18):
-      * **Contact**: predator and prey physically touch — Euclidean distance
-        ≤ sum of radii. No "radial range" — predators catch only prey they
-        can touch, not prey 40-80 units away.
+    per gecco2026 branch; see docs/emevo-diff.md D18/D19):
+      * **Contact**: predator and prey touched *at any physics substep*, per
+        `contact_mat` (an (A, A) bool produced upstream from phyjax2d's
+        per-substep `contact.penetration >= 0`, max-reduced across substeps,
+        then expanded via `space.get_contact_mat`). The previous post-step
+        distance check missed mid-step contacts that the velocity solver
+        separated before the step ended — D19 fix.
       * **Mouth**: the prey must fall into one of the tactile bins listed in
         config['predator_mouth_tactile_bins'] (default [0, 1, 17] = 60°
         front arc, same bin layout as our tactile sensors in observations.py).
       * **Cooldown**: each predator has its own eat-timer that decrements
         per step and resets to config['predator_eat_interval'] on a catch.
         A predator can only catch when timer <= 0.
+
+    Args:
+        sim_state: SimState
+        config: dict
+        contact_mat: (A, A) bool — per-pair "did touch during this physics
+            step" matrix, from space.get_contact_mat("circle", "circle", ...).
 
     Returns:
         prey_n_eaten: (max_agents,) int32 — food count eaten by each agent
@@ -52,7 +61,6 @@ def check_eating_jax(sim_state, config):
     energies = sim_state.energies
     food_pos = sim_state.food_positions
     food_active = sim_state.food_active
-    radii = sim_state.radii                                       # (A,)
     predator_eat_timer = sim_state.predator_eat_timer             # (A,) int32
 
     max_agents = positions.shape[0]
@@ -101,15 +109,14 @@ def check_eating_jax(sim_state, config):
     prey_n_eaten = jnp.where(prey_mask, prey_n_eaten, 0)
 
     # ---- Predator catching prey (emevo-faithful: contact + tactile-bin + cooldown) ----
-    # Pairwise distances: (max_agents, max_agents) — pred×prey
+    # Pairwise distances: (max_agents, max_agents) — pred×prey.
+    # Still needed for tactile-bin angle computation and for nearest-pred
+    # deduplication; just no longer the source of truth for "did touch."
     diffs_agents = positions[None, :, :] - positions[:, None, :]  # (A, A, 2)
     dists_agents = jnp.linalg.norm(diffs_agents, axis=-1)         # (A, A)
 
-    # Contact: distance ≤ sum of radii (predator_radius + prey_radius).
-    # Uses the same "touching" convention as observations.py::_single_tactile
-    # line 195-196 so catch detection is consistent with what agents sense.
-    contact_thresh = radii[:, None] + radii[None, :]              # (A, A)
-    in_contact = dists_agents <= contact_thresh
+    # Contact comes from phyjax2d's per-substep penetration check (D19).
+    in_contact = contact_mat
 
     # Tactile-bin assignment — nearest bin to the angle-from-heading of each prey
     angles_to_agents = jnp.arctan2(diffs_agents[:, :, 1], diffs_agents[:, :, 0])

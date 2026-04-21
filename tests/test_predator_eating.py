@@ -102,32 +102,47 @@ def config():
 
 
 def _place_agents(state, config, placements):
-    """Overwrite circle.p.xy, circle.p.angle, species, is_active, radii for
-    the first len(placements) slots. Each placement is
-    (species, x, y, heading_rad). Inactive slots get pushed to (0, 0).
+    """Overwrite circle.p.xy, circle.p.angle, species, is_active, radii so
+    each placement occupies a *species-correct slot* (D19 invariant).
+
+    Each placement is (species, x, y, heading_rad). Prey go into the first
+    free prey slot [0, prey_cap); predators go into the first free pred
+    slot [prey_cap, max_agents). Returns (new_state, slots) where slots[i]
+    is the slot index assigned to placements[i].
     """
     import phyjax2d as pj
 
     max_agents = state.is_active.shape[0]
+    prey_cap = config["prey_cap"]
     prey_r = config["prey_radius"]
     pred_r = config["predator_radius"]
 
     xs = jnp.zeros(max_agents)
     ys = jnp.zeros(max_agents)
     angs = jnp.zeros(max_agents)
-    species = jnp.zeros(max_agents, dtype=jnp.int32)
+    species = jnp.where(
+        jnp.arange(max_agents) < prey_cap, 0, 1
+    ).astype(jnp.int32)
     active = jnp.zeros(max_agents, dtype=bool)
-    radii = jnp.where(
-        jnp.zeros(max_agents, dtype=jnp.int32) == 0, prey_r, pred_r
-    )  # placeholder, overwritten below
+    radii = jnp.where(species == 0, prey_r, pred_r).astype(jnp.float32)
 
-    for i, (sp, x, y, a) in enumerate(placements):
-        xs = xs.at[i].set(x)
-        ys = ys.at[i].set(y)
-        angs = angs.at[i].set(a)
-        species = species.at[i].set(int(sp))
-        active = active.at[i].set(True)
-        radii = radii.at[i].set(prey_r if sp == 0 else pred_r)
+    next_prey = 0
+    next_pred = prey_cap
+    slots = []
+    for (sp, x, y, a) in placements:
+        if int(sp) == 0:
+            slot = next_prey
+            next_prey += 1
+            assert slot < prey_cap, "too many prey placements"
+        else:
+            slot = next_pred
+            next_pred += 1
+            assert slot < max_agents, "too many predator placements"
+        slots.append(slot)
+        xs = xs.at[slot].set(x)
+        ys = ys.at[slot].set(y)
+        angs = angs.at[slot].set(a)
+        active = active.at[slot].set(True)
 
     circle = state.phyjax_stated.get("circle")
     circle = circle.replace(
@@ -135,17 +150,37 @@ def _place_agents(state, config, placements):
         is_active=active,
     )
     new_stated = state.phyjax_stated.replace(circle=circle)
-    return state.replace(
+    new_state = state.replace(
         phyjax_stated=new_stated,
         species=species,
         is_active=active,
         radii=radii,
     )
+    return new_state, slots
+
+
+def _synthetic_contact_mat(state):
+    """Distance-based (A, A) bool contact matrix for unit tests.
+
+    Tests don't actually run physics substeps; D19's real contact source is
+    phyjax2d's per-substep penetration. Here we synthesize an equivalent
+    (dist <= sum_radii) matrix, which is exactly what the legacy distance
+    check computed — keeping these tests' semantics unchanged while
+    matching the new signature."""
+    circle = state.phyjax_stated.get("circle")
+    pos = circle.p.xy
+    radii = state.radii
+    diffs = pos[None, :, :] - pos[:, None, :]
+    dists = jnp.linalg.norm(diffs, axis=-1)
+    thresh = radii[:, None] + radii[None, :]
+    return dists <= thresh
 
 
 def _catch_count(state, config):
     """Run check_eating_jax and return the total predator catches this step."""
-    _, _, pred_n_catches, _, _ = check_eating_jax(state, config)
+    _, _, pred_n_catches, _, _ = check_eating_jax(
+        state, config, _synthetic_contact_mat(state)
+    )
     return int(jnp.sum(pred_n_catches))
 
 
@@ -156,7 +191,7 @@ class TestCatchGeometry:
         state = init_simstate(config, jax.random.PRNGKey(0))
         # predator at origin of world center, prey directly in front at distance 20
         # (< pred_r + prey_r = 24 → contact)
-        state = _place_agents(state, config, [
+        state, _ = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),    # predator facing east
             (0, 520.0, 500.0, 0.0),    # prey 20 units east (touching, bin 0)
         ])
@@ -165,7 +200,7 @@ class TestCatchGeometry:
     def test_touching_prey_behind_is_not_caught(self, config):
         """Prey touching but at 180° — nearest bin is 9, not in mouth — no catch."""
         state = init_simstate(config, jax.random.PRNGKey(0))
-        state = _place_agents(state, config, [
+        state, _ = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),    # predator facing east
             (0, 480.0, 500.0, 0.0),    # prey 20 units behind (touching, bin 9)
         ])
@@ -180,7 +215,7 @@ class TestCatchGeometry:
         not touching. Both are now correctly "no catch" unless touching.
         """
         state = init_simstate(config, jax.random.PRNGKey(0))
-        state = _place_agents(state, config, [
+        state, _ = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),
             (0, 530.0, 500.0, 0.0),    # prey 30 units ahead — not touching
         ])
@@ -192,45 +227,54 @@ class TestCooldown:
     def test_catch_at_step0_sets_timer(self, config):
         """After catching, predator_eat_timer resets to eat_interval."""
         state = init_simstate(config, jax.random.PRNGKey(0))
-        state = _place_agents(state, config, [
+        state, slots = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),
             (0, 520.0, 500.0, 0.0),
         ])
-        assert int(state.predator_eat_timer[0]) == 0  # ready to eat
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(state, config)
-        assert int(pred_n_catches[0]) == 1
-        assert int(new_timer[0]) == config["predator_eat_interval"]
+        pred_slot = slots[0]
+        assert int(state.predator_eat_timer[pred_slot]) == 0  # ready to eat
+        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+            state, config, _synthetic_contact_mat(state)
+        )
+        assert int(pred_n_catches[pred_slot]) == 1
+        assert int(new_timer[pred_slot]) == config["predator_eat_interval"]
 
     def test_cannot_catch_during_cooldown(self, config):
         """With timer > 0, predator can't catch even when prey is touching."""
         state = init_simstate(config, jax.random.PRNGKey(0))
-        state = _place_agents(state, config, [
+        state, slots = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),
             (0, 520.0, 500.0, 0.0),
         ])
+        pred_slot = slots[0]
         # Manually set timer to 5 (mid-cooldown)
         state = state.replace(
-            predator_eat_timer=state.predator_eat_timer.at[0].set(5)
+            predator_eat_timer=state.predator_eat_timer.at[pred_slot].set(5)
         )
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(state, config)
-        assert int(pred_n_catches[0]) == 0
+        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+            state, config, _synthetic_contact_mat(state)
+        )
+        assert int(pred_n_catches[pred_slot]) == 0
         # Timer should decrement to 4
-        assert int(new_timer[0]) == 4
+        assert int(new_timer[pred_slot]) == 4
 
     def test_can_catch_again_after_cooldown(self, config):
         """With timer at 0, predator can catch again."""
         state = init_simstate(config, jax.random.PRNGKey(0))
-        state = _place_agents(state, config, [
+        state, slots = _place_agents(state, config, [
             (1, 500.0, 500.0, 0.0),
             (0, 520.0, 500.0, 0.0),
         ])
+        pred_slot = slots[0]
         # Timer at -1 (well past cooldown)
         state = state.replace(
-            predator_eat_timer=state.predator_eat_timer.at[0].set(-1)
+            predator_eat_timer=state.predator_eat_timer.at[pred_slot].set(-1)
         )
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(state, config)
-        assert int(pred_n_catches[0]) == 1
-        assert int(new_timer[0]) == config["predator_eat_interval"]
+        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+            state, config, _synthetic_contact_mat(state)
+        )
+        assert int(pred_n_catches[pred_slot]) == 1
+        assert int(new_timer[pred_slot]) == config["predator_eat_interval"]
 
 
 class TestIndependentTimers:
@@ -240,15 +284,18 @@ class TestIndependentTimers:
         timer decrements independently and doesn't affect A."""
         state = init_simstate(config, jax.random.PRNGKey(0))
         # A and B far apart; A touching a prey, B alone
-        state = _place_agents(state, config, [
-            (1, 200.0, 200.0, 0.0),   # predator A at (200,200) facing east
+        state, slots = _place_agents(state, config, [
+            (1, 200.0, 200.0, 0.0),   # predator A facing east
             (0, 220.0, 200.0, 0.0),   # prey 20 east of A  (A catches)
-            (1, 700.0, 700.0, 0.0),   # predator B at (700,700), no prey near
+            (1, 700.0, 700.0, 0.0),   # predator B, no prey near
         ])
-        _, _, pred_n_catches, _, new_timer = check_eating_jax(state, config)
+        pred_a, pred_b = slots[0], slots[2]
+        _, _, pred_n_catches, _, new_timer = check_eating_jax(
+            state, config, _synthetic_contact_mat(state)
+        )
         # A caught, timer reset to 10
-        assert int(pred_n_catches[0]) == 1
-        assert int(new_timer[0]) == config["predator_eat_interval"]
+        assert int(pred_n_catches[pred_a]) == 1
+        assert int(new_timer[pred_a]) == config["predator_eat_interval"]
         # B didn't catch, timer decremented from 0 to -1
-        assert int(pred_n_catches[2]) == 0
-        assert int(new_timer[2]) == -1
+        assert int(pred_n_catches[pred_b]) == 0
+        assert int(new_timer[pred_b]) == -1

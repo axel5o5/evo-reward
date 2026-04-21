@@ -184,8 +184,22 @@ def process_births_and_deaths_jax(sim_state, config):
         )
         should_spawn = is_valid & still_under_cap & state.is_active[parent_slot]
 
-        # Find first free slot
-        inactive_slots = jnp.where(~state.is_active, jnp.arange(max_agents), max_agents)
+        # Find first free slot WITHIN the parent's species range (D19 fix).
+        # Prey slots are [0, prey_cap); predator slots are [prey_cap, max_agents).
+        # Physics body radii are bound to slot index at builder time, so an
+        # offspring must be spawned in a slot whose physics body matches its
+        # species — otherwise it ends up in a wrong-sized body.
+        slot_idx = jnp.arange(max_agents)
+        in_species_range = jnp.where(
+            parent_species == 0,
+            slot_idx < prey_cap,
+            slot_idx >= prey_cap,
+        )
+        inactive_slots = jnp.where(
+            ~state.is_active & in_species_range,
+            slot_idx,
+            max_agents,
+        )
         first_free = jnp.min(inactive_slots)
         has_slot = first_free < max_agents
 

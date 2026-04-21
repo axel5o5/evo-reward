@@ -215,20 +215,27 @@ class TestSpawnOffspring:
 
     def test_child_inherits_species(self, config):
         state = init_simstate(config, jax.random.PRNGKey(0))
-        n_initial = config["prey_initial"] + config["predator_initial"]
+        prey_cap = config["prey_cap"]
+        n_prey = config["prey_initial"]
+        n_pred = config["predator_initial"]
 
-        # Prey parent (slot 0 is prey per init_simstate ordering)
+        # D19 layout: prey slots [0, prey_cap), predator slots [prey_cap, max).
+        # Use first inactive slot in each species range as the spawn target.
+        prey_new_slot = n_prey                  # first inactive prey slot
+        pred_new_slot = prey_cap + n_pred       # first inactive predator slot
+
+        # Prey parent (slot 0 is prey)
         prey_child = spawn_offspring_jax(
-            state, 0, n_initial, jax.random.PRNGKey(1), config,
+            state, 0, prey_new_slot, jax.random.PRNGKey(1), config,
         )
-        assert int(prey_child.species[n_initial]) == int(state.species[0]) == 0
+        assert int(prey_child.species[prey_new_slot]) == int(state.species[0]) == 0
 
-        # Predator parent (first predator slot is prey_initial)
-        pred_parent_slot = config["prey_initial"]
+        # Predator parent: first predator slot is prey_cap (not prey_initial)
+        pred_parent_slot = prey_cap
         pred_child = spawn_offspring_jax(
-            state, pred_parent_slot, n_initial + 1, jax.random.PRNGKey(2), config,
+            state, pred_parent_slot, pred_new_slot, jax.random.PRNGKey(2), config,
         )
-        assert int(pred_child.species[n_initial + 1]) == 1
+        assert int(pred_child.species[pred_new_slot]) == 1
 
     def test_child_energy_is_parent_share(self, config):
         state = init_simstate(config, jax.random.PRNGKey(0))

@@ -93,7 +93,9 @@ def init_simstate(config: dict, rng_key) -> SimState:
     import math
     import numpy as np
 
-    max_agents = config["prey_cap"] + config["predator_cap"]
+    prey_cap = config["prey_cap"]
+    pred_cap = config["predator_cap"]
+    max_agents = prey_cap + pred_cap
     food_max = config["food_max"]
     rollout_steps = config["rollout_steps"]
     obs_dim = config["obs_dim"]
@@ -101,67 +103,78 @@ def init_simstate(config: dict, rng_key) -> SimState:
     pred_radius = config["predator_radius"]
     world_size = config["world_size"]
 
-    # --- Initialize agent arrays ---
+    # --- Slot layout (D19 fix) ------------------------------------------------
+    # Species are bound to disjoint slot ranges, matching the physics builder:
+    #   prey slots:     [0, prey_cap)                 — physics radius 10
+    #   predator slots: [prey_cap, prey_cap+pred_cap) — physics radius 14
+    # The initial population fills the LOW end of each range; higher indices
+    # in each range are inactive reserves for future births. This keeps the
+    # species invariant tied to slot-index, not just the SimState.species
+    # field, so collisions and act_ratio/inertia all agree with the body size.
     n_prey = config["prey_initial"]
     n_pred = config["predator_initial"]
     n_initial = n_prey + n_pred
+    assert n_prey <= prey_cap, "prey_initial > prey_cap"
+    assert n_pred <= pred_cap, "predator_initial > predator_cap"
+
+    # Active slots (Python lists, used for per-slot initializations below).
+    prey_slots = list(range(n_prey))
+    pred_slots = list(range(prey_cap, prey_cap + n_pred))
+    active_slots = prey_slots + pred_slots  # length = n_initial
 
     rng_key, pos_key, angle_key, genome_key, policy_key = jax.random.split(rng_key, 5)
 
-    # Positions: random within world bounds (with margin)
+    # Positions: random within world bounds (with margin), only for active slots.
     margin = max(prey_radius, pred_radius) * 2
-    positions = jax.random.uniform(pos_key, (n_initial, 2),
-                                   minval=margin, maxval=world_size - margin)
-    angles = jax.random.uniform(angle_key, (n_initial,),
-                                minval=-jnp.pi, maxval=jnp.pi)
+    positions_initial = jax.random.uniform(
+        pos_key, (n_initial, 2), minval=margin, maxval=world_size - margin,
+    )
+    angles_initial = jax.random.uniform(
+        angle_key, (n_initial,), minval=-jnp.pi, maxval=jnp.pi,
+    )
 
-    # Species: first n_prey are prey, rest are predators
-    species_init = jnp.concatenate([
-        jnp.zeros(n_prey, dtype=jnp.int32),
-        jnp.ones(n_pred, dtype=jnp.int32),
-    ])
+    # Species array keyed by SLOT, not by order-of-initial-population.
+    slot_idx = jnp.arange(max_agents, dtype=jnp.int32)
+    species_arr = jnp.where(slot_idx < prey_cap, 0, 1).astype(jnp.int32)
+    radii_arr = jnp.where(species_arr == 0, prey_radius, pred_radius).astype(jnp.float32)
 
-    radii_init = jnp.where(species_init == 0, prey_radius, pred_radius)
+    # is_active: True at the low indices of each species range.
+    is_active = (
+        (slot_idx < n_prey)
+        | ((slot_idx >= prey_cap) & (slot_idx < prey_cap + n_pred))
+    )
 
-    # Genome: N(0, init_std)
-    genome_keys = jax.random.split(genome_key, n_initial)
-    reward_weights_init = jax.random.normal(genome_keys[0], (n_initial, 4)) * config["reward_weights_init_std"]
-    # Re-sample properly per agent
-    reward_weights_init = jax.vmap(
-        lambda k: jax.random.normal(k, (4,)) * config["reward_weights_init_std"]
-    )(genome_keys)
+    # Scatter initial positions/angles into the full (max_agents,) arrays.
+    active_slots_arr = jnp.asarray(active_slots, dtype=jnp.int32)
+    all_positions = jnp.zeros((max_agents, 2)).at[active_slots_arr].set(positions_initial)
+    all_angles = jnp.zeros(max_agents).at[active_slots_arr].set(angles_initial)
 
-    # Energy
-    energies_init = jnp.full(n_initial, config.get("initial_energy", 100.0))
-
-    # --- Pad to max_agents ---
-    def pad(arr, target_len, fill=0):
-        pad_width = target_len - arr.shape[0]
-        if pad_width <= 0:
-            return arr[:target_len]
-        if arr.ndim == 1:
-            return jnp.concatenate([arr, jnp.full(pad_width, fill, dtype=arr.dtype)])
-        else:
-            return jnp.concatenate([arr, jnp.full((pad_width, *arr.shape[1:]), fill, dtype=arr.dtype)])
-
-    is_active = jnp.concatenate([
-        jnp.ones(n_initial, dtype=bool),
-        jnp.zeros(max_agents - n_initial, dtype=bool),
-    ])
-    species_arr = pad(species_init, max_agents)
-    agent_ids = jnp.arange(max_agents, dtype=jnp.int32)
+    # Agent IDs: first n_initial ids assigned to active slots in order.
+    # next_agent_id (below) continues from n_initial, so no collisions with
+    # future births.
+    agent_ids = jnp.zeros(max_agents, dtype=jnp.int32).at[active_slots_arr].set(
+        jnp.arange(n_initial, dtype=jnp.int32)
+    )
     parent_ids = jnp.full(max_agents, -1, dtype=jnp.int32)
     ages = jnp.zeros(max_agents, dtype=jnp.int32)
-    energies = pad(energies_init, max_agents)
-    reward_weights = pad(reward_weights_init, max_agents)
-    radii_arr = pad(radii_init, max_agents)
 
-    # --- Policy params: initialize for all slots ---
-    # Initialize one to get tree structure, then tile and re-init active slots
-    policy_keys = jax.random.split(policy_key, max_agents)
-    dummy_params, dummy_opt = init_policy(policy_keys[0], config)
+    # Energies: initial_energy for active slots, 0 elsewhere.
+    initial_energy = config.get("initial_energy", 100.0)
+    energies = jnp.where(is_active, initial_energy, 0.0).astype(jnp.float32)
 
-    # Tile dummy to (max_agents, ...) for each leaf
+    # Reward-weight genomes: N(0, init_std) for active slots; zeros elsewhere
+    # (masking by is_active downstream makes the exact value inconsequential,
+    # but zeros keep logged stats clean).
+    genome_keys = jax.random.split(genome_key, n_initial)
+    active_reward_weights = jax.vmap(
+        lambda k: jax.random.normal(k, (4,)) * config["reward_weights_init_std"]
+    )(genome_keys)
+    reward_weights = jnp.zeros((max_agents, 4)).at[active_slots_arr].set(active_reward_weights)
+
+    # --- Policy params: tile a dummy, then re-init active slots ---------------
+    policy_keys = jax.random.split(policy_key, n_initial)
+    dummy_params, dummy_opt = init_policy(jax.random.PRNGKey(0), config)
+
     all_params = jtu.tree_map(
         lambda p: jnp.tile(p[None, ...], (max_agents, *([1] * p.ndim))),
         dummy_params,
@@ -171,11 +184,11 @@ def init_simstate(config: dict, rng_key) -> SimState:
         dummy_opt,
     )
 
-    # Re-initialize each active agent's params with unique key
-    for i in range(n_initial):
-        params_i, opt_i = init_policy(policy_keys[i], config)
-        all_params = jtu.tree_map(lambda s, v: s.at[i].set(v), all_params, params_i)
-        all_opt = jtu.tree_map(lambda s, v: s.at[i].set(v), all_opt, opt_i)
+    # Re-initialize each active agent's params with a unique key.
+    for local_i, slot in enumerate(active_slots):
+        params_i, opt_i = init_policy(policy_keys[local_i], config)
+        all_params = jtu.tree_map(lambda s, v: s.at[slot].set(v), all_params, params_i)
+        all_opt = jtu.tree_map(lambda s, v: s.at[slot].set(v), all_opt, opt_i)
 
     # --- Rollout buffers ---
     rollout_obs = jnp.zeros((max_agents, rollout_steps, obs_dim))
@@ -209,9 +222,8 @@ def init_simstate(config: dict, rng_key) -> SimState:
     stated = space.zeros_state()
     circle_state = stated.get("circle")
 
-    # Set positions for all slots (padding already has zeros)
-    all_positions = pad(positions, max_agents)
-    all_angles = pad(angles, max_agents)
+    # Positions/angles were scattered into full-length arrays above; nothing
+    # more to do here beyond handing them to the phyjax2d circle state.
 
     import phyjax2d as pj
     circle_state = circle_state.replace(
