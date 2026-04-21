@@ -452,6 +452,104 @@ our init layout to phyjax2d's `_build_physics` radius assignment.
 
 ---
 
+### [D20] Caught prey never deactivated — bug, FIXED 2026-04-21
+
+**emevo (gecco2026):** when a predator catches a prey, the prey is
+removed from the world in the same step (its agent record is
+deactivated; the physics body is flagged inactive).
+
+**Ours — BEFORE fix (post-D18, post-D19):** `check_eating_jax`
+correctly produced `pred_catch_slots` and `update_energies_jax`
+correctly credited the predator with `+eta · E_prey`, but nothing
+in the pipeline ever set `is_active = False` for the caught prey.
+The prey kept existing at its pre-catch energy, the 10-step
+`predator_eat_interval` cooldown reset, and 10 steps later the
+predator caught the *same* prey again. Net effect: predators ate
+for free indefinitely. Saturation at `energy_capacity ≈ 1000` with
+no deaths, no population turnover, and no selection pressure on
+either species.
+
+**Ours — AFTER fix:** `check_eating_jax` also returns a
+`prey_caught_mask: (max_agents,) bool`, and `sim_step_core`
+applies a same-step deactivation right after eating-check — clears
+`is_active`, zeroes velocity, flips the phyjax2d `circle.is_active`
+bit. The energy transfer math is unchanged (`update_energies_jax`
+still reads the pre-deactivation energies to compute `eta · E`).
+
+**Why the D18/D19 fixes alone weren't enough:** D18 fixed *how*
+catches are detected (contact + mouth + cooldown). D19 fixed *where*
+the physics thinks each agent is (correct slot-to-body radius).
+D20 fixes *what happens after* a catch. All three had to be right
+to see real predator-prey dynamics.
+
+**Risk of regression:** `tests/test_predator_eating.py`:
+`test_predator_energy_jumps_after_catch` runs one full `sim_step_core`
+over a hand-crafted pred/prey pair and asserts the predator's
+energy gained ≈ `eta · prey_energy`. Also
+`tests/test_sim_dynamics.py::test_caught_prey_actually_die` and
+`test_predator_energy_not_saturated_at_5k` (both `@slow`) check
+the macro signal over 5K in-process steps.
+
+**Self-bug (same commit sequence):** the first version of D20
+also zeroed caught prey energies during the deactivation step —
+right before `update_energies_jax` read them. That made
+`pred_gain = eta · 0 = 0`, so predators starved despite catching.
+Fixed by leaving energies untouched (inactive slots are filtered
+by `is_active` masks everywhere downstream; leaving the stale
+energy is harmless and preserves the transfer). Caught on the
+relaunched Phase 1a run at step 10K — predator count had dropped
+from 50 to 10 in 10 minutes.
+
+**Audit Finding 2 (bundled with D20):** `spawn_offspring_jax` was
+writing ~20 SimState fields for a newborn slot but missed
+`predator_eat_timer`. A slot that went dormant with timer=9 would
+give the newborn a 9-step head start before its first catch.
+Moderate-severity bias against successful predator lineages
+(suppresses early-life catch success). Fix: reset to 0 alongside
+the other per-slot resets. Test:
+`tests/test_jax_evolution.py::test_child_predator_eat_timer_reset`.
+
+**Discovered via:** `scripts/verify_replay.py`, a post-hoc replay
+integrity check written earlier in the session. Running it against
+the in-flight post-D19 replay at step 10001 reported 0 catches, 0
+deaths, predator energy min=977/mean=991, and `births=0` —
+inconsistent with D18+D19 alone. This led straight to the
+"what happens to caught prey?" question and the missing
+deactivation.
+
+---
+
+### [D21] Real-time run visibility — instrumentation, 2026-04-21
+
+**Motivation:** D18, D19, and D20 all looked fine in the Step log
+because the log surfaced populations and reward-weight means but
+no event deltas — by the time a silent dynamics bug became
+visible (via replay analysis after a flush), hours of GCP time
+had been burned.
+
+**Added:** three int32 scalars on `SimState` (`cum_catches`,
+`cum_deaths`, `cum_feedings`) ticked inside `sim_step_core` and
+`process_births_and_deaths_jax`; the runner diffs them between
+log intervals. `progress.json` gets two new blocks:
+
+- `events_last_interval`: `{catches, deaths, births, feedings, interval_steps}`
+- `energy_stats`: `{prey: {min, mean, max}, pred: {min, mean, max}}`
+
+The Step text log now shows `Δ catch=N death=N birth=N feed=N`
+and per-species energy bands. Inline `⚠` warnings fire on:
+
+- No catches across 2 consecutive log intervals
+- No births across 5 consecutive log intervals
+- `min(pred_energy) > energy_capacity * 0.95` (saturation)
+
+Storage: ~12 bytes added to each checkpoint (three int32); ~300
+bytes added to each progress.json write.
+
+**Not a deviation from emevo** — this is instrumentation we added;
+emevo makes no claim about what's in a training run's log.
+
+---
+
 ### D17: LSTM policy (Axis 4)
 
 **emevo:** Policy is a feedforward MLP (2 hidden layers, 64 units, tanh).
