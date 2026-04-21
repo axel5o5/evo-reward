@@ -163,8 +163,8 @@ action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
 #
 # Disable entirely by setting replay_record_interval_steps to 0 (or removing
 # these fields). Leave the bucket empty string to keep replays local only.
-replay_record_interval_steps: 5_000     # flush a replay this often (tight cadence for initial demo; bump to 100_000 for long runs)
-replay_record_length_steps:   500       # frames per replay (~2 MB quantized at this length)
+replay_record_interval_steps: 100_000   # flush a replay this often (~67 min wall at 25 sps)
+replay_record_length_steps:   10_000    # frames per replay (~80 MB quantized; ~2.8 min on-screen at 60 fps)
 replay_quantize:              true      # uint16 pos + uint8 energy (~3× smaller)
 replay_bucket:                "evo-reward-replays-public"   # "" → local only
 replay_retention_policy:      "milestones"   # last_n | milestones | logarithmic

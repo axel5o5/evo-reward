@@ -953,6 +953,24 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "ff65b6b3",
+      "message": "[Replay] Turn on recording at 5000-step cadence for initial rollout",
+      "body": "Short cadence + short clips so we can see replays appearing within\n~7 min of resume and visually confirm the pipeline works before\nstepping up to a long-run cadence. Retention is `milestones` with\npins at 0 / 100k / 500k / 1M / 5M / 10M + last 20.\n\nOnce the flow is verified, bump replay_record_interval_steps back to\n100_000 for the main run.",
+      "date": "2026-04-20 23:37:53 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "27fde7eb",
+      "message": "[Replay] Add google-cloud-storage to requirements",
+      "body": "scripts/replay_upload.py imports google.cloud.storage; without this pin\nthe training VM's venv is missing the SDK and the recorder's upload\nstep silently fails with ModuleNotFoundError (first flush on the live\nrun hit exactly this).",
+      "date": "2026-04-21 00:16:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }
