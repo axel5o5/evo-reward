@@ -374,14 +374,19 @@ def start_tmux(zone):
         # phase1a training loop
         "tmux kill-session -t phase1a 2>/dev/null; "
         "tmux new-session -d -s phase1a -c ~/evo-reward 'bash ~/phase1a_loop.sh' && "
-        # gcs-sync sidecar: pushes results/ to the GCS bucket every 5 min
-        f"if ! tmux has-session -t gcs-sync 2>/dev/null; then "
-        f"  tmux new-session -d -s gcs-sync -c ~/evo-reward "
-        f"    'while true; do "
-        f"       gsutil -m rsync -r results gs://{GCS_BUCKET}/results 2>>~/gcs-sync.log; "
-        f"       sleep 300; "
-        f"     done'; "
-        f"fi && "
+        # gcs-sync sidecar: pushes results/ to the GCS bucket every 5 min.
+        # Kill + recreate unconditionally so a post-upload_repo restart fixes
+        # any existing session whose shell still holds a stale cwd inode from
+        # the pre-swap ~/evo-reward directory. (Leaving a broken session in
+        # place means every rsync errors out with "arg (results) does not
+        # name a directory" and checkpoints stop syncing — a silent data-
+        # loss mode we hit once on 2026-04-21.)
+        "tmux kill-session -t gcs-sync 2>/dev/null; "
+        f"tmux new-session -d -s gcs-sync -c ~/evo-reward "
+        f"  'while true; do "
+        f"     gsutil -m rsync -r results gs://{GCS_BUCKET}/results 2>>~/gcs-sync.log; "
+        f"     sleep 300; "
+        f"   done' && "
         "tmux ls"
     )
     rc, out = ssh(zone, launch, timeout=60)
