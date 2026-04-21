@@ -26,6 +26,10 @@ export interface ReplayIndexEntry {
   n_frames: number;
   path: string;
   size_bytes: number;
+  // Optional: present on replays uploaded via the tagged layout (see
+  // docs/emevo-diff.md D18). Empty/undefined = legacy untagged layout
+  // (we treat that as "current" post-D18 by convention).
+  run_tag?: string;
 }
 
 export interface ReplayIndex {

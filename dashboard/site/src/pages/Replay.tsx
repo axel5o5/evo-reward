@@ -98,15 +98,40 @@ export default function Replay() {
     };
   }, [playing, speed, data]);
 
-  // Grouped entries for the dropdown: exp → seed → start_step.
+  // Grouped entries for the dropdown: tag → (exp, seed) → start_step.
+  // Tags distinguish code versions (see docs/emevo-diff.md D18): e.g.
+  // "pre_d18_fix" is the broken/frozen-predator run, untagged is the
+  // current/post-fix run.
   const grouped = useMemo(() => {
-    const byExp: Record<string, Record<number, ReplayIndexEntry[]>> = {};
+    const byTag: Record<string, ReplayIndexEntry[]> = {};
     for (const r of index?.replays ?? []) {
-      (byExp[r.exp] ??= {})[r.seed] ??= [];
-      byExp[r.exp][r.seed].push(r);
+      const tag = r.run_tag || "current";
+      (byTag[tag] ??= []).push(r);
     }
-    return byExp;
+    for (const tag of Object.keys(byTag)) {
+      byTag[tag].sort(
+        (a, b) =>
+          a.exp.localeCompare(b.exp) ||
+          a.seed - b.seed ||
+          a.start_step - b.start_step,
+      );
+    }
+    return byTag;
   }, [index]);
+
+  // Tag-ordering: "current" (untagged/latest) first, then tagged runs
+  // alphabetically. Reader first sees the active run.
+  const tagOrder = useMemo(() => {
+    const tags = Object.keys(grouped);
+    return tags.sort((a, b) => {
+      if (a === "current") return -1;
+      if (b === "current") return 1;
+      return a.localeCompare(b);
+    });
+  }, [grouped]);
+
+  const tagLabel = (tag: string) =>
+    tag === "current" ? "Current (post-D18 fix)" : tag.replace(/_/g, " ");
 
   const togglePlay = useCallback(() => {
     if (!data) return;
@@ -115,7 +140,7 @@ export default function Replay() {
   }, [data, frameIdx]);
 
   const selectKey = (entry: ReplayIndexEntry) =>
-    `${entry.exp}|${entry.seed}|${entry.start_step}`;
+    `${entry.run_tag || ""}|${entry.exp}|${entry.seed}|${entry.start_step}`;
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-6">
@@ -166,16 +191,30 @@ export default function Replay() {
                   }
                 }}
               >
-                {Object.entries(grouped).flatMap(([exp, seeds]) =>
-                  Object.entries(seeds).flatMap(([seed, entries]) =>
-                    entries.map((r) => (
+                {tagOrder.map((tag) => (
+                  <optgroup key={tag} label={tagLabel(tag)}>
+                    {grouped[tag].map((r) => (
                       <option key={selectKey(r)} value={selectKey(r)}>
-                        {exp} — seed {seed} — step {r.start_step.toLocaleString()} (+{r.n_frames})
+                        {r.exp} — seed {r.seed} — step {r.start_step.toLocaleString()} (+{r.n_frames})
                       </option>
-                    ))
-                  )
-                )}
+                    ))}
+                  </optgroup>
+                ))}
               </select>
+              {selected?.run_tag && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠ Archived run: <code>{selected.run_tag}</code> — see
+                  <a
+                    href="https://github.com/axel5o5/evo-reward/blob/main/docs/emevo-diff.md#d18"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline ml-1"
+                  >
+                    emevo-diff.md D18
+                  </a>{" "}
+                  for context.
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
