@@ -519,6 +519,69 @@ deactivation.
 
 ---
 
+### [D22] Paper-text vs endpoint-code contradiction — config fix, 2026-04-21
+
+**Context.** After D18/D19/D20 landed, a Phase 1a run still crashed: prey
+dropped 444 → 44 and predators went extinct at step 90K (K&D Table 1
+reports stable populations prey≈349, pred≈23). A deep cross-check of
+our config against the paper (arXiv:2507.09992v2) + the emevo gecco2026
+branch surfaced three real discrepancies:
+
+| Param | Paper text (Tables 2/3, App. A, Fig 19) | emevo endpoint code (`cf_predator.py` defaults) | Our config (before D22) |
+|---|---|---|---|
+| world | **square 960×960** (App A) | 1200×600 rectangular (`20241212-predator.toml`) | 960×960 ✓ paper |
+| β_t_prey | **2e-6** (Table 3) | 4e-6 (`20240916-sel-a4e7-d15.toml`) | 4e-6 ← endpoint, not paper |
+| ζ_b_prey | **10** (Table 3; consistent w/ Fig 19 saturation at e≈25-30) | 15 | 15 ← endpoint, not paper |
+| food contact | `prey_r + food_r = 14` (physics contact_mat) | same (physics contact_mat) | `prey_r = 10` only ← neither! |
+
+**Why the contradiction exists:** the emevo README says
+`experiments/cf_predator.py` is "THE endpoint for GECCO 2026," and its
+hardcoded defaults point to the rectangular world + β=4e-6 + ζ=15
+TOMLs. But the paper text explicitly asserts the opposite on all three
+params. The paper was likely either run with env-level overrides that
+matched Table 3 + Appendix A, OR the TOMLs drifted post-experiment and
+no one updated the endpoint defaults. Without access to the author's
+actual run command, we can't tell.
+
+**Our call:** match paper text. Rationale:
+  1. Appendix A is unambiguous on world geometry ("square 960×960").
+  2. Fig 19 (birth function plot) shows prey saturation at e≈25-30 —
+     only consistent with ζ=10, not ζ=15.
+  3. Paper text "30 energy units are required to increase birth
+     probability for prey" — matches ζ=10 saturation, not ζ=15.
+  4. Table 1 reports stable populations (349 / 23) — our current
+     config produces extinction. Endpoint defaults also presumably
+     produce Table 1 dynamics, so at least one of the two works —
+     paper text is the less-plausible source of error.
+
+**Fix:**
+  * `beta_t_prey`: 4e-6 → **2e-6**
+  * `zeta_b_prey`: 15 → **10**
+  * Add `food_radius: 4.0` to config
+  * `check_eating_jax`: contact threshold `dist ≤ prey_radius` → `dist
+    ≤ prey_radius + food_radius = 14` (matches phyjax2d's circle-circle
+    contact formula emevo uses via physics engine). Food contact area
+    jumps from (10/14)² = 51% of emevo's to 100%.
+
+**Fallback plan.** `configs/baseline_endpoint.yaml` preserves the
+endpoint-code parameterization (rectangular 1200×600 world, 9 tactile
+bins, 160° FOV, β=4e-6, ζ=15). Not yet runnable — needs code support
+for rectangular world and variable tactile bin count. Documented as
+TODO at the top of that file. If `baseline_faithful.yaml` still
+doesn't produce K&D Table 1 dynamics, the code refactor + endpoint
+run is the next hypothesis.
+
+**Risk of regression:** `tests/test_params_match_emevo.py` pins all
+three new values (β_t_prey=2e-6, ζ_b_prey=10, food_radius=4). The
+food_radius test also greps `src/jax_food.py` to ensure the contact
+threshold actually uses the new variable.
+
+**Discovered:** phase1a-v2 crash analysis. Triple-checked against
+paper PDF + five candidate emevo bd TOMLs + endpoint experiment script
+before commit.
+
+---
+
 ### [D21] Real-time run visibility — instrumentation, 2026-04-21
 
 **Motivation:** D18, D19, and D20 all looked fine in the Step log

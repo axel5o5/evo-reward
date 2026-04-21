@@ -1,0 +1,138 @@
+# K&D Endpoint-Code Replication — Alternative baseline
+#
+# This config mirrors the emevo `cf_predator.py` endpoint defaults (gecco2026
+# branch), which diverge from the paper text on 5 parameters:
+#   * World shape:      1200×600 rectangular   (paper: 960×960 square)
+#   * Sensor FOV:       160° ("wide-160d")      (paper: 120°)
+#   * Tactile bins:     9 × 40°                 (paper: 18 × 20°)
+#   * beta_t_prey:      4e-6                    (paper Table 3: 2e-6)
+#   * zeta_b_prey:      15                      (paper Table 3: 10)
+#
+# We chose to match paper text in `baseline_faithful.yaml` because:
+#   1. Paper Appendix A explicitly says "square domain measuring 960×960"
+#   2. Paper Fig 19 shows prey birth saturation at ~e=25-30, consistent with ζ=10 only
+#   3. Paper Table 3 gives β_t_prey=2e-6
+#
+# Keeping this file as a second experimental variant so we can compare results
+# against the endpoint-code-faithful parameterization when the need arises.
+#
+# **NOT RUNNABLE WITHOUT CODE CHANGES.** The paper-faithful code path assumes:
+#   - `world_size` is a single scalar (implies square) → need refactor to
+#     `world_size_x`, `world_size_y` pair to support rectangular
+#   - `n_tactile_sensors` = 18 is hard-coded into `obs_dim = 205` recompute;
+#     changing to 9 needs obs_dim = 169 and policy-network input rewiring
+#   - `proximity_fov_deg = 160` is fine (just a scalar), but tactile-bin
+#     "front-wide" / "narrow" mouth-range semantics need code support
+#
+# Code-level TODO before running this config:
+#   [ ] Support rectangular world (world_size_x, world_size_y)
+#   [ ] Support variable tactile bin count (9 here, 18 in paper-faithful)
+#   [ ] Decode "front-wide" prey mouth_range → bins (0, 1, n-2, n-1) for prey eating
+#   [ ] Decode "narrow" predator_mouth_range → bins (0, n-1)
+
+experiment_name:    "baseline_endpoint"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+social_obs:         "position_only"
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── World (DIFFERS from paper-faithful) ──────────────────────────────────────
+# Endpoint TOML: xlim=[0, 1200], ylim=[0, 600]. See runnable-TODO above.
+world_size_x:       1200             # endpoint: xlim = [0, 1200]
+world_size_y:       600              # endpoint: ylim = [0, 600]
+world_size:         1200             # LEGACY SCALAR — set to max of x/y for code that hasn't been refactored yet
+
+total_steps:        10_240_000
+obs_dim:            169              # 128 + 36 + 5 (9 tactile bins × 4 channels + 5 proprio); DIFFERS from faithful 205
+prey_initial:       150
+predator_initial:   10
+prey_cap:           450
+predator_cap:       50
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+prey_radius:        10.0
+predator_radius:    14.0
+food_radius:        4.0
+max_motor_norm:     114.0
+
+# ─── Sensors (DIFFER from paper-faithful) ─────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      160.0        # endpoint: sensor_range = "wide-160d"
+proximity_max_range:    200.0
+n_tactile_sensors:      9            # endpoint: n_tactile_bins = 9 (DIFFERS from faithful 18)
+n_tactile_channels:     4
+tactile_spacing_deg:    40.0         # 360 / 9 = 40° per bin
+
+# ─── Food ─────────────────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy (same as paper-faithful after label-swap correction) ──────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.6
+
+# ─── Predator catch (endpoint: "narrow" = bins 0 and n-1 = [0, 8] for n=9) ────
+predator_mouth_tactile_bins: [0, 8]  # DIFFERS from faithful [0, 1, 17] (for 18 bins)
+predator_eat_interval:       10
+
+# ─── Hazard / Birth (endpoint TOMLs; DIFFER from paper-faithful) ──────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7           # endpoint 20240916-sel-a4e7-d15.toml
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6           # DIFFERS from faithful 2e-6
+beta_t_pred:        4.0e-6
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0             # DIFFERS from faithful 10
+zeta_b_pred:        100.0
+
+# ─── Rest (same as paper-faithful) ────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# Replay recording — same as paper-faithful
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+replay_quantize:              true
+replay_bucket:                "evo-reward-replays-public"
+replay_retention_policy:      "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance:   5_000
+
+seed: 0

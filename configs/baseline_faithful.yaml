@@ -44,6 +44,9 @@ predator_e_initial: 100.0            # CONFIRMED: predator_init_energy = 100.0
 # ─── Agent Bodies ─────────────────────────────────────────────────────────────
 prey_radius:        10.0             # (Appendix A)
 predator_radius:    14.0             # (Appendix A)
+food_radius:        4.0              # CONFIRMED: food_radius = 4.0 (emevo cf_predator.py + TOMLs).
+                                     # Used in prey-food contact: dist <= prey_r + food_r = 14.
+                                     # See docs/emevo-diff.md D22.
 max_motor_norm:     114.0            # F; max ‖f‖ (Appendix A note: "0 < ‖f‖ < 114")
 
 # ─── Sensors ─────────────────────────────────────────────────────────────────
@@ -96,14 +99,14 @@ alpha_e:            0.02             # emevo: alpha = 0.02 (both species)
 beta_h:             0.2              # emevo: slope = 0.2 (both species)
 alpha_t_prey:       4.0e-7           # emevo 20240916-sel-a4e7-d15: alpha_age = 4e-7
 alpha_t_pred:       2.0e-7           # emevo 20241229-predator-d100: alpha_age = 2e-7
-beta_t_prey:        4.0e-6           # emevo 20240916-sel-a4e7-d15: beta = 4e-6 (was 2e-6: D18 bug)
+beta_t_prey:        2.0e-6           # paper Table 3 (D22 fix; prev 4e-6 matched endpoint TOML, not paper)
 beta_t_pred:        4.0e-6           # emevo 20241229-predator-d100: beta = 4e-6
 
 # ─── Birth Function b(e) ─────────────────────────────────────────────────────
 # b(e) = κ_b / (1 + exp(ζ - β_b·e))
 kappa_b:            1.0e-3           # emevo: scale = 1e-3 (both species)
 beta_b:             0.4              # emevo: slope = 0.4 (both species; was 0.1: D18 bug)
-zeta_b_prey:        15.0             # emevo 20240916-sel-a4e7-d15: delay = 15 (was 10: D18 bug)
+zeta_b_prey:        10.0             # paper Table 3 + Fig 19 saturation at ~e=25-30 (D22 fix; prev 15 matched endpoint TOML)
 zeta_b_pred:        100.0            # emevo 20241229-predator-d100: delay = 100
 
 # ─── Offspring ───────────────────────────────────────────────────────────────

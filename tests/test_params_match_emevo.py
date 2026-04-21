@@ -24,10 +24,10 @@ def _load_baseline():
         return yaml.safe_load(f)
 
 
-# Values here come from the emevo repo's gecco2026 branch:
-#   cf_predator.py (CfPredatorConfig defaults)
-#   TOML configs under emevo/reward_fn/*.toml used to build K&D 2025 runs
-# Any deviation should be deliberate and documented in docs/emevo-diff.md.
+# Values here come from the K&D 2025 paper text (arXiv:2507.09992, v2 Feb 2026)
+# cross-checked against emevo's gecco2026 branch. When paper text and emevo
+# endpoint code disagree, we follow paper text. See docs/emevo-diff.md D22
+# for the full contradiction between paper and emevo `cf_predator.py` defaults.
 
 
 def test_prey_hazard_params():
@@ -35,8 +35,11 @@ def test_prey_hazard_params():
     assert cfg["kappa_h"] == 0.01
     assert cfg["alpha_e"] == 0.02
     assert cfg["beta_h"] == 0.2
+    # alpha_t_prey = 4e-7 (paper Table 3; endpoint TOML agrees)
     assert cfg["alpha_t_prey"] == 4.0e-7
-    assert cfg["beta_t_prey"] == 4.0e-6
+    # beta_t_prey = 2e-6 (paper Table 3). Endpoint TOML 20240916 has 4e-6 —
+    # deliberately using paper value (D22).
+    assert cfg["beta_t_prey"] == 2.0e-6
 
 
 def test_predator_hazard_params():
@@ -48,9 +51,30 @@ def test_predator_hazard_params():
 def test_birth_params():
     cfg = _load_baseline()
     assert cfg["kappa_b"] == 1.0e-3
+    # beta_b = 0.4 (all endpoint TOMLs + consistent with paper Fig 19 plot;
+    # paper Table 3 prints 0.1 but Fig 19's saturation point rules that out).
     assert cfg["beta_b"] == 0.4
-    assert cfg["zeta_b_prey"] == 15.0
+    # zeta_b_prey = 10 (paper Table 3 + Fig 19 + paper text "30 units required
+    # for prey birth" near saturation). Endpoint TOML 20240916 has 15. D22.
+    assert cfg["zeta_b_prey"] == 10.0
     assert cfg["zeta_b_pred"] == 100.0
+
+
+def test_food_radius_present_and_used_in_contact():
+    """D22 regression: food_radius must be in config AND check_eating_jax
+    must use it for the prey-food contact threshold. Pre-D22 we used only
+    prey_radius (10) which made the effective contact area 51% of emevo's
+    (prey_r + food_r = 14)."""
+    cfg = _load_baseline()
+    assert cfg["food_radius"] == 4.0
+    import src.jax_food as food_mod
+    src_text = pathlib.Path(food_mod.__file__).read_text()
+    assert "food_contact_dist" in src_text, (
+        "check_eating_jax should compute food_contact_dist = prey_r + food_r"
+    )
+    assert 'config.get("food_radius"' in src_text, (
+        "check_eating_jax should read food_radius from config"
+    )
 
 
 def test_reward_coefs_match():

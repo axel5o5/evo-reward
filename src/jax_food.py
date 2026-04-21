@@ -72,6 +72,13 @@ def check_eating_jax(sim_state, config, contact_mat):
     food_max = food_pos.shape[0]
 
     prey_radius = config["prey_radius"]
+    # Food has its own physics radius (4.0 in emevo defaults). Contact with
+    # prey happens when center-to-center distance <= prey_r + food_r,
+    # matching phyjax2d's circle-circle contact formula (D22 fix).
+    # Fallback to 0.0 preserves legacy behavior for configs that pre-date
+    # the addition of food_radius.
+    food_radius = float(config.get("food_radius", 0.0))
+    food_contact_dist = prey_radius + food_radius
     fov_half = math.radians(config["proximity_fov_deg"]) / 2.0
 
     # Tactile-bin mouth geometry — see emevo predator_mouth_range = [0, 1, 17]
@@ -85,8 +92,9 @@ def check_eating_jax(sim_state, config, contact_mat):
     diffs_food = food_pos[None, :, :] - positions[:, None, :]    # (A, F, 2)
     dists_food = jnp.linalg.norm(diffs_food, axis=-1)            # (A, F)
 
-    # Contact: dist <= prey_radius
-    contact = dists_food <= prey_radius
+    # Contact: dist <= prey_radius + food_radius (circle-circle physics contact).
+    # Pre-D22 we used only prey_radius (effective contact area ≈ 51% of emevo's).
+    contact = dists_food <= food_contact_dist
 
     # FOV check
     angles_to_food = jnp.arctan2(diffs_food[:, :, 1], diffs_food[:, :, 0])
