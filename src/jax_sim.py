@@ -171,6 +171,13 @@ def build_sim_step(config, space):
         # D20: deactivate caught prey same-step. Without this the predator
         # harvests +eta*E but the prey keeps existing and the cooldown lets
         # the same pair pairwise-feed the predator forever — see docs/emevo-diff.md.
+        # IMPORTANT: we do NOT zero caught prey energies here, because
+        # update_energies_jax (step 7 below) reads `caught_energies =
+        # sim_state.energies[safe_slots]` to compute `pred_gain = eta * E`.
+        # Zeroing pre-transfer would make predators starve despite catching.
+        # Inactive slots are skipped elsewhere via is_active masks, so
+        # leaving the stale energy there is harmless; a future birth at
+        # that slot overwrites it via spawn_offspring_jax.
         circle = sim_state.phyjax_stated.get("circle")
         new_phys_active = circle.is_active & ~prey_caught_mask
         new_vel_xy = jnp.where(prey_caught_mask[:, None], 0.0, circle.v.xy)
@@ -179,15 +186,21 @@ def build_sim_step(config, space):
             v=pj.Velocity(angle=new_vel_ang, xy=new_vel_xy),
             is_active=new_phys_active,
         )
+        # D21: cumulative event counters — read by the runner each log
+        # interval to populate progress.json `events` block. Catches count
+        # here; post-catch deaths also bump cum_deaths so the total death
+        # counter lines up.
+        catches_this_step = jnp.sum(prey_caught_mask.astype(jnp.int32))
+        feedings_this_step = jnp.sum(food_eaten_mask.astype(jnp.int32))
         sim_state = sim_state.replace(
             is_active=sim_state.is_active & ~prey_caught_mask,
             phyjax_stated=sim_state.phyjax_stated.replace(circle=circle),
-            # Drain caught prey energy so any downstream metric / reward tied
-            # to their energy state doesn't pollute stats on the final step.
-            energies=jnp.where(prey_caught_mask, 0.0, sim_state.energies),
             # Reset rollout ptr to 0 so the freed slot's buffer can fill cleanly
             # when a future birth reuses it.
             rollout_ptrs=jnp.where(prey_caught_mask, 0, sim_state.rollout_ptrs),
+            cum_catches=sim_state.cum_catches + catches_this_step,
+            cum_deaths=sim_state.cum_deaths + catches_this_step,
+            cum_feedings=sim_state.cum_feedings + feedings_this_step,
         )
 
         # === 6. Compute rewards (vectorized) ===

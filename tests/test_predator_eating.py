@@ -277,6 +277,54 @@ class TestCooldown:
         assert int(new_timer[pred_slot]) == config["predator_eat_interval"]
 
 
+class TestEnergyTransfer:
+    """After a successful catch, the predator gains eta*prey_energy and
+    the prey is deactivated — verified end-to-end through sim_step_core
+    so the whole pipeline (not just check_eating_jax) stays honest."""
+
+    def test_predator_energy_jumps_after_catch(self, config):
+        """D20 regression: the *first* version of the D20 patch zeroed
+        caught prey energies before update_energies_jax read them,
+        so the predator got pred_gain=0 on every catch and slowly
+        starved. This test places a predator touching a prey, runs
+        one full sim step, and asserts the predator's energy went
+        *up* by ≈ eta*prey_energy minus metabolic cost."""
+        import jax
+        from src.environment import _build_physics
+        from src.jax_sim import build_sim_step
+
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        state, slots = _place_agents(state, config, [
+            (1, 500.0, 500.0, 0.0),    # predator facing east
+            (0, 520.0, 500.0, 0.0),    # prey in mouth bin 0, touching
+        ])
+        pred_slot, prey_slot = slots[0], slots[1]
+        # Set known starting energies.
+        state = state.replace(
+            energies=state.energies
+                .at[pred_slot].set(100.0)
+                .at[prey_slot].set(80.0),
+        )
+
+        space, _ = _build_physics(config)
+        sim_step_core, _ = build_sim_step(config, space)
+        new_state = sim_step_core(state)
+
+        eta = config["predator_eta"]
+        expected_gain = eta * 80.0
+        pred_e_before = 100.0
+        pred_e_after = float(new_state.energies[pred_slot])
+        # Metabolic cost over one step is small vs expected_gain=48.
+        assert pred_e_after > pred_e_before + expected_gain * 0.9, (
+            f"Predator energy {pred_e_after:.1f} didn't gain ~{expected_gain:.1f} "
+            f"from catching prey of energy 80 — D20 transfer broken."
+        )
+        # Prey must be deactivated.
+        assert not bool(new_state.is_active[prey_slot]), (
+            "Caught prey is still active — D20 deactivation broken."
+        )
+
+
 class TestIndependentTimers:
 
     def test_two_predators_independent_cooldowns(self, config):

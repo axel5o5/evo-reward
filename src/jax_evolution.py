@@ -149,6 +149,13 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
         obs_buffer=sim_state.obs_buffer.at[new_slot].set(0.0),
         lstm_hidden=sim_state.lstm_hidden.at[new_slot].set(0.0),
         rollout_init_hidden=sim_state.rollout_init_hidden.at[new_slot].set(0.0),
+        # Reset the predator-catch cooldown so a newborn predator doesn't
+        # inherit its dead predecessor's stale countdown. Without this,
+        # a slot that went dormant with eat_timer=9 would leave the
+        # newborn unable to catch for 9 steps after birth. For prey
+        # slots the timer is never read, so the write is a no-op —
+        # harmless to set uniformly.
+        predator_eat_timer=sim_state.predator_eat_timer.at[new_slot].set(0),
         phyjax_stated=new_stated,
         next_agent_id=sim_state.next_agent_id + 1,
     )

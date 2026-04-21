@@ -153,6 +153,21 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     start_time = time.time()
     start_step = int(sim_state.step)
 
+    # D21: snapshot of cumulative counters at last log — used to derive
+    # per-interval event counts without storing a per-step history.
+    # Also remember prev_next_agent_id to derive per-interval births.
+    _prev_log_state = {
+        "step": start_step,
+        "cum_catches": int(sim_state.cum_catches),
+        "cum_deaths": int(sim_state.cum_deaths),
+        "cum_feedings": int(sim_state.cum_feedings),
+        "next_agent_id": int(sim_state.next_agent_id),
+    }
+    # How many consecutive log intervals with no catches / births — used
+    # to gate the warning lines (one-shot on threshold, not on every line).
+    _consec_no_catches = [0]
+    _consec_no_births = [0]
+
     # PPO readiness is batched every PPO_CHECK_EVERY steps to amortize the
     # host<->device sync (np.array(sim_state.rollout_ptrs) blocks the Python
     # loop on GPU completion). The tradeoff: when an agent's rollout fills
@@ -211,6 +226,35 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             float(jnp.mean(state.energies[state.is_active]))
             if any_active else 0.0
         )
+        # D21: per-interval event counts derived from the cumulative counters.
+        cum_catches = int(state.cum_catches)
+        cum_deaths = int(state.cum_deaths)
+        cum_feedings = int(state.cum_feedings)
+        cur_next_id = int(state.next_agent_id)
+        interval_catches = cum_catches - _prev_log_state["cum_catches"]
+        interval_deaths = cum_deaths - _prev_log_state["cum_deaths"]
+        interval_feedings = cum_feedings - _prev_log_state["cum_feedings"]
+        interval_births = cur_next_id - _prev_log_state["next_agent_id"]
+
+        # D21: energy-band stats — min/max expose saturation/starvation that
+        # the population mean would hide (prey ~100 + pred ~991 → mean 189).
+        is_active_np = np.asarray(state.is_active)
+        species_np = np.asarray(state.species)
+        energies_np = np.asarray(state.energies)
+        def _band(mask):
+            e = energies_np[mask]
+            if e.size == 0:
+                return (0.0, 0.0, 0.0)
+            return (float(e.min()), float(e.mean()), float(e.max()))
+        prey_e_band = _band(is_active_np & (species_np == 0))
+        pred_e_band = _band(is_active_np & (species_np == 1))
+
+        _prev_log_state["step"] = step + 1
+        _prev_log_state["cum_catches"] = cum_catches
+        _prev_log_state["cum_deaths"] = cum_deaths
+        _prev_log_state["cum_feedings"] = cum_feedings
+        _prev_log_state["next_agent_id"] = cur_next_id
+
         # All 8 reward-weight trajectories (means + stds).
         # Surfaces the full Phase 1a gate, including the new predator w_pred
         # criterion (strongest K&D finding) and prey w_eat.
@@ -225,7 +269,11 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
         print(
             f"Step {step+1:>8d}/{total_steps} | "
             f"prey={n_prey:>3d} pred={n_pred:>2d} food={n_food:>3d} | "
-            f"E={mean_energy:>5.1f} | "
+            f"E={mean_energy:>5.1f} "
+            f"(prey {prey_e_band[0]:.0f}/{prey_e_band[1]:.0f}/{prey_e_band[2]:.0f} "
+            f"pred {pred_e_band[0]:.0f}/{pred_e_band[1]:.0f}/{pred_e_band[2]:.0f}) | "
+            f"Δ catch={interval_catches} death={interval_deaths} "
+            f"birth={interval_births} feed={interval_feedings} | "
             f"prey_w eat={py_eat_m:+.2f}±{py_eat_s:.2f} act={py_act_m:+.2f}±{py_act_s:.2f} "
             f"prey={py_prey_m:+.2f}±{py_prey_s:.2f} pred={py_pred_m:+.2f}±{py_pred_s:.2f} | "
             f"pred_w eat={pd_eat_m:+.2f}±{pd_eat_s:.2f} act={pd_act_m:+.2f}±{pd_act_s:.2f} "
@@ -233,6 +281,32 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             f"{sps:.1f} sps | "
             f"{elapsed:.0f}s"
         )
+
+        # D21: warning lines — only print on transitions so logs don't spam.
+        cap = float(config.get("energy_capacity", 1000.0))
+        if interval_catches == 0 and n_pred > 0:
+            _consec_no_catches[0] += 1
+        else:
+            _consec_no_catches[0] = 0
+        if interval_births == 0:
+            _consec_no_births[0] += 1
+        else:
+            _consec_no_births[0] = 0
+        if _consec_no_catches[0] == 2:
+            print(
+                f"  ⚠ no predator catches for {2 * log_interval:,} consecutive steps — "
+                f"check contact detection (see docs/emevo-diff.md D18–D20)"
+            )
+        if _consec_no_births[0] == 5:
+            print(
+                f"  ⚠ zero births for {5 * log_interval:,} consecutive steps — "
+                f"evolution stalled; check energy/birth dynamics"
+            )
+        if pred_e_band[0] > cap * 0.95 and n_pred > 0:
+            print(
+                f"  ⚠ predator energy saturated (min={pred_e_band[0]:.0f} ≥ {cap*0.95:.0f}) — "
+                f"predators may be eating without metabolic cost"
+            )
 
         # Mirror the same values to progress.json. Atomic replace (write +
         # rename) so the gcs-sync sidecar never catches a half-written file.
@@ -250,6 +324,24 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
                 "pred": int(n_pred),
                 "food": int(n_food),
                 "mean_energy": float(mean_energy),
+            },
+            # D21 visibility blocks: event deltas + energy bands per species.
+            "events_last_interval": {
+                "catches":  int(interval_catches),
+                "deaths":   int(interval_deaths),
+                "births":   int(interval_births),
+                "feedings": int(interval_feedings),
+                "interval_steps": int(log_interval),
+            },
+            "events_cumulative": {
+                "catches":  cum_catches,
+                "deaths":   cum_deaths,
+                "feedings": cum_feedings,
+                "next_agent_id": cur_next_id,
+            },
+            "energy_stats": {
+                "prey": {"min": prey_e_band[0], "mean": prey_e_band[1], "max": prey_e_band[2]},
+                "pred": {"min": pred_e_band[0], "mean": pred_e_band[1], "max": pred_e_band[2]},
             },
             "reward_weights": {
                 "prey": {

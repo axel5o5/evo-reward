@@ -82,6 +82,15 @@ class SimState:
     step: jnp.ndarray               # scalar int32
     next_agent_id: jnp.ndarray      # scalar int32, monotonic counter
 
+    # --- Cumulative event counters (D21 logging) ---
+    # Monotonic int32 counters. The runner diffs them against a stashed
+    # "last log" snapshot to produce per-interval event counts in progress.json.
+    # Reading them forces a host sync once per log_interval (alongside the
+    # population block) so no per-step cost.
+    cum_catches: jnp.ndarray        # scalar int32: prey killed by predators
+    cum_deaths: jnp.ndarray         # scalar int32: all deaths (catches + hazard + starvation)
+    cum_feedings: jnp.ndarray       # scalar int32: prey×food contact events
+
 
 # ---------------------------------------------------------------------------
 # Initialization (pure JAX, no old WorldState dependency)
@@ -285,6 +294,9 @@ def init_simstate(config: dict, rng_key) -> SimState:
         rng_key=rng_key,
         step=jnp.int32(0),
         next_agent_id=jnp.int32(n_initial),
+        cum_catches=jnp.int32(0),
+        cum_deaths=jnp.int32(0),
+        cum_feedings=jnp.int32(0),
     )
 
 
@@ -432,4 +444,7 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         rng_key=world.rng_key if world.rng_key is not None else jax.random.PRNGKey(0),
         step=jnp.int32(world.step),
         next_agent_id=jnp.int32(max_aid),
+        cum_catches=jnp.int32(0),
+        cum_deaths=jnp.int32(0),
+        cum_feedings=jnp.int32(0),
     )

@@ -264,6 +264,33 @@ class TestSpawnOffspring:
         assert int(new_state.next_agent_id) == expected_child_id + 1
         assert int(new_state.ages[n_initial]) == 0
 
+    def test_child_predator_eat_timer_reset(self, config):
+        """Audit Finding 2: spawn_offspring_jax must reset predator_eat_timer
+        to 0 for the newborn slot. Without this, a newborn predator born
+        into a slot whose previous occupant had timer=5 would be unable to
+        catch for 5 steps — skewing selection and suppressing catch rate
+        right after a birth."""
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        prey_cap = config["prey_cap"]
+        new_slot = prey_cap + config["predator_initial"]  # first inactive pred slot
+
+        # Dirty the timer at new_slot so "reset to 0" is meaningful.
+        state = state.replace(
+            predator_eat_timer=state.predator_eat_timer.at[new_slot].set(7),
+        )
+        assert int(state.predator_eat_timer[new_slot]) == 7
+
+        # Spawn a predator offspring into that slot.
+        pred_parent = prey_cap  # first predator slot
+        new_state = spawn_offspring_jax(
+            state, pred_parent, new_slot, jax.random.PRNGKey(1), config,
+        )
+        assert int(new_state.predator_eat_timer[new_slot]) == 0, (
+            f"Newborn predator inherited stale eat_timer "
+            f"{int(new_state.predator_eat_timer[new_slot])} instead of 0 — "
+            f"would be unable to catch for that many steps."
+        )
+
     def test_child_genome_mutated_and_clipped(self, config):
         state = init_simstate(config, jax.random.PRNGKey(0))
         n_initial = config["prey_initial"] + config["predator_initial"]

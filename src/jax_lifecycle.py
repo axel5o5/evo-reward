@@ -134,10 +134,14 @@ def process_births_and_deaths_jax(sim_state, config):
     )
     new_stated = sim_state.phyjax_stated.replace(circle=circle)
 
+    # D21: bump cumulative death counter for hazard/starvation deaths here.
+    # (D20 catch-deaths are counted separately in sim_step_core.)
+    deaths_this_step = jnp.sum(dead_mask.astype(jnp.int32))
     sim_state = sim_state.replace(
         is_active=new_is_active,
         rollout_ptrs=new_rollout_ptrs,
         phyjax_stated=new_stated,
+        cum_deaths=sim_state.cum_deaths + deaths_this_step,
     )
 
     # --- Birth processing ---
@@ -159,10 +163,14 @@ def process_births_and_deaths_jax(sim_state, config):
         sim_state.species == 0, prey_under_cap, pred_under_cap
     )
 
-    # Collect parent slots that will birth (take first max_births_per_step)
-    # Use cumsum to index and cap
+    # Collect parent slots that will birth (take first max_births_per_step).
+    # We then pad out to max_births_per_step with the max_agents sentinel so
+    # the lax.scan below always gets a fixed-length input even for tiny
+    # configs where max_agents < max_births_per_step (e.g. unit tests).
     birth_indices = jnp.where(can_birth, jnp.arange(max_agents), max_agents)
     sorted_birth = jnp.sort(birth_indices)  # valid births first, max_agents padding at end
+    pad_tail = jnp.full(max_births_per_step, max_agents, dtype=jnp.int32)
+    sorted_birth = jnp.concatenate([sorted_birth, pad_tail])
     parent_slots = sorted_birth[:max_births_per_step]
 
     # lax.scan over potential births
