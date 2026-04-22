@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReplayCanvas from "../components/ReplayCanvas";
 import ReplaySelector from "../components/ReplaySelector";
+import PopulationStrip from "../components/PopulationStrip";
 import {
   ReplayData,
   ReplayIndex,
@@ -362,7 +363,15 @@ export default function Replay() {
             </div>
 
             {data && (
-              <div className="max-w-[720px] w-full mx-auto">
+              <div className="max-w-[720px] w-full mx-auto flex flex-col gap-2">
+                <PopulationStrip
+                  data={data}
+                  frameIdx={frameIdx}
+                  onFrameChange={(f) => {
+                    setPlaying(false);
+                    setFrameIdx(f);
+                  }}
+                />
                 <input
                   type="range"
                   min={0}
@@ -374,7 +383,7 @@ export default function Replay() {
                   }}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs font-mono text-gray-500 dark:text-gray-400 mt-1">
+                <div className="flex justify-between text-xs font-mono text-gray-500 dark:text-gray-400">
                   <span>frame {frameIdx + 1} / {data.meta.n_frames}</span>
                   <span>sim step {data.stepNums[frameIdx].toLocaleString()}</span>
                 </div>
