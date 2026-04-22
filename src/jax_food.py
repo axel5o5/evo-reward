@@ -238,7 +238,8 @@ def regenerate_food_jax(sim_state, config):
     growth_rate = config["food_growth_rate"]
     food_max = config["food_max"]
     max_regen = config.get("food_max_regen_per_step", 10)
-    world_size = float(config["world_size"])
+    from src.environment import world_bounds
+    world_x, world_y = world_bounds(config)
 
     new_internal = jnp.minimum(sim_state.food_internal + growth_rate, jnp.float32(food_max))
     target_count = jnp.floor(new_internal).astype(jnp.int32)
@@ -250,7 +251,11 @@ def regenerate_food_jax(sim_state, config):
         should_spawn = i < n_to_spawn
 
         rng, pos_key = jax.random.split(rng)
-        new_pos = jax.random.uniform(pos_key, (2,), minval=0.0, maxval=world_size)
+        new_pos = jax.random.uniform(
+            pos_key, (2,),
+            minval=jnp.array([0.0, 0.0]),
+            maxval=jnp.array([world_x, world_y]),
+        )
 
         # Find first inactive food slot
         inactive_indices = jnp.where(~food_active, jnp.arange(food_max), food_max)

@@ -115,6 +115,27 @@ CHANNEL_PREY = 0
 CHANNEL_PREDATOR = 1
 CHANNEL_FOOD = 2
 CHANNEL_WALL = 3
+
+
+def world_bounds(config: dict) -> tuple[float, float]:
+    """Return (world_size_x, world_size_y) for the simulation domain.
+
+    Supports three config shapes (tried in order):
+      * explicit rect: `world_size_x` + `world_size_y`
+      * explicit tuple: `world_size` as a 2-item list/tuple [x, y]
+      * scalar (square, legacy): `world_size` as a single number
+
+    D25: introduced to support rectangular worlds (e.g. emevo's 1200×600
+    predator TOML) without rewriting every call site. When paper-text
+    config is used (square 960×960), all three paths return (960, 960).
+    """
+    if "world_size_x" in config and "world_size_y" in config:
+        return float(config["world_size_x"]), float(config["world_size_y"])
+    raw = config["world_size"]
+    if isinstance(raw, (list, tuple)) and len(raw) == 2:
+        return float(raw[0]), float(raw[1])
+    s = float(raw)
+    return s, s
 N_CHANNELS = 4
 
 # Channel indices for tactile sensors
@@ -140,7 +161,7 @@ def _build_physics(config: dict, n_agent_slots=None):
     Returns: (space, max_agents)
     """
     max_agents = n_agent_slots or (config.get("prey_cap", 450) + config.get("predator_cap", 50))
-    world_size = config["world_size"]
+    world_x, world_y = world_bounds(config)
     prey_radius = config["prey_radius"]
     predator_radius = config["predator_radius"]
 
@@ -155,8 +176,10 @@ def _build_physics(config: dict, n_agent_slots=None):
         max_angular_velocity=MAX_ANGULAR_VELOCITY,
     )
 
-    # Wall segments
-    segments = pj.make_square_segments(0.0, float(world_size), 0.0, float(world_size))
+    # Wall segments. `make_square_segments(xmin, xmax, ymin, ymax)` actually
+    # produces a rectangle — the name is legacy. Emevo calls it the same way
+    # for its 1200×600 TOML.
+    segments = pj.make_square_segments(0.0, world_x, 0.0, world_y)
     for a, b in segments:
         builder.add_segment(p1=a, p2=b, elasticity=AGENT_ELASTICITY, friction=AGENT_FRICTION)
 

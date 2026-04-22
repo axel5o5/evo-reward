@@ -60,7 +60,8 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     """
     k1, k2, k3, k4 = jax.random.split(rng_key, 4)
 
-    world_size = config["world_size"]
+    from src.environment import world_bounds
+    world_x, world_y = world_bounds(config)
     spawn_spread = config["spawn_spread"]
     prey_radius = config["prey_radius"]
     pred_radius = config["predator_radius"]
@@ -76,7 +77,11 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     child_radius = jnp.where(parent_species == 0, prey_radius, pred_radius)
     margin = child_radius * 2
     child_pos = parent_pos + jax.random.normal(k1, (2,)) * spawn_spread
-    child_pos = jnp.clip(child_pos, margin, world_size - margin)
+    child_pos = jnp.clip(
+        child_pos,
+        jnp.array([margin, margin]),
+        jnp.array([world_x - margin, world_y - margin]),
+    )
 
     # Child angle: uniform
     child_angle = jax.random.uniform(k2, minval=-jnp.pi, maxval=jnp.pi)

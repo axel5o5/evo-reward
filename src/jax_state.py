@@ -110,7 +110,8 @@ def init_simstate(config: dict, rng_key) -> SimState:
     obs_dim = config["obs_dim"]
     prey_radius = config["prey_radius"]
     pred_radius = config["predator_radius"]
-    world_size = config["world_size"]
+    from src.environment import world_bounds
+    world_x, world_y = world_bounds(config)
 
     # --- Slot layout (D19 fix) ------------------------------------------------
     # Species are bound to disjoint slot ranges, matching the physics builder:
@@ -136,7 +137,9 @@ def init_simstate(config: dict, rng_key) -> SimState:
     # Positions: random within world bounds (with margin), only for active slots.
     margin = max(prey_radius, pred_radius) * 2
     positions_initial = jax.random.uniform(
-        pos_key, (n_initial, 2), minval=margin, maxval=world_size - margin,
+        pos_key, (n_initial, 2),
+        minval=jnp.array([margin, margin]),
+        maxval=jnp.array([world_x - margin, world_y - margin]),
     )
     angles_initial = jax.random.uniform(
         angle_key, (n_initial,), minval=-jnp.pi, maxval=jnp.pi,
@@ -220,7 +223,11 @@ def init_simstate(config: dict, rng_key) -> SimState:
     # --- Food ---
     n_food_init = config["food_initial"]
     rng_key, food_key = jax.random.split(rng_key)
-    food_pos = jax.random.uniform(food_key, (food_max, 2), minval=0.0, maxval=float(world_size))
+    food_pos = jax.random.uniform(
+        food_key, (food_max, 2),
+        minval=jnp.array([0.0, 0.0]),
+        maxval=jnp.array([world_x, world_y]),
+    )
     food_active = jnp.arange(food_max) < n_food_init
 
     # --- Physics (phyjax2d) ---

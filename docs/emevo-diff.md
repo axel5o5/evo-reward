@@ -582,6 +582,62 @@ before commit.
 
 ---
 
+### [D25] Rectangular world support — infrastructure, 2026-04-22
+
+**Motivation.** Our simulation hard-coded a square world via
+`world_size` as a scalar. Emevo's endpoint predator TOML
+(`20241212-predator.toml`) uses a rectangular 1200×600 world; the
+paper-text uses 960×960 square. We've been running on paper-text
+(square), hitting predator extinction, and want the option to test
+endpoint-code params without rewriting every call site.
+
+**Added:** `src/environment.py::world_bounds(config) -> tuple[float, float]`.
+Three config shapes supported (checked in order):
+
+  1. explicit rectangle: `world_size_x` + `world_size_y`
+  2. tuple in scalar field: `world_size: [x, y]`
+  3. legacy scalar (square): `world_size: N` → returns `(N, N)`
+
+Threaded `(world_x, world_y)` through every site that previously used
+the `world_size` scalar in the JAX path:
+
+  * `src/environment.py::_build_physics` — `make_square_segments` now
+    called with `(0, world_x, 0, world_y)`. Emevo does the same
+    (the "square" in the function name is misleading; it produces
+    rectangles when xmin≠xmax or ymin≠ymax).
+  * `src/jax_state.py::init_simstate` — initial positions + food
+    positions use `minval=[0,0], maxval=[x,y]`.
+  * `src/jax_food.py::regenerate_food_jax` — food respawns use rect bounds.
+  * `src/jax_evolution.py::spawn_offspring_jax` — child positions clamped
+    to `[margin, x-margin] × [margin, y-margin]`.
+  * `src/observations.py::_compute_wall_distances` + `_single_tactile` —
+    wall raycast and wall tactile contact now use separate x/y bounds.
+
+**`configs/baseline_endpoint.yaml`** now runs end-to-end through
+`sim_step_core` (previously documented as "not yet runnable"). That
+header note is still correct that **tactile mouth-range semantics**
+(`"front-wide"` / `"narrow"`) for prey food eating are not yet
+decoded from strings — our current prey food eating uses an FOV
+check, which is functionally similar for the default arcs but not
+bin-identical. Low-severity for a first run.
+
+**Regression suite.** `tests/test_rectangular_world.py`:
+  * `world_bounds` resolution for all three config shapes
+  * endpoint config bounds, initial positions, food positions all
+    fall inside `[0, 1200] × [0, 600]` AND hit the long axis (so we
+    haven't accidentally clamped to the smaller dimension)
+  * `sim_step_core` runs 5 steps without shape/dtype errors on the
+    endpoint config
+  * Paper-faithful config still resolves to `(960, 960)` and
+    produces the same initial population count (additive-only change)
+
+Full fast suite: 197 passed (was 187; +10 new tests).
+
+**Not a deviation from emevo.** Emevo supports both square (via
+xlim=ylim) and rectangle via xlim/ylim. We now match that API shape.
+
+---
+
 ### [D24] Energy cost must use act_ratio-scaled action norm — FIXED 2026-04-22
 
 **Context.** Physics/observations audit (post-D23) found that emevo

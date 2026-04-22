@@ -116,10 +116,11 @@ def _single_proximity_food(obs_pos, obs_angle, obs_radius,
 # ---------------------------------------------------------------------------
 
 def _compute_wall_distances(positions, angles, radii,
-                            world_size, half_fov, bin_width, max_range, n_sensors):
+                            world_x, world_y, half_fov, bin_width, max_range, n_sensors):
     """Wall proximity for all agents × all sensors.
 
     Returns (max_agents, n_sensors) — edge distances to closest wall per sensor.
+    D25: world bounds are (x, y) separately to support rectangular worlds.
     """
     k = jnp.arange(n_sensors)
     offsets = -half_fov + (k + 0.5) * bin_width                    # (S,)
@@ -134,10 +135,10 @@ def _compute_wall_distances(positions, angles, radii,
     INF = jnp.float32(1e9)
     eps = 1e-9
 
-    t_right  = jnp.where(cos_s > eps,  (world_size - px) / cos_s, INF)
-    t_left   = jnp.where(cos_s < -eps, -px / cos_s,               INF)
-    t_top    = jnp.where(sin_s > eps,  (world_size - py) / sin_s, INF)
-    t_bottom = jnp.where(sin_s < -eps, -py / sin_s,               INF)
+    t_right  = jnp.where(cos_s > eps,  (world_x - px) / cos_s, INF)
+    t_left   = jnp.where(cos_s < -eps, -px / cos_s,            INF)
+    t_top    = jnp.where(sin_s > eps,  (world_y - py) / sin_s, INF)
+    t_bottom = jnp.where(sin_s < -eps, -py / sin_s,            INF)
 
     # Minimum positive distance to any wall
     wall_dist = jnp.minimum(
@@ -185,7 +186,7 @@ def _winner_take_all(closest_prey, closest_pred, closest_food, closest_wall,
 def _single_tactile(obs_pos, obs_radius, obs_species, obs_idx,
                     all_pos, all_active, all_species, all_radii,
                     food_pos, food_active,
-                    world_size, bin_centers, bin_half_width, n_bins):
+                    world_x, world_y, bin_centers, bin_half_width, n_bins):
     """Tactile sensor readings for one observer. Returns (4, n_bins)."""
     A = all_pos.shape[0]
 
@@ -230,9 +231,9 @@ def _single_tactile(obs_pos, obs_radius, obs_species, obs_idx,
     wall_bins = jnp.zeros(n_bins)
     wall_contacts = [
         (obs_pos[0] <= obs_radius, jnp.pi),            # left wall, direction = π
-        (obs_pos[0] >= world_size - obs_radius, 0.0),   # right wall, direction = 0
-        (obs_pos[1] <= obs_radius, -jnp.pi / 2),        # bottom wall, direction = -π/2
-        (obs_pos[1] >= world_size - obs_radius, jnp.pi / 2),  # top wall, direction = π/2
+        (obs_pos[0] >= world_x - obs_radius, 0.0),    # right wall, direction = 0
+        (obs_pos[1] <= obs_radius, -jnp.pi / 2),      # bottom wall, direction = -π/2
+        (obs_pos[1] >= world_y - obs_radius, jnp.pi / 2),  # top wall, direction = π/2
     ]
     for is_contact, wall_dir in wall_contacts:
         w_adiff = _wrap(wall_dir - bin_centers)                     # (B,)
@@ -334,7 +335,8 @@ def _build_obs_fn(config, max_agents, food_max):
     half_fov = fov_rad / 2
     bin_width = fov_rad / n_sensors
     max_range = float(config["proximity_max_range"])
-    world_size = float(config["world_size"])
+    from src.environment import world_bounds
+    world_x, world_y = world_bounds(config)
     tactile_spacing_rad = math.radians(config["tactile_spacing_deg"])
     tactile_half_width = tactile_spacing_rad / 2 + 1e-9
     tactile_bin_centers = jnp.arange(n_tactile_bins) * tactile_spacing_rad
@@ -364,7 +366,7 @@ def _build_obs_fn(config, max_agents, food_max):
     _vmap_tactile = jax.vmap(
         lambda pos, rad, sp, idx, ap, aa, asp, ar, fp, fa: _single_tactile(
             pos, rad, sp, idx, ap, aa, asp, ar, fp, fa,
-            world_size, tactile_bin_centers, tactile_half_width, n_tactile_bins
+            world_x, world_y, tactile_bin_centers, tactile_half_width, n_tactile_bins
         ),
         in_axes=(0, 0, 0, 0, None, None, None, None, None, None),
     )
@@ -409,7 +411,7 @@ def _build_obs_fn(config, max_agents, food_max):
         # 3. Proximity — wall channel
         closest_wall = _compute_wall_distances(
             positions, angles, radii,
-            world_size, half_fov, bin_width, max_range, n_sensors,
+            world_x, world_y, half_fov, bin_width, max_range, n_sensors,
         )  # (A, S)
 
         # 4. Winner-take-all encoding
