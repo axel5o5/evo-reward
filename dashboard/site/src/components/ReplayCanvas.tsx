@@ -130,7 +130,8 @@ export default function ReplayCanvas({
         ctx.lineWidth = 1.2 / scale;
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+        // phyjax2d convention: angle=0 → forward=+y (not +x); forward = (-sin a, cos a).
+        ctx.lineTo(x - Math.sin(a) * r, y + Math.cos(a) * r);
         ctx.stroke();
       }
     }
