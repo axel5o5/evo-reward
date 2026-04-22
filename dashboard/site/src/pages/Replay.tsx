@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ReplayCanvas from "../components/ReplayCanvas";
 import ReplaySelector from "../components/ReplaySelector";
 import PopulationStrip from "../components/PopulationStrip";
+import AgentInspector from "../components/AgentInspector";
 import {
   ReplayData,
   ReplayIndex,
@@ -14,9 +15,14 @@ import {
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 // URL <-> replay selection.
-// We encode the selection as ?tag=&exp=&seed=&step=, and the playhead as &frame=.
+// We encode the selection as ?tag=&exp=&seed=&step=, the playhead as &frame=,
+// and a pinned agent as &agent=.
 // `tag` is omitted when the replay is untagged (treated as "current").
-function urlParamsFor(selected: ReplayIndexEntry | null, frameIdx: number): URLSearchParams {
+function urlParamsFor(
+  selected: ReplayIndexEntry | null,
+  frameIdx: number,
+  pinnedSlot: number | null,
+): URLSearchParams {
   const q = new URLSearchParams();
   if (!selected) return q;
   if (selected.run_tag) q.set("tag", selected.run_tag);
@@ -24,6 +30,7 @@ function urlParamsFor(selected: ReplayIndexEntry | null, frameIdx: number): URLS
   q.set("seed", String(selected.seed));
   q.set("step", String(selected.start_step));
   if (frameIdx > 0) q.set("frame", String(frameIdx));
+  if (pinnedSlot !== null && pinnedSlot >= 0) q.set("agent", String(pinnedSlot));
   return q;
 }
 
@@ -64,6 +71,14 @@ export default function Replay() {
   const [showHeading, setShowHeading] = useState(true);
   const [energyAlpha, setEnergyAlpha] = useState(true);
 
+  // Agent inspector. `selectedSlot` is the agent whose panel is open;
+  // `pinnedSlot` is the one whose trail/ring persist across frames. They can
+  // differ — a user can open a panel without pinning, or keep a pin open
+  // while browsing other agents. URL `?agent=` tracks pinnedSlot (that's the
+  // one that should reconstruct across reloads).
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [pinnedSlot, setPinnedSlot] = useState<number | null>(null);
+
   // --- load index on mount; honor URL params if present ---
   // URL schema: ?tag=&exp=&seed=&step=&frame= — see urlParamsFor/matchFromUrl.
   // The initial ?frame= is applied once the replay finishes loading (below).
@@ -80,6 +95,14 @@ export default function Replay() {
           const n = Number(frameParam);
           if (Number.isFinite(n) && n >= 0) initialFrameFromUrl.current = n;
         }
+        const agentParam = params.get("agent");
+        if (agentParam !== null) {
+          const n = Number(agentParam);
+          if (Number.isFinite(n) && n >= 0) {
+            setPinnedSlot(n);
+            setSelectedSlot(n);
+          }
+        }
         setSelected(fromUrl ?? idx.replays[0]);
       })
       .catch((e) => setIndexError(String(e)));
@@ -87,6 +110,11 @@ export default function Replay() {
   }, []);
 
   // --- load selected replay ---
+  // We keep pin/selection across the initial URL-restore (applied in the
+  // mount effect), but clear them on any user-driven replay switch so a
+  // stale slot from the previous replay doesn't silently highlight a
+  // different agent.
+  const hasLoadedOnceRef = useRef(false);
   useEffect(() => {
     if (!selected) return;
     let cancelled = false;
@@ -95,6 +123,11 @@ export default function Replay() {
     setData(null);
     setFrameIdx(0);
     setPlaying(false);
+    if (hasLoadedOnceRef.current) {
+      setSelectedSlot(null);
+      setPinnedSlot(null);
+    }
+    hasLoadedOnceRef.current = true;
     fetchReplay(selected)
       .then((d) => {
         if (cancelled) return;
@@ -120,31 +153,35 @@ export default function Replay() {
     };
   }, [selected]);
 
-  // --- URL sync: replay identity (immediate) and frame (debounced) ---
+  // --- URL sync: replay identity + pin (immediate) and frame (debounced) ---
   // We replaceState so Back doesn't accumulate per-frame entries; scrubbing
   // the slider would otherwise spam history.
+  const writeUrl = useCallback(
+    (frame: number) => {
+      if (!selected) return;
+      const q = urlParamsFor(selected, frame, pinnedSlot);
+      const search = q.toString();
+      const target = search
+        ? `?${search}${window.location.hash}`
+        : window.location.pathname + window.location.hash;
+      const current = window.location.search + window.location.hash;
+      if (current !== (search ? `?${search}${window.location.hash}` : window.location.hash)) {
+        window.history.replaceState(null, "", target);
+      }
+    },
+    [selected, pinnedSlot],
+  );
+
   useEffect(() => {
-    if (!selected) return;
-    const q = urlParamsFor(selected, frameIdx);
-    const search = q.toString();
-    const target = search ? `?${search}` : window.location.pathname;
-    if (window.location.search !== (search ? `?${search}` : "")) {
-      window.history.replaceState(null, "", target + window.location.hash);
-    }
-  }, [selected]);
+    writeUrl(frameIdx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, pinnedSlot]);
 
   useEffect(() => {
     if (!selected) return;
-    const t = window.setTimeout(() => {
-      const q = urlParamsFor(selected, frameIdx);
-      const search = q.toString();
-      const target = search ? `?${search}` : window.location.pathname;
-      if (window.location.search !== (search ? `?${search}` : "")) {
-        window.history.replaceState(null, "", target + window.location.hash);
-      }
-    }, 200);
+    const t = window.setTimeout(() => writeUrl(frameIdx), 200);
     return () => window.clearTimeout(t);
-  }, [frameIdx, selected]);
+  }, [frameIdx, writeUrl, selected]);
 
   // --- playback loop ---
   const rafRef = useRef<number | null>(null);
@@ -357,10 +394,40 @@ export default function Replay() {
                   frameIdx={frameIdx}
                   showHeading={showHeading}
                   energyAlpha={energyAlpha}
+                  pinnedSlot={pinnedSlot}
+                  onAgentPick={(slot) => {
+                    // Click on empty space clears the panel but keeps any
+                    // existing pin — clicking elsewhere shouldn't accidentally
+                    // drop a pin the user set deliberately.
+                    if (slot === null) setSelectedSlot(null);
+                    else setSelectedSlot(slot);
+                  }}
                   className="w-full h-full"
                 />
               )}
             </div>
+
+            {data && selectedSlot !== null &&
+              selectedSlot >= 0 &&
+              selectedSlot < data.meta.max_agents && (
+                <div className="max-w-[720px] w-full mx-auto">
+                  <AgentInspector
+                    data={data}
+                    frameIdx={frameIdx}
+                    slot={selectedSlot}
+                    pinned={pinnedSlot === selectedSlot}
+                    onTogglePin={() =>
+                      setPinnedSlot((p) =>
+                        p === selectedSlot ? null : selectedSlot,
+                      )
+                    }
+                    onClose={() => {
+                      setSelectedSlot(null);
+                      setPinnedSlot(null);
+                    }}
+                  />
+                </div>
+              )}
 
             {data && (
               <div className="max-w-[720px] w-full mx-auto flex flex-col gap-2">

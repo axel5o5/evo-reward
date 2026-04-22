@@ -7,6 +7,12 @@ interface Props {
   // Visual toggles
   showHeading?: boolean;
   energyAlpha?: boolean;
+  // Pinned agent — when set, draws a trail of the last TRAIL_FRAMES positions
+  // and a highlight ring on the current frame. -1 / undefined = no pin.
+  pinnedSlot?: number | null;
+  // Click-to-select. Gets the slot of the nearest alive agent whose disc
+  // contains the click, or null if the click missed every agent.
+  onAgentPick?: (slot: number | null) => void;
   // Layout: canvas is a square — the parent decides CSS size.
   className?: string;
 }
@@ -16,12 +22,19 @@ const COLOR_PREY = "#4ade80";      // green-400
 const COLOR_PREDATOR = "#f87171";  // red-400
 const COLOR_FOOD = "#60a5fa";      // blue-400
 const COLOR_HEADING = "rgba(17, 24, 39, 0.55)"; // gray-900/55
+const COLOR_PIN_RING = "#fbbf24";  // amber-400 — readable over both species
+
+// Trail length. 50 frames at 60fps is ~0.8s of playback history; long enough
+// to show trajectory shape without turning into spaghetti on dense scenes.
+const TRAIL_FRAMES = 50;
 
 export default function ReplayCanvas({
   data,
   frameIdx,
   showHeading = true,
   energyAlpha = true,
+  pinnedSlot = null,
+  onAgentPick,
   className,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -61,7 +74,41 @@ export default function ReplayCanvas({
   useEffect(() => {
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, frameIdx, showHeading, energyAlpha]);
+  }, [data, frameIdx, showHeading, energyAlpha, pinnedSlot]);
+
+  // Click → nearest alive agent whose disc contains the click point.
+  // Uses CSS-pixel rect math (not the backing store) so DPR doesn't matter.
+  function onClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!onAgentPick) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const world = data.meta.world_size;
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const wx = (cx / rect.width) * world;
+    // World y is flipped: pixel y=0 is top, world y=world is top.
+    const wy = (1 - cy / rect.height) * world;
+
+    const fv = frameView(data, frameIdx);
+    let best = -1;
+    let bestDist = Infinity;
+    for (let i = 0; i < data.meta.max_agents; i++) {
+      if (!fv.alive[i]) continue;
+      const x = fv.pos[i * 2];
+      const y = fv.pos[i * 2 + 1];
+      const r = data.radii[i];
+      const dx = x - wx;
+      const dy = y - wy;
+      const d2 = dx * dx + dy * dy;
+      // Hit if within radius; among hits, prefer the nearest center.
+      if (d2 <= r * r && d2 < bestDist) {
+        bestDist = d2;
+        best = i;
+      }
+    }
+    onAgentPick(best >= 0 ? best : null);
+  }
 
   function draw() {
     const canvas = canvasRef.current;
@@ -136,6 +183,56 @@ export default function ReplayCanvas({
       }
     }
     ctx.globalAlpha = 1;
+
+    // --- pinned agent: trail + highlight ring ---
+    // Drawn after the main agent pass so the trail + ring sit on top. Trail
+    // fades with recency (older frames more transparent). We intentionally
+    // don't skip frames where the pinned agent was dead — slot reuse could
+    // let a phantom trail appear, so we clamp to the agent's own alive span.
+    if (
+      pinnedSlot !== null &&
+      pinnedSlot !== undefined &&
+      pinnedSlot >= 0 &&
+      pinnedSlot < data.meta.max_agents
+    ) {
+      const slot = pinnedSlot;
+      const N = data.meta.max_agents;
+      const start = Math.max(0, frameIdx - TRAIL_FRAMES);
+      ctx.lineWidth = 1.5 / scale;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = COLOR_PIN_RING;
+
+      // Segment-by-segment so we can vary alpha by recency and break on
+      // alive-gap (slot reuse across death/birth).
+      for (let f = start; f < frameIdx; f++) {
+        if (!data.alive[f * N + slot] || !data.alive[(f + 1) * N + slot]) continue;
+        const age = frameIdx - f; // 1..TRAIL_FRAMES
+        const alpha = 0.08 + 0.7 * (1 - age / TRAIL_FRAMES);
+        ctx.globalAlpha = alpha;
+        const x0 = data.pos[(f * N + slot) * 2];
+        const y0 = data.pos[(f * N + slot) * 2 + 1];
+        const x1 = data.pos[((f + 1) * N + slot) * 2];
+        const y1 = data.pos[((f + 1) * N + slot) * 2 + 1];
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Ring on the current frame (only if alive now).
+      if (fv.alive[slot]) {
+        const x = fv.pos[slot * 2];
+        const y = fv.pos[slot * 2 + 1];
+        const r = data.radii[slot];
+        ctx.lineWidth = 2 / scale;
+        ctx.strokeStyle = COLOR_PIN_RING;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     ctx.restore();
 
     // Optional HUD corner: step number + active counts. Drawn in pixel coords.
@@ -157,7 +254,11 @@ export default function ReplayCanvas({
 
   return (
     <div ref={containerRef} className={className} style={{ position: "relative" }}>
-      <canvas ref={canvasRef} style={{ display: "block" }} />
+      <canvas
+        ref={canvasRef}
+        onClick={onClick}
+        style={{ display: "block", cursor: onAgentPick ? "pointer" : "default" }}
+      />
     </div>
   );
 }
