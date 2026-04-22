@@ -7,9 +7,9 @@ Order: 1.1 → 1.2 → 1.4 → 1.6 → 1.7 → 1.5 → 1.3 → Phase 2.
 - [x] 1.1 URL state sync — shipped 73e2a75
 - [x] 1.2 Selector revamp (ReplaySelector) — shipped 73e2a75
 - [x] 1.4 Population mini-timeline (PopulationStrip) — shipped 3d285e7
-- [x] 1.6 Click-agent panel lite (AgentInspector) — shipped PENDING
-- [x] 1.7 Canvas trail layer — shipped PENDING
-- [ ] 1.5 "Interesting frames" chips
+- [x] 1.6 Click-agent panel lite (AgentInspector) — shipped 70fe1d0
+- [x] 1.7 Canvas trail layer — shipped 70fe1d0
+- [x] 1.5 "Interesting frames" chips — shipped PENDING
 - [ ] 1.3 Per-replay sparkline thumbnails
 - [ ] 2.1 Replay schema v2
 - [ ] 2.2 Full click-agent panel

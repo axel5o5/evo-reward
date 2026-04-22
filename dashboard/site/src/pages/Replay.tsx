@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReplayCanvas from "../components/ReplayCanvas";
 import ReplaySelector from "../components/ReplaySelector";
 import PopulationStrip from "../components/PopulationStrip";
 import AgentInspector from "../components/AgentInspector";
+import EventChips from "../components/EventChips";
 import {
   ReplayData,
   ReplayIndex,
@@ -11,6 +12,7 @@ import {
   fetchReplay,
   replaysBaseUrl,
 } from "../lib/replayLoader";
+import { computeReplayStats } from "../lib/replayStats";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -78,6 +80,11 @@ export default function Replay() {
   // one that should reconstruct across reloads).
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [pinnedSlot, setPinnedSlot] = useState<number | null>(null);
+
+  // Derived, per-replay summary: population counts + event indices. Both
+  // PopulationStrip and EventChips read from this so we only walk alive[]
+  // once per replay load.
+  const stats = useMemo(() => (data ? computeReplayStats(data) : null), [data]);
 
   // --- load index on mount; honor URL params if present ---
   // URL schema: ?tag=&exp=&seed=&step=&frame= — see urlParamsFor/matchFromUrl.
@@ -433,8 +440,17 @@ export default function Replay() {
               <div className="max-w-[720px] w-full mx-auto flex flex-col gap-2">
                 <PopulationStrip
                   data={data}
+                  stats={stats!}
                   frameIdx={frameIdx}
                   onFrameChange={(f) => {
+                    setPlaying(false);
+                    setFrameIdx(f);
+                  }}
+                />
+                <EventChips
+                  stats={stats!}
+                  frameIdx={frameIdx}
+                  onJump={(f) => {
                     setPlaying(false);
                     setFrameIdx(f);
                   }}

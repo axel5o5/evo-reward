@@ -1,8 +1,10 @@
 import { useMemo, useRef } from "react";
 import { ReplayData } from "../lib/replayLoader";
+import { ReplayStats } from "../lib/replayStats";
 
 interface Props {
   data: ReplayData;
+  stats: ReplayStats;
   frameIdx: number;
   onFrameChange: (frame: number) => void;
   // Optional: vertical height in px. Width tracks the parent.
@@ -14,33 +16,6 @@ const COLOR_PRED = "#f87171"; // red-400
 
 // SVG viewBox Y is inverted (0 at top). We plot counts with a flat y-flip:
 // y = H - count/maxCount * H.
-
-function computeCounts(data: ReplayData): {
-  prey: Uint16Array;
-  pred: Uint16Array;
-  maxCount: number;
-} {
-  const nFrames = data.meta.n_frames;
-  const maxAgents = data.meta.max_agents;
-  const prey = new Uint16Array(nFrames);
-  const pred = new Uint16Array(nFrames);
-  let maxC = 1;
-  for (let f = 0; f < nFrames; f++) {
-    let p = 0;
-    let d = 0;
-    const base = f * maxAgents;
-    for (let i = 0; i < maxAgents; i++) {
-      if (!data.alive[base + i]) continue;
-      if (data.species[i] === 1) d++;
-      else p++;
-    }
-    prey[f] = p;
-    pred[f] = d;
-    if (p > maxC) maxC = p;
-    if (d > maxC) maxC = d;
-  }
-  return { prey, pred, maxCount: maxC };
-}
 
 function polylinePoints(counts: Uint16Array, W: number, H: number, maxCount: number): string {
   const n = counts.length;
@@ -66,13 +41,12 @@ function polylinePoints(counts: Uint16Array, W: number, H: number, maxCount: num
 
 export default function PopulationStrip({
   data,
+  stats,
   frameIdx,
   onFrameChange,
   heightPx = 48,
 }: Props) {
-  // Recompute only when the replay itself changes — counts are a function of
-  // data.alive + data.species, both of which are stable per ReplayData.
-  const { prey, pred, maxCount } = useMemo(() => computeCounts(data), [data]);
+  const { prey, pred, maxCount } = stats;
 
   const W = 1000; // viewBox width; preserveAspectRatio='none' stretches it
   const H = 100;
