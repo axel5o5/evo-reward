@@ -131,25 +131,35 @@ def check_eating_jax(sim_state, config, contact_mat):
     # Contact comes from phyjax2d's per-substep penetration check (D19).
     in_contact = contact_mat
 
-    # Tactile-bin assignment — nearest bin to the angle-from-heading of each prey
+    # Tactile-bin assignment — matches emevo's phyjax2d.get_relative_angle
+    # and _search_bin (boundary-based) convention exactly (D26 fix):
+    #   * subtract heading (rotate into agent's local frame)
+    #   * subtract π/2 because phyjax2d heading=0 means forward=+y, not +x
+    #   * mod 2π to get a value in [0, 2π)
+    #   * bin k covers [k · 2π/N, (k+1) · 2π/N)
+    # Pre-D26 our code omitted the π/2 offset, so the "mouth" bins
+    # [0, 1, 17] (nominally the 60° front arc) actually pointed 90° to
+    # the agent's RIGHT — predators could not catch prey directly in
+    # front of them. Likely the root cause of predator extinction.
     angles_to_agents = jnp.arctan2(diffs_agents[:, :, 1], diffs_agents[:, :, 0])
-    # Bin centers: 0°, 20°, 40°, ... around the agent
-    bin_centers = jnp.arange(n_tactile_bins) * tactile_spacing_rad
-    bin_half_width = tactile_spacing_rad / 2.0
-    # Angle of prey relative to predator's heading (A pred, A prey, B bins)
-    angle_rel = _wrap_angle(angles_to_agents[:, :, None] - angles[:, None, None]
-                            - bin_centers[None, None, :])
-    nearest_bin = jnp.argmin(jnp.abs(angle_rel), axis=-1)         # (A, A)
-    # In-bin only if prey is within ±half_width of nearest bin center
-    in_bin = jnp.take_along_axis(
-        jnp.abs(angle_rel), nearest_bin[..., None], axis=-1
-    )[..., 0] <= bin_half_width                                    # (A, A)
+    TWO_PI = 2.0 * jnp.pi
+    # JAX's `%` returns non-negative when the divisor is positive, so we do
+    # NOT add a `+ 3·TWO_PI` offset — that introduces fp rounding which can
+    # snap a "directly in front" angle (rel=0) to ~TWO_PI, landing in bin
+    # n-1 instead of bin 0.
+    angle_rel = (
+        angles_to_agents - angles[:, None] - jnp.pi / 2.0
+    ) % TWO_PI  # (A, A)
+    bin_width = TWO_PI / n_tactile_bins
+    nearest_bin = jnp.clip(
+        (angle_rel / bin_width).astype(jnp.int32), 0, n_tactile_bins - 1
+    )  # (A, A)
 
     # In mouth: nearest bin is one of the mouth bins
     is_mouth_bin = jnp.zeros_like(nearest_bin, dtype=bool)
     for b in mouth_bin_indices:
         is_mouth_bin = is_mouth_bin | (nearest_bin == b)
-    in_mouth = in_bin & is_mouth_bin                               # (A, A)
+    in_mouth = is_mouth_bin                                        # (A, A)
 
     # Cooldown: predator can only catch when timer <= 0
     can_eat = predator_eat_timer <= 0                              # (A,)

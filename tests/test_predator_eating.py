@@ -187,22 +187,21 @@ def _catch_count(state, config):
 class TestCatchGeometry:
 
     def test_touching_prey_in_front_is_caught(self, config):
-        """Predator at (500,500) facing +x, prey touching at (520,500). Bin 0 = caught."""
+        """Predator at (500,500) heading=0 (forward=+y per phyjax2d), prey
+        touching at (500,520) — directly in front. Bin 0 (front arc) = caught."""
         state = init_simstate(config, jax.random.PRNGKey(0))
-        # predator at origin of world center, prey directly in front at distance 20
-        # (< pred_r + prey_r = 24 → contact)
         state, _ = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),    # predator facing east
-            (0, 520.0, 500.0, 0.0),    # prey 20 units east (touching, bin 0)
+            (1, 500.0, 500.0, 0.0),    # predator, heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey 20 units north (touching, bin 0)
         ])
         assert _catch_count(state, config) == 1
 
     def test_touching_prey_behind_is_not_caught(self, config):
-        """Prey touching but at 180° — nearest bin is 9, not in mouth — no catch."""
+        """Prey touching but at 180° (south) — not in front arc."""
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, _ = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),    # predator facing east
-            (0, 480.0, 500.0, 0.0),    # prey 20 units behind (touching, bin 9)
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 480.0, 0.0),    # prey 20 units south of predator
         ])
         assert _catch_count(state, config) == 0
 
@@ -216,8 +215,8 @@ class TestCatchGeometry:
         """
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, _ = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),
-            (0, 530.0, 500.0, 0.0),    # prey 30 units ahead — not touching
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 530.0, 0.0),    # prey 30 units north — not touching
         ])
         assert _catch_count(state, config) == 0
 
@@ -228,8 +227,8 @@ class TestCooldown:
         """After catching, predator_eat_timer resets to eat_interval."""
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, slots = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),
-            (0, 520.0, 500.0, 0.0),
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey directly in front (bin 0)
         ])
         pred_slot = slots[0]
         assert int(state.predator_eat_timer[pred_slot]) == 0  # ready to eat
@@ -243,8 +242,8 @@ class TestCooldown:
         """With timer > 0, predator can't catch even when prey is touching."""
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, slots = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),
-            (0, 520.0, 500.0, 0.0),
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey directly in front (bin 0)
         ])
         pred_slot = slots[0]
         # Manually set timer to 5 (mid-cooldown)
@@ -262,8 +261,8 @@ class TestCooldown:
         """With timer at 0, predator can catch again."""
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, slots = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),
-            (0, 520.0, 500.0, 0.0),
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey directly in front (bin 0)
         ])
         pred_slot = slots[0]
         # Timer at -1 (well past cooldown)
@@ -359,8 +358,8 @@ class TestEnergyTransfer:
 
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, slots = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),    # predator facing east
-            (0, 520.0, 500.0, 0.0),    # prey in mouth bin 0, touching
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey directly in front (bin 0)
         ])
         pred_slot, prey_slot = slots[0], slots[1]
         # Set known starting energies.
@@ -406,8 +405,8 @@ class TestDoneFlagOnDeath:
 
         state = init_simstate(config, jax.random.PRNGKey(0))
         state, slots = _place_agents(state, config, [
-            (1, 500.0, 500.0, 0.0),    # predator
-            (0, 520.0, 500.0, 0.0),    # prey in mouth, will be caught
+            (1, 500.0, 500.0, 0.0),    # heading=0 → forward=+y
+            (0, 500.0, 520.0, 0.0),    # prey directly in front, will be caught
         ])
         pred_slot, prey_slot = slots[0], slots[1]
         state = state.replace(
@@ -436,8 +435,8 @@ class TestIndependentTimers:
         state = init_simstate(config, jax.random.PRNGKey(0))
         # A and B far apart; A touching a prey, B alone
         state, slots = _place_agents(state, config, [
-            (1, 200.0, 200.0, 0.0),   # predator A facing east
-            (0, 220.0, 200.0, 0.0),   # prey 20 east of A  (A catches)
+            (1, 200.0, 200.0, 0.0),   # predator A, heading=0 → forward=+y
+            (0, 200.0, 220.0, 0.0),   # prey 20 north of A (A catches)
             (1, 700.0, 700.0, 0.0),   # predator B, no prey near
         ])
         pred_a, pred_b = slots[0], slots[2]

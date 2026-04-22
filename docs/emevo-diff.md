@@ -582,6 +582,102 @@ before commit.
 
 ---
 
+### [D26] Tactile bin indexing off by 90° — FIXED 2026-04-22
+
+**TL;DR: the single most likely root cause of predator extinction.**
+
+**Bug.** phyjax2d/emevo's convention is that an agent's heading=0 means
+its forward direction is **world +y** (not +x). `get_relative_angle`
+in phyjax2d subtracts an extra `π/2` when classifying an angle into
+the agent's local frame. Our code omitted that offset.
+
+Verified with a minimal simulation: predator at (500, 500), heading=0,
+prey at (500, 520) — directly in front per phyjax2d convention.
+
+| | Our pre-D26 code | emevo (phyjax2d) |
+|---|---|---|
+| `rel_angle` | π/2 (90°) | 0 |
+| bin | 5 (center 100°) | 0 |
+
+With `predator_mouth_tactile_bins = [0, 1, 17]` (supposed to be the
+60° front arc), the mouth actually pointed **90° to the predator's
+right side** — predators could not catch prey directly ahead.
+
+**Tactile observations** had an even worse version of the same bug:
+`_single_tactile` didn't take `obs_angle` at all, so bin classification
+was in world frame — every agent's "bin 0" was "world +x" regardless
+of which way it was facing. Policies can't learn a stable tactile →
+action mapping from world-frame input.
+
+**Why this explains the extinction pattern.** Predator population
+consistently peaks around the right value (~23, close to K&D SS) then
+collapses — consistent with predators being able to catch prey _only_
+during chance side-swipes, never by learned pursuit. Once prey
+population drops below a critical density, predators stop making
+those lucky catches and starve.
+
+**Fix.** Two files, two call sites:
+
+  * `src/jax_food.py::check_eating_jax` — replace the old
+    `angle_rel = angles_to_agents - angles - bin_centers` +
+    `argmin(|angle_rel|)` approach with emevo's boundary-based
+    assignment:
+
+      ```python
+      rel = (angle_to_agent - heading - π/2) % 2π
+      bin = floor(rel / (2π / n_bins))
+      ```
+
+  * `src/observations.py::_single_tactile` — add `obs_angle` to the
+    signature and use the same formula. Extracted a helper
+    `_bin_in_agent_frame(angle_world, obs_angle, n_bins)` used for
+    agents, food, and walls alike. The caller in `_build_obs_fn`
+    now passes each agent's heading.
+
+Also updated the pre-JAX Python reference
+(`src/environment.py::compute_tactile_sensors`) to use the same
+convention so the `tests/test_vectorized_obs.py` comparison tests
+stay green.
+
+**FP subtlety.** Emevo uses `(... + 3·TWO_PI - π/2) % TWO_PI`, but
+testing revealed the `+ 3·TWO_PI` introduces floating-point rounding
+that can snap "directly in front" (rel=0) to `~TWO_PI`, landing in
+bin n-1 instead of bin 0. JAX's `%` already returns non-negative for
+positive divisors, so we drop the extra offset.
+
+**Tests added.** `tests/test_tactile_bin_indexing.py` (6 new tests):
+
+  * `test_prey_in_front_is_bin_0_heading_0` — catch detection
+    correctly places a prey at world +y into bin 0 when heading=0.
+  * `test_prey_to_right_heading_0_is_not_in_mouth` — prey at world
+    +x is bin 13 (not in mouth [0, 1, 17]) → not caught. Pre-D26
+    this prey would have been caught — the smoking-gun bug.
+  * `test_prey_in_front_rotates_with_heading` — placing prey
+    directly in front of the predator (forward direction derived
+    from heading) must be caught at 8 different headings 0°-315°.
+    Pre-D26 at heading=90° the "front" direction would have been
+    classified into a side-mouth bin → not caught.
+  * `test_tactile_food_in_front_lights_bin_0` — tactile observation
+    pipeline agrees with the catch pipeline's convention.
+  * `test_tactile_to_right_of_heading_0_is_bin_13` — side contact
+    classified correctly.
+  * `test_tactile_rotates_with_heading` — same world-fixed contact
+    moves between bins as observer rotates. Pre-D26 the bin was
+    fixed in world frame.
+
+Existing `tests/test_predator_eating.py` geometry updated: previous
+tests placed prey at world +x calling it "east" / "in front" (which
+matched the pre-D26 broken convention). New placements put prey at
+world +y relative to heading=0, which is correctly "in front."
+
+Full fast suite: **203 passed** (was 197; +6 new bin tests).
+
+**Risk of regression.** All six tests in
+`test_tactile_bin_indexing.py` would fail if the π/2 offset is ever
+removed or if `obs_angle` stops being threaded into `_single_tactile`.
+
+---
+
 ### [D25] Rectangular world support — infrastructure, 2026-04-22
 
 **Motivation.** Our simulation hard-coded a square world via

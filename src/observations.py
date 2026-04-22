@@ -183,12 +183,41 @@ def _winner_take_all(closest_prey, closest_pred, closest_food, closest_wall,
 # Tactile sensors
 # ---------------------------------------------------------------------------
 
-def _single_tactile(obs_pos, obs_radius, obs_species, obs_idx,
+def _bin_in_agent_frame(angle_world, obs_angle, n_bins):
+    """Classify a world-frame angle into one of `n_bins` tactile bins in the
+    observer's local frame.
+
+    D26: phyjax2d/emevo convention is that agent heading=0 means forward is
+    WORLD +y (not +x). Bins are 0-indexed from "directly forward" going
+    counter-clockwise, each covering 2π/n_bins of arc. Pre-D26 we omitted
+    both the heading subtraction AND the π/2 offset, so tactile bins were
+    world-frame — effectively random from the agent's perspective and
+    preventing useful policy learning on tactile inputs.
+    """
+    TWO_PI = 2.0 * jnp.pi
+    # JAX's `%` returns non-negative when the divisor is positive, so we
+    # don't need a `+ 3*TWO_PI` offset — and adding one introduces fp
+    # rounding that can snap "directly in front" (rel=0) to ~TWO_PI,
+    # landing in bin n-1 instead of bin 0.
+    rel = (angle_world - obs_angle - jnp.pi / 2.0) % TWO_PI
+    bin_width = TWO_PI / n_bins
+    idx = jnp.clip((rel / bin_width).astype(jnp.int32), 0, n_bins - 1)
+    return idx
+
+
+def _single_tactile(obs_pos, obs_angle, obs_radius, obs_species, obs_idx,
                     all_pos, all_active, all_species, all_radii,
                     food_pos, food_active,
-                    world_x, world_y, bin_centers, bin_half_width, n_bins):
-    """Tactile sensor readings for one observer. Returns (4, n_bins)."""
+                    world_x, world_y, n_bins):
+    """Tactile sensor readings for one observer. Returns (4, n_bins).
+
+    D26: signature now takes `obs_angle` (the observer's heading) so that
+    bin assignments are rotated into the agent's local frame. Bin-centers
+    / bin_half_width are gone; we use emevo's boundary-based assignment
+    via `_bin_in_agent_frame`.
+    """
     A = all_pos.shape[0]
+    F = food_pos.shape[0]
 
     # --- Agent contacts ---
     delta = all_pos - obs_pos                                       # (A, 2)
@@ -197,51 +226,40 @@ def _single_tactile(obs_pos, obs_radius, obs_species, obs_idx,
     contact = (dist <= contact_thresh) & all_active & (jnp.arange(A) != obs_idx)
 
     angle_to = jnp.arctan2(delta[:, 1], delta[:, 0])               # (A,)
-    # Bin assignment: find nearest bin
-    adiff = _wrap(angle_to[:, None] - bin_centers[None, :])         # (A, B)
-    nearest_bin = jnp.argmin(jnp.abs(adiff), axis=1)               # (A,)
-    in_bin = jnp.abs(adiff[jnp.arange(A), nearest_bin]) <= bin_half_width
-
-    valid_contact = contact & in_bin
-    clamped_nearest = jnp.clip(nearest_bin, 0, n_bins - 1)
+    nearest_bin = _bin_in_agent_frame(angle_to, obs_angle, n_bins) # (A,)
 
     # Channel 0: conspecific (same species)
-    con = valid_contact & (all_species == obs_species)
-    con_bins = jnp.zeros(n_bins).at[clamped_nearest].max(con.astype(jnp.float32))
+    con = contact & (all_species == obs_species)
+    con_bins = jnp.zeros(n_bins).at[nearest_bin].max(con.astype(jnp.float32))
 
     # Channel 1: other species
-    other = valid_contact & (all_species != obs_species)
-    other_bins = jnp.zeros(n_bins).at[clamped_nearest].max(other.astype(jnp.float32))
+    other = contact & (all_species != obs_species)
+    other_bins = jnp.zeros(n_bins).at[nearest_bin].max(other.astype(jnp.float32))
 
     # --- Food contacts ---
     food_delta = food_pos - obs_pos                                 # (F, 2)
     food_dist = jnp.linalg.norm(food_delta, axis=1)                # (F,)
-    # Reference uses agent_radius only (no FOOD_RADIUS) for tactile contact
     food_contact = (food_dist <= obs_radius) & food_active
 
     food_angle = jnp.arctan2(food_delta[:, 1], food_delta[:, 0])
-    food_adiff = _wrap(food_angle[:, None] - bin_centers[None, :])  # (F, B)
-    food_nearest = jnp.argmin(jnp.abs(food_adiff), axis=1)         # (F,)
-    food_in_bin = jnp.abs(food_adiff[jnp.arange(food_pos.shape[0]), food_nearest]) <= bin_half_width
-    food_valid = food_contact & food_in_bin
-    food_clamped = jnp.clip(food_nearest, 0, n_bins - 1)
-    food_bins = jnp.zeros(n_bins).at[food_clamped].max(food_valid.astype(jnp.float32))
+    food_bin = _bin_in_agent_frame(food_angle, obs_angle, n_bins)  # (F,)
+    food_bins = jnp.zeros(n_bins).at[food_bin].max(food_contact.astype(jnp.float32))
 
     # --- Wall contacts ---
+    # Wall direction in world frame → rotate into agent frame via the
+    # same helper. Each wall the agent is against lights up exactly one bin.
     wall_bins = jnp.zeros(n_bins)
     wall_contacts = [
-        (obs_pos[0] <= obs_radius, jnp.pi),            # left wall, direction = π
-        (obs_pos[0] >= world_x - obs_radius, 0.0),    # right wall, direction = 0
-        (obs_pos[1] <= obs_radius, -jnp.pi / 2),      # bottom wall, direction = -π/2
-        (obs_pos[1] >= world_y - obs_radius, jnp.pi / 2),  # top wall, direction = π/2
+        (obs_pos[0] <= obs_radius,                jnp.pi),          # left wall
+        (obs_pos[0] >= world_x - obs_radius,      0.0),             # right wall
+        (obs_pos[1] <= obs_radius,                -jnp.pi / 2),     # bottom wall
+        (obs_pos[1] >= world_y - obs_radius,      jnp.pi / 2),      # top wall
     ]
     for is_contact, wall_dir in wall_contacts:
-        w_adiff = _wrap(wall_dir - bin_centers)                     # (B,)
-        w_nearest = jnp.argmin(jnp.abs(w_adiff))
-        w_in_bin = jnp.abs(w_adiff[w_nearest]) <= bin_half_width
+        w_bin = _bin_in_agent_frame(jnp.asarray(wall_dir), obs_angle, n_bins)
         wall_bins = jnp.where(
-            is_contact & w_in_bin,
-            wall_bins.at[w_nearest].set(1.0),
+            is_contact,
+            wall_bins.at[w_bin].set(1.0),
             wall_bins,
         )
 
@@ -364,11 +382,11 @@ def _build_obs_fn(config, max_agents, food_max):
     )
 
     _vmap_tactile = jax.vmap(
-        lambda pos, rad, sp, idx, ap, aa, asp, ar, fp, fa: _single_tactile(
-            pos, rad, sp, idx, ap, aa, asp, ar, fp, fa,
-            world_x, world_y, tactile_bin_centers, tactile_half_width, n_tactile_bins
+        lambda pos, ang, rad, sp, idx, ap, aa, asp, ar, fp, fa: _single_tactile(
+            pos, ang, rad, sp, idx, ap, aa, asp, ar, fp, fa,
+            world_x, world_y, n_tactile_bins,
         ),
-        in_axes=(0, 0, 0, 0, None, None, None, None, None, None),
+        in_axes=(0, 0, 0, 0, 0, None, None, None, None, None, None),
     )
 
     # Build vmapped social observation function (only if social_obs active)
@@ -420,9 +438,10 @@ def _build_obs_fn(config, max_agents, food_max):
             max_range, n_sensors,
         )  # (A, S, 4)
 
-        # 5. Tactile sensors
+        # 5. Tactile sensors — D26: pass each observer's `angle` so bin
+        # classification happens in the agent's local frame.
         tactile = _vmap_tactile(
-            positions, radii, species, obs_indices,
+            positions, angles, radii, species, obs_indices,
             positions, is_active, species, radii,
             food_positions, food_active,
         )  # (A, 4, B)

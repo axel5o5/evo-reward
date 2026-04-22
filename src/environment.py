@@ -588,10 +588,9 @@ def compute_tactile_sensors(
             continue
 
         angle_to = math.atan2(diff[1], diff[0])
-        # Relative to agent heading
-        rel_angle = _angle_diff(angle_to, 0.0)  # absolute angle
-        # Normalize to [0, 2pi)
-        rel_angle = rel_angle % (2 * math.pi)
+        # D26: rotate into agent's local frame and shift by -π/2 because
+        # phyjax2d convention is heading=0 → forward=+y (not +x).
+        rel_angle = (angle_to - agent.angle - math.pi / 2.0) % (2 * math.pi)
 
         # Determine channel
         if agent.species == 0:  # prey
@@ -605,12 +604,9 @@ def compute_tactile_sensors(
             else:
                 channel = TACTILE_OTHER_SPECIES
 
-        # Find bin
-        for b in range(n_bins):
-            adiff = _angle_diff(rel_angle, bin_angles[b])
-            if abs(adiff) <= bin_half_width:
-                readings[channel, b] = 1.0
-                break
+        # Find bin via boundary rule: bin k covers [k·Δ, (k+1)·Δ).
+        b = min(int(rel_angle / math.radians(bin_spacing_deg)), n_bins - 1)
+        readings[channel, b] = 1.0
 
     # --- Check food contacts ---
     if world.food_positions is not None and len(world.food_positions) > 0:
@@ -622,48 +618,27 @@ def compute_tactile_sensors(
                 continue
 
             angle_to = math.atan2(diff[1], diff[0])
-            rel_angle = angle_to % (2 * math.pi)
+            rel_angle = (angle_to - agent.angle - math.pi / 2.0) % (2 * math.pi)
+            b = min(int(rel_angle / math.radians(bin_spacing_deg)), n_bins - 1)
+            readings[TACTILE_FOOD, b] = 1.0
 
-            for b in range(n_bins):
-                adiff = _angle_diff(rel_angle, bin_angles[b])
-                if abs(adiff) <= bin_half_width:
-                    readings[TACTILE_FOOD, b] = 1.0
-                    break
+    # --- Check wall contacts (D26: rotate into agent's local frame) ---
+    world_x, world_y = world_bounds(config)
+    bin_spacing_rad = math.radians(bin_spacing_deg)
 
-    # --- Check wall contacts ---
-    world_size = config["world_size"]
-    # Left wall (x=0)
-    if agent_pos[0] <= agent_radius:
-        wall_angle = math.pi  # wall is to the left
-        rel = wall_angle % (2 * math.pi)
-        for b in range(n_bins):
-            if abs(_angle_diff(rel, bin_angles[b])) <= bin_half_width:
-                readings[TACTILE_WALL, b] = 1.0
-                break
-    # Right wall (x=world_size)
-    if agent_pos[0] >= world_size - agent_radius:
-        wall_angle = 0.0
-        rel = wall_angle % (2 * math.pi)
-        for b in range(n_bins):
-            if abs(_angle_diff(rel, bin_angles[b])) <= bin_half_width:
-                readings[TACTILE_WALL, b] = 1.0
-                break
-    # Bottom wall (y=0)
-    if agent_pos[1] <= agent_radius:
-        wall_angle = 3 * math.pi / 2  # wall is below
-        rel = wall_angle % (2 * math.pi)
-        for b in range(n_bins):
-            if abs(_angle_diff(rel, bin_angles[b])) <= bin_half_width:
-                readings[TACTILE_WALL, b] = 1.0
-                break
-    # Top wall (y=world_size)
-    if agent_pos[1] >= world_size - agent_radius:
-        wall_angle = math.pi / 2
-        rel = wall_angle % (2 * math.pi)
-        for b in range(n_bins):
-            if abs(_angle_diff(rel, bin_angles[b])) <= bin_half_width:
-                readings[TACTILE_WALL, b] = 1.0
-                break
+    def _set_wall_bin(wall_angle_world: float) -> None:
+        rel = (wall_angle_world - agent.angle - math.pi / 2.0) % (2 * math.pi)
+        b = min(int(rel / bin_spacing_rad), n_bins - 1)
+        readings[TACTILE_WALL, b] = 1.0
+
+    if agent_pos[0] <= agent_radius:                  # left wall
+        _set_wall_bin(math.pi)
+    if agent_pos[0] >= world_x - agent_radius:        # right wall
+        _set_wall_bin(0.0)
+    if agent_pos[1] <= agent_radius:                  # bottom wall
+        _set_wall_bin(-math.pi / 2)
+    if agent_pos[1] >= world_y - agent_radius:        # top wall
+        _set_wall_bin(math.pi / 2)
 
     return jnp.array(readings)
 
