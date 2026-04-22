@@ -9,8 +9,8 @@ Order: 1.1 → 1.2 → 1.4 → 1.6 → 1.7 → 1.5 → 1.3 → Phase 2.
 - [x] 1.4 Population mini-timeline (PopulationStrip) — shipped 3d285e7
 - [x] 1.6 Click-agent panel lite (AgentInspector) — shipped 70fe1d0
 - [x] 1.7 Canvas trail layer — shipped 70fe1d0
-- [x] 1.5 "Interesting frames" chips — shipped PENDING
-- [ ] 1.3 Per-replay sparkline thumbnails
+- [x] 1.5 "Interesting frames" chips — shipped 4fc2019
+- [x] 1.3 Per-replay sparkline thumbnails — shipped PENDING (inlined into index.json instead of separate sparkline.json, see script header for rationale)
 - [ ] 2.1 Replay schema v2
 - [ ] 2.2 Full click-agent panel
 - [ ] 2.3 Reward-weight histogram

@@ -154,10 +154,10 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
         <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
           Start step{" "}
           <span className="text-gray-400 dark:text-gray-500 normal-case tracking-normal">
-            (click a dot)
+            (click a marker)
           </span>
         </div>
-        <div className="relative h-10 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-900/50 px-2">
+        <div className="relative h-12 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-900/50 px-2">
           {/* baseline */}
           <div className="absolute left-2 right-2 top-1/2 h-px bg-gray-300 dark:bg-gray-700" />
           {timeline.matches.map((r) => {
@@ -170,28 +170,115 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
               selected.seed === r.seed &&
               selected.start_step === r.start_step;
             return (
-              <button
+              <TimelineMarker
                 key={r.path}
-                onClick={() => onSelect(r)}
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group"
-                style={{ left: `calc(8px + ${frac} * (100% - 16px))` }}
-                title={`step ${r.start_step.toLocaleString()} (+${r.n_frames})`}
-              >
-                <span
-                  className={`block rounded-full transition ${
-                    isSel
-                      ? "w-3 h-3 bg-blue-600 ring-2 ring-blue-300 dark:ring-blue-900"
-                      : "w-2 h-2 bg-gray-400 dark:bg-gray-500 hover:bg-blue-500"
-                  }`}
-                />
-                <span className="absolute left-1/2 -translate-x-1/2 top-5 whitespace-nowrap text-[10px] font-mono text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 pointer-events-none">
-                  {r.start_step.toLocaleString()}
-                </span>
-              </button>
+                entry={r}
+                frac={frac}
+                selected={!!isSel}
+                onSelect={() => onSelect(r)}
+              />
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+// A marker on the start-step timeline. Renders a 60×18 sparkline thumbnail
+// if the entry has one; otherwise a plain dot.
+function TimelineMarker({
+  entry,
+  frac,
+  selected,
+  onSelect,
+}: {
+  entry: ReplayIndexEntry;
+  frac: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const spark = entry.sparkline;
+  const title = `${entry.exp} seed ${entry.seed} · step ${entry.start_step.toLocaleString()} (+${entry.n_frames})`;
+  return (
+    <button
+      onClick={onSelect}
+      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group"
+      style={{ left: `calc(8px + ${frac} * (100% - 16px))` }}
+      title={title}
+    >
+      {spark ? (
+        <SparklineThumb
+          prey={spark.prey}
+          pred={spark.pred}
+          selected={selected}
+        />
+      ) : (
+        <span
+          className={`block rounded-full transition ${
+            selected
+              ? "w-3 h-3 bg-blue-600 ring-2 ring-blue-300 dark:ring-blue-900"
+              : "w-2 h-2 bg-gray-400 dark:bg-gray-500 hover:bg-blue-500"
+          }`}
+        />
+      )}
+      <span className="absolute left-1/2 -translate-x-1/2 top-[22px] whitespace-nowrap text-[10px] font-mono text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 pointer-events-none">
+        {entry.start_step.toLocaleString()}
+      </span>
+    </button>
+  );
+}
+
+const SPARK_W = 60;
+const SPARK_H = 18;
+
+function SparklineThumb({
+  prey,
+  pred,
+  selected,
+}: {
+  prey: number[];
+  pred: number[];
+  selected: boolean;
+}) {
+  const n = Math.max(prey.length, pred.length);
+  let maxC = 1;
+  for (const v of prey) if (v > maxC) maxC = v;
+  for (const v of pred) if (v > maxC) maxC = v;
+  const pts = (arr: number[]) =>
+    arr
+      .map((v, i) => {
+        const x = n > 1 ? (i / (n - 1)) * SPARK_W : 0;
+        const y = SPARK_H - (v / maxC) * SPARK_H;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  return (
+    <svg
+      width={SPARK_W}
+      height={SPARK_H}
+      viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+      preserveAspectRatio="none"
+      className={`block rounded border transition ${
+        selected
+          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+          : "border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-blue-400"
+      }`}
+    >
+      <polyline
+        points={pts(prey)}
+        fill="none"
+        stroke="#4ade80"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+      <polyline
+        points={pts(pred)}
+        fill="none"
+        stroke="#f87171"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }

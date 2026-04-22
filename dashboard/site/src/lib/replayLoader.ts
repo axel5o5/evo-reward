@@ -30,6 +30,13 @@ export interface ReplayIndexEntry {
   // docs/emevo-diff.md D18). Empty/undefined = legacy untagged layout
   // (we treat that as "current" post-D18 by convention).
   run_tag?: string;
+  // Optional: downsampled prey/pred counts for a thumbnail next to each
+  // selector dot. Populated by scripts/gen_replay_thumbnails.py. Same length
+  // on both arrays (default 60 points); missing = render no thumbnail.
+  sparkline?: {
+    prey: number[];
+    pred: number[];
+  };
 }
 
 export interface ReplayIndex {
