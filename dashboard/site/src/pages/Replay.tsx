@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReplayCanvas from "../components/ReplayCanvas";
+import ReplaySelector from "../components/ReplaySelector";
 import {
   ReplayData,
   ReplayIndex,
@@ -10,6 +11,43 @@ import {
 } from "../lib/replayLoader";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
+
+// URL <-> replay selection.
+// We encode the selection as ?tag=&exp=&seed=&step=, and the playhead as &frame=.
+// `tag` is omitted when the replay is untagged (treated as "current").
+function urlParamsFor(selected: ReplayIndexEntry | null, frameIdx: number): URLSearchParams {
+  const q = new URLSearchParams();
+  if (!selected) return q;
+  if (selected.run_tag) q.set("tag", selected.run_tag);
+  q.set("exp", selected.exp);
+  q.set("seed", String(selected.seed));
+  q.set("step", String(selected.start_step));
+  if (frameIdx > 0) q.set("frame", String(frameIdx));
+  return q;
+}
+
+function matchFromUrl(
+  replays: ReplayIndexEntry[],
+  params: URLSearchParams,
+): ReplayIndexEntry | null {
+  const tag = params.get("tag") ?? "";
+  const exp = params.get("exp");
+  const seed = params.get("seed");
+  const step = params.get("step");
+  if (!exp || seed === null) return null;
+  const seedN = Number(seed);
+  const stepN = step !== null ? Number(step) : null;
+  const matches = replays.filter(
+    (r) => (r.run_tag || "") === tag && r.exp === exp && r.seed === seedN,
+  );
+  if (matches.length === 0) return null;
+  if (stepN !== null) {
+    const exact = matches.find((r) => r.start_step === stepN);
+    if (exact) return exact;
+  }
+  // Fall back to earliest start_step for the (tag, exp, seed) tuple.
+  return matches.sort((a, b) => a.start_step - b.start_step)[0];
+}
 
 export default function Replay() {
   const [index, setIndex] = useState<ReplayIndex | null>(null);
@@ -25,12 +63,23 @@ export default function Replay() {
   const [showHeading, setShowHeading] = useState(true);
   const [energyAlpha, setEnergyAlpha] = useState(true);
 
-  // --- load index on mount ---
+  // --- load index on mount; honor URL params if present ---
+  // URL schema: ?tag=&exp=&seed=&step=&frame= — see urlParamsFor/matchFromUrl.
+  // The initial ?frame= is applied once the replay finishes loading (below).
+  const initialFrameFromUrl = useRef<number | null>(null);
   useEffect(() => {
     fetchIndex()
       .then((idx) => {
         setIndex(idx);
-        if (idx.replays.length > 0 && !selected) setSelected(idx.replays[0]);
+        if (idx.replays.length === 0) return;
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = matchFromUrl(idx.replays, params);
+        const frameParam = params.get("frame");
+        if (frameParam !== null) {
+          const n = Number(frameParam);
+          if (Number.isFinite(n) && n >= 0) initialFrameFromUrl.current = n;
+        }
+        setSelected(fromUrl ?? idx.replays[0]);
       })
       .catch((e) => setIndexError(String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +99,15 @@ export default function Replay() {
         if (cancelled) return;
         setData(d);
         setLoading(false);
+        // Apply URL-provided frame only once, on the first replay load.
+        if (initialFrameFromUrl.current !== null) {
+          const clamped = Math.max(
+            0,
+            Math.min(d.meta.n_frames - 1, initialFrameFromUrl.current),
+          );
+          setFrameIdx(clamped);
+          initialFrameFromUrl.current = null;
+        }
       })
       .catch((e) => {
         if (cancelled) return;
@@ -60,6 +118,32 @@ export default function Replay() {
       cancelled = true;
     };
   }, [selected]);
+
+  // --- URL sync: replay identity (immediate) and frame (debounced) ---
+  // We replaceState so Back doesn't accumulate per-frame entries; scrubbing
+  // the slider would otherwise spam history.
+  useEffect(() => {
+    if (!selected) return;
+    const q = urlParamsFor(selected, frameIdx);
+    const search = q.toString();
+    const target = search ? `?${search}` : window.location.pathname;
+    if (window.location.search !== (search ? `?${search}` : "")) {
+      window.history.replaceState(null, "", target + window.location.hash);
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const t = window.setTimeout(() => {
+      const q = urlParamsFor(selected, frameIdx);
+      const search = q.toString();
+      const target = search ? `?${search}` : window.location.pathname;
+      if (window.location.search !== (search ? `?${search}` : "")) {
+        window.history.replaceState(null, "", target + window.location.hash);
+      }
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [frameIdx, selected]);
 
   // --- playback loop ---
   const rafRef = useRef<number | null>(null);
@@ -98,49 +182,11 @@ export default function Replay() {
     };
   }, [playing, speed, data]);
 
-  // Grouped entries for the dropdown: tag → (exp, seed) → start_step.
-  // Tags distinguish code versions (see docs/emevo-diff.md D18): e.g.
-  // "pre_d18_fix" is the broken/frozen-predator run, untagged is the
-  // current/post-fix run.
-  const grouped = useMemo(() => {
-    const byTag: Record<string, ReplayIndexEntry[]> = {};
-    for (const r of index?.replays ?? []) {
-      const tag = r.run_tag || "current";
-      (byTag[tag] ??= []).push(r);
-    }
-    for (const tag of Object.keys(byTag)) {
-      byTag[tag].sort(
-        (a, b) =>
-          a.exp.localeCompare(b.exp) ||
-          a.seed - b.seed ||
-          a.start_step - b.start_step,
-      );
-    }
-    return byTag;
-  }, [index]);
-
-  // Tag-ordering: "current" (untagged/latest) first, then tagged runs
-  // alphabetically. Reader first sees the active run.
-  const tagOrder = useMemo(() => {
-    const tags = Object.keys(grouped);
-    return tags.sort((a, b) => {
-      if (a === "current") return -1;
-      if (b === "current") return 1;
-      return a.localeCompare(b);
-    });
-  }, [grouped]);
-
-  const tagLabel = (tag: string) =>
-    tag === "current" ? "Current (post-D18 fix)" : tag.replace(/_/g, " ");
-
   const togglePlay = useCallback(() => {
     if (!data) return;
     if (frameIdx >= data.meta.n_frames - 1) setFrameIdx(0);
     setPlaying((p) => !p);
   }, [data, frameIdx]);
-
-  const selectKey = (entry: ReplayIndexEntry) =>
-    `${entry.run_tag || ""}|${entry.exp}|${entry.seed}|${entry.start_step}`;
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-6">
@@ -174,48 +220,25 @@ export default function Replay() {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left: controls */}
           <aside className="lg:w-72 flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                Replay
-              </label>
-              <select
-                className="w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                value={selected ? selectKey(selected) : ""}
-                onChange={(e) => {
-                  const key = e.target.value;
-                  for (const r of index.replays) {
-                    if (selectKey(r) === key) {
-                      setSelected(r);
-                      return;
-                    }
-                  }
-                }}
-              >
-                {tagOrder.map((tag) => (
-                  <optgroup key={tag} label={tagLabel(tag)}>
-                    {grouped[tag].map((r) => (
-                      <option key={selectKey(r)} value={selectKey(r)}>
-                        {r.exp} — seed {r.seed} — step {r.start_step.toLocaleString()} (+{r.n_frames})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              {selected?.run_tag && (
-                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                  ⚠ Archived run: <code>{selected.run_tag}</code> — see
-                  <a
-                    href="https://github.com/axel5o5/evo-reward/blob/main/docs/emevo-diff.md#d18"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline ml-1"
-                  >
-                    emevo-diff.md D18
-                  </a>{" "}
-                  for context.
-                </p>
-              )}
-            </div>
+            <ReplaySelector
+              replays={index.replays}
+              selected={selected}
+              onSelect={setSelected}
+            />
+            {selected?.run_tag && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                ⚠ Archived run: <code>{selected.run_tag}</code> — see
+                <a
+                  href="https://github.com/axel5o5/evo-reward/blob/main/docs/emevo-diff.md#d18"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline ml-1"
+                >
+                  emevo-diff.md D18
+                </a>{" "}
+                for context.
+              </p>
+            )}
 
             <div className="flex items-center gap-2">
               <button
