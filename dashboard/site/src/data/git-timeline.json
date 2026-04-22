@@ -980,6 +980,177 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "1a40b510",
+      "message": "[Replay] Pin step_00804501 as the \"before\" milestone",
+      "body": "Added 800_000 and 2_000_000 to keep_at_steps so the first real-run\nreplay \u2014 predators literally spinning in circles at 7.8% through\ntraining \u2014 survives retention forever. Future-us will enjoy the\ncontrast once predators figure out how to chase prey.\n\ntolerance 5_000 covers the 4501-step offset between step_00804501 and\nthe nearest 100k boundary, so the milestone matches naturally.",
+      "date": "2026-04-21 00:22:23 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a5bdfa54",
+      "message": "[Infra] start_tmux: unconditionally kill + recreate gcs-sync",
+      "body": "The previous `if ! tmux has-session -t gcs-sync` guard meant a\npresent-but-broken session was never restarted. We hit this on\n2026-04-21 after an upload_repo: the rm -rf + mv of ~/evo-reward left\nthe existing gcs-sync shell with a cwd inode pointing at the deleted\npre-swap directory, so every rsync errored with \"arg (results) does\nnot name a directory\" and checkpoints silently stopped syncing for\n~13 hours (step 800k -> 1.59M). Training kept advancing and local\nrotate_checkpoints culled the un-synced ckpts, a permanent history gap.\n\nKill-and-recreate matches how we already handle phase1a, which is\nresilient to exactly this failure mode.",
+      "date": "2026-04-21 09:05:10 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3d2c711f",
+      "message": "[Fix] D18 \u2014 predator feeding mechanics bundle",
+      "body": "Phase 1a seed 0 on GCP ran for 1.67M steps with predator reward\nweights IDENTICAL TO 3 DECIMAL PLACES for the last ~1M. Root cause:\npredators saturated at energy cap (999/1000) and the K&D hazard\nfunction vanishes at high energy (exp(-\u03b2_h\u00b71000) = rounding-error\nzero), so predators were literally immortal. No deaths \u2192 no slot\nturnover \u2192 mutated offspring never entered the population \u2192 reward\ngenome frozen at initialization.\n\nWhy they saturated: TWO bugs in our catch mechanic, plus THREE\nconfig-value drifts discovered while cross-checking emevo TOMLs\n(gecco2026 branch).\n\nFixes (bundled per user request):\n\n1. Cooldown (SimState.predator_eat_timer). Mirrors emevo's\n   predator_eat_timer countdown: resets to predator_eat_interval=10\n   on a catch, decrements each step otherwise. Predator can only\n   catch when timer <= 0.\n\n2. Catch geometry (jax_food.py::check_eating_jax).\n   OLD (buggy):  dist in [40, 80] AND angle within \u00b130\u00b0 of heading\n   NEW (emevo):  dist <= pred_radius + prey_radius (physical contact)\n                 AND nearest tactile bin in predator_mouth_tactile_bins\n                 (default [0, 1, 17] = 60\u00b0 front arc)\n\n3. beta_b = 0.1 \u2192 0.4 (emevo: slope = 0.4 for both species).\n   Shifts peak birth rate from energy cap (e~1000) to moderate\n   energies (e~250 for predator with \u03b6=100).\n\n4. zeta_b_prey = 10 \u2192 15 (emevo delay = 15 in prey bd config).\n   Raises the half-max birth energy for prey.\n\n5. beta_t_prey = 2e-6 \u2192 4e-6 (emevo beta = 4e-6 in prey bd config).\n   Prey age-dependent hazard was half emevo's scale; prey were\n   living ~2x too long.\n\nSource references in emevo (gecco2026 branch):\n  * src/emevo/environments/circle_foraging_with_predator.py \u2014 step,\n    _collect_tactile, predator_eat_timer update\n  * config/env/20251122-predator-square.toml \u2014 env params\n  * config/bd/20240916-sel-a4e7-d15.toml \u2014 prey birth/death\n  * config/bd/20241229-predator-d100.toml \u2014 predator birth/death\n\nValidation:\n  * 170/170 tests pass (including 7 new tests in test_predator_eating.py\n    pinning contact + bin + cooldown semantics)\n  * Local 3000-step smoke: mean energy stabilizes at ~86 (not 1000);\n    reward weights visibly move (w_pred for prey: 0 -> -0.05; w_eat\n    for predator: 0 -> -0.70); births + deaths happen (population\n    hits caps naturally via turnover); no immortal-predator pattern.\n  * Checkpoint incompatibility: the new SimState has an extra\n    predator_eat_timer field; old checkpoints from the buggy run\n    fail to load (intentional \u2014 they represented invalid training).\n    GCS bucket wiped; restart from scratch.\n\nDocs: new emevo-diff.md D18 entry with full diagnosis + fix summary.",
+      "date": "2026-04-21 11:32:01 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b91d21ba",
+      "message": "[Replay] Tagged-path support for distinguishing code-version runs",
+      "body": "Motivation: pre-D18 (broken, frozen-predator) replays and post-D18\n(fixed-evolution) replays were in the same GCS bucket with identical\npath format \u2014 you couldn't tell them apart without timestamps. Added\na `run_tag` segment so replays can live under\n  gs://<bucket>/<exp>/seed_<N>/<tag>/step_<NNN>/\nalongside the legacy\n  gs://<bucket>/<exp>/seed_<N>/step_<NNN>/\nlayout.\n\nChanges:\n- scripts/replay_retention.py: ReplayRef gains optional `run_tag` field.\n- scripts/replay_upload.py:\n  * _PATH_RE widened to tolerate an optional tag segment.\n  * _prefix() helper centralizes path construction.\n  * upload_replay() takes `run_tag` kwarg (defaults to\n    $EVO_REPLAY_RUN_TAG env var, else \"\" = legacy layout).\n  * list_remote_replays() extracts tag, populates ReplayRef.run_tag.\n  * delete_replay() accepts run_tag.\n  * rebuild_index() includes `run_tag` in each index.json entry.\n\nManual operation alongside this commit:\n  * 17 pre-D18 replays moved to baseline_faithful/seed_0/pre_d18_fix/\n    (steps 00000001 through 01790001).\n  * index.json rebuilt and now shows 17 `pre_d18_fix` entries + 1\n    untagged entry (step 00090001, from the current post-D18 run).\n\nNo change to the currently-running VM; it will continue uploading to\nthe untagged (post-D18 default) path. Any later run that wants\nexplicit tagging can `export EVO_REPLAY_RUN_TAG=post_d18_fix` before\nlaunching.",
+      "date": "2026-04-21 13:31:26 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fb0b351d",
+      "message": "[Dashboard] Replay page shows run_tag groups \u2014 pre-D18 vs current",
+      "body": "The replay index now carries an optional run_tag per entry (see\nscripts/replay_upload.py change in b91d21b). Update the dashboard\nso the user can visually browse both versions of the same run and\ncompare before vs after the D18 fix.\n\nChanges:\n- ReplayIndexEntry (TypeScript): add optional `run_tag` field.\n- Replay page: replace the flat exp/seed/step dropdown with a\n  tag-first grouped dropdown. \"Current (post-D18 fix)\" is listed\n  first; archived tagged runs (e.g. \"pre_d18_fix\") are separate\n  optgroups below so they're never accidentally played together\n  with live data.\n- When an archived replay is selected, show a yellow banner\n  pointing at emevo-diff.md D18 so the reader understands why the\n  predator behavior in that replay looks broken.\n\nBuild clean (tsc --noEmit + vite build both green).",
+      "date": "2026-04-21 13:39:35 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "da6ad94c",
+      "message": "[D19] Slot\u2194body fix + phyjax2d contact plumbing + invariant tests",
+      "body": "After D18 (D18: contact + mouth-bin + cooldown) Phase 1a still saw\nonly 1 birth per 70K steps. Root cause was two coupled bugs:\n\n1. Slot mismatch: init_simstate placed predators contiguously after\n   prey (slots n_prey..n_prey+n_pred-1), but _build_physics reserves\n   slots [0, prey_cap) for prey-radius bodies and [prey_cap, max_agents)\n   for predator-radius bodies. Our \"predators\" lived in prey-sized\n   bodies \u2014 wrong mass, wrong inertia, smaller collision surface.\n\n2. Post-step distance check missed mid-step contacts. phyjax2d's\n   velocity solver separates colliders during substeps; by step-end\n   the distance rarely showed contact even when the two circles\n   clearly touched during some substep.\n\nFix mirrors emevo gecco2026 circle_foraging.py::nstep:\n  * Species-reserved slots: prey [0, prey_cap), predator [prey_cap, max)\n  * Birth dispatcher finds free slot in parent's species range\n  * physics_step emits contact.penetration >= 0 per substep,\n    reduces via jnp.max(axis=0)\n  * sim_step_core calls space.get_contact_mat(\"circle\", \"circle\", ...)\n    to build (A, A) bool matrix, passes to check_eating_jax\n  * check_eating_jax uses contact_mat instead of distance check\n\nTests: +21 new (17 fast + 4 slow), 182 total passing. Covers the\nslot\u2194body invariant, species-correct births, param drift vs emevo\nTOML, and short-dynamics smoke (catches + turnover + no energy\nsaturation). Updates existing test fixtures to the new layout.\n\nReplay cadence denser: interval 100k\u219220k, keep_last_n 20\u2192100,\npins added at 20k, 40k, 60k, 80k, 150k, 300k for early-coverage.",
+      "date": "2026-04-21 14:53:52 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9302dd44",
+      "message": "Per-run isolation: auto-timestamp run_tag wraps all output paths",
+      "body": "Each invocation now lives under its own subdir so re-running the same\n(experiment, seed) combo no longer overwrites previous runs:\n\n  results/<exp>/seed_<N>/<run_tag>/{checkpoints,replays,progress.json,metrics.npz}\n\n`run_tag` resolution (--run-tag | --run-name flags on the runner):\n  - fresh run: UTC timestamp '2026-04-21T1447Z' (+ optional _<name> suffix)\n  - --resume: auto-picks the latest existing tag for the seed; falls back\n    to legacy untagged layout if no tagged runs exist\n  - --run-tag '' explicitly: legacy untagged layout (back-compat)\n\nGCS replay uploads already supported `run_tag` (introduced for the\npre-D18 vs current comparison); this wires the CLI value through the\nReplayRecorder so each run's milestones land under its own tag.\n\nRetention is now scoped to (exp, seed, run_tag) so one run's\nmilestone-pruning pass can't evict another run's replays from the\nshared public bucket.\n\nSide benefit: replay local path was double-nested before\n(results/<exp>/seed_<N>/replays/<exp>/seed_<N>/step_<S>/); the new\nlayout flattens to results/<exp>/seed_<N>/<run_tag>/replays/step_<S>/.",
+      "date": "2026-04-21 15:22:29 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b39d0846",
+      "message": "[D20] Deactivate caught prey + verify_replay.py integrity check",
+      "body": "Found while building a post-hoc replay verifier: even after D18+D19,\npredators showed 0 catches counted as deaths, saturated at ~991 energy,\nand populations stayed pinned at cap for 10K-step windows. Root cause:\ncheck_eating_jax was producing pred_catch_slots but nothing ever\ndeactivated those prey. Predators harvested +eta*prey_energy on the\ncatch, the prey kept existing, and the 10-step cooldown let the same\npair pairwise-feed the predator forever. Predator cost < gain \u2192 cap.\n\nFix: check_eating_jax now also returns prey_caught_mask (A,) bool, and\nsim_step_core applies a same-step deactivation right after eating-check\n\u2014 clears is_active, zeroes energy, resets rollout ptr, and turns off\nthe physics body / velocity \u2014 mirroring the death path already in\nprocess_births_and_deaths_jax. The fix is a 15-line addition; no\nreward / energy / physics math changed.\n\nLocal 2K-step smoke with tiny config (30 prey cap, 10 pred cap):\n  pre-D20: pred mean_energy \u2248 991 (cap 1000), 0 births after init\n  post-D20: pred mean_energy = 87.5, 11 births past initial 25 slots\n\nAdded tests/test_sim_dynamics.py::test_caught_prey_actually_die and\ntest_predator_energy_not_saturated_at_5k as regression guards.\nFull suite: 193 passed (was 189).\n\nAlso adds scripts/verify_replay.py, a post-hoc integrity check:\ndownloads a replay from the public GCS bucket (or reads local),\ncounts frame-pair events (feedings, catches, births, deaths),\nreports predator energy band, and flags obvious pathologies. This\nis what surfaced D20 \u2014 running it against the in-flight \"post-D19\"\nreplay showed 0 catches / saturated energy / 0 deaths, which no\namount of D18+D19 math could explain.",
+      "date": "2026-04-21 17:31:54 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5d8278e9",
+      "message": "[D20 self-fix + D21 visibility] + audit findings",
+      "body": "Three related fixes plus a visibility pass to catch future silent-\ncorrectness bugs within one log interval instead of one replay flush.\n\n\u2500\u2500 D20 self-fix (BLOCKER from last commit b39d084) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nThe previous D20 patch zeroed caught prey energies right before\nupdate_energies_jax read them, so predators got pred_gain = eta * 0 = 0\non every catch and slowly starved. Verified end-to-end via a new\ntest (TestEnergyTransfer::test_predator_energy_jumps_after_catch):\nplace a predator touching a prey with E=80, run one sim step, assert\npredator energy went up by \u2248 eta*80 \u2212 metabolic cost. Fix: drop the\nenergies-zeroing line; leaving caught prey's energy on the inactive\nslot is harmless (all downstream reads are is_active-masked) and\nkeeps update_energies_jax's +eta*E transfer working.\n\n\u2500\u2500 Audit Finding 2: reset predator_eat_timer on rebirth \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nspawn_offspring_jax was writing ~20 slot fields but not\npredator_eat_timer, so a newborn could inherit a dead parent's stale\ncountdown (e.g. timer=9 \u2192 unable to catch for 9 steps after birth).\nModerate severity \u2014 skews selection against successful lineages.\nNew test: TestSpawnOffspring::test_child_predator_eat_timer_reset.\n\n\u2500\u2500 Latent: birth scan axis mismatch for tiny configs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nprocess_births_and_deaths_jax's lax.scan over max_births_per_step=20\nfailed when max_agents < 20 (jnp.sort(...)[:20] returns max_agents\nelements, not 20). Only visible in unit tests, but padding the sort\noutput to a fixed 20 is a trivial defensive fix.\n\n\u2500\u2500 D21: per-interval event counters + energy bands + warnings \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nSimState gains three int32 counters (cum_catches, cum_deaths,\ncum_feedings) that tick inside sim_step_core / births-deaths. The\nrunner diffs them between log intervals to produce per-interval\nevent counts. progress.json gains two new blocks:\n\n  events_last_interval: {catches, deaths, births, feedings, interval_steps}\n  energy_stats: {prey: {min,mean,max}, pred: {min,mean,max}}\n\nThe Step text log now includes the delta counts and per-species energy\nbands, and prints one-line \u26a0 warnings when:\n  * no catches across 2 consecutive log intervals\n  * no births across 5 consecutive log intervals\n  * min(pred energy) > energy_capacity * 0.95 (saturation)\n\nStorage cost: ~3 extra int32 in SimState (12B), ~300 bytes more per\nprogress.json write. Negligible even at 100K-interval cadence over\n10.24M steps.\n\nFull suite: 195 passed (was 193 \u2014 two new tests added here).\n\nLocal 3K-step smoke on small config shows healthy dynamics:\n  before D20 self-fix:  predators starve, population collapses to 10\n  after:  cum_catches=2, cum_deaths=2, pred energy mean=87\n          (balanced), 32 births past initial",
+      "date": "2026-04-21 17:59:03 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3e5f725d",
+      "message": "[Docs] Add D20, D20-self, Audit Finding 2, and D21 to emevo-diff.md",
+      "body": "All three surfaced in the session that debugged Phase 1a's frozen-weight\nsymptom. D20: caught prey deactivation. D20-self: don't drain prey\nenergy before update_energies reads it. Audit Finding 2: newborn\npredators must reset predator_eat_timer. D21: event deltas + energy\nbands in progress.json + inline warnings so the next silent-dynamics\nbug surfaces within one log interval instead of one replay flush.",
+      "date": "2026-04-21 18:02:36 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "74fca8b9",
+      "message": "[Verify] Extinction-risk watchdog in verify_replay.py",
+      "body": "Adds two new red_flags:\n  * PREY_EXTINCTION_RISK when prey drops below 30 in a window\n    (K&D \u00a74.2 steady state is ~349, so < 30 is ~10x below and\n    suggests the LV oscillation trough is deeper than expected).\n  * PREDATOR_EXTINCTION_RISK when predators drop below 5\n    (K&D steady state ~23).\n\nBoth are thresholds, not guarantees \u2014 a single replay in the trough\nof an oscillation could fire even on a healthy run. Treat as\n'investigate before continuing', not 'stop the run'.",
+      "date": "2026-04-21 18:33:03 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a2d8279e",
+      "message": "[D22] Paper-text alignment: beta_t_prey, zeta_b_prey, food_radius",
+      "body": "Cross-check of the K&D 2025 paper (arXiv 2507.09992v2, Feb 2026) against\nthe emevo gecco2026 endpoint (experiments/cf_predator.py) surfaced that\npaper text and endpoint code disagree on 5 parameters. Our config\nmatched endpoint defaults on 3 of these (\u03b2_t_prey=4e-6, \u03b6_b_prey=15,\nusing distance threshold prey_radius only for food contact). That\ncombination produced prey extinction at step 90K in phase1a-v2.\n\nChose to match paper text over endpoint code for three reasons:\n  1. Appendix A explicitly states \"square 960\u00d7960\" (we already match)\n  2. Fig 19 (birth function plot) shows prey saturation at e\u224825-30,\n     consistent only with \u03b6=10, not \u03b6=15\n  3. Paper text \"30 energy units are required for prey birth\"\n     matches \u03b6=10 saturation\n\nThree changes:\n  * configs/baseline_faithful.yaml:\n    - beta_t_prey: 4e-6 \u2192 2e-6 (paper Table 3)\n    - zeta_b_prey: 15 \u2192 10 (paper Table 3 + Fig 19)\n    - Add food_radius: 4.0 (paper App A + emevo code)\n  * src/jax_food.py::check_eating_jax:\n    - Contact threshold: dist \u2264 prey_radius \u2192 dist \u2264 prey_radius +\n      food_radius = 14. Matches emevo's physics-engine contact_mat\n      (circle-circle contact uses r1+r2). Pre-D22 we had effective\n      contact area = (10/14)\u00b2 = 51% of emevo's, which compounded\n      with the lower birth rate to starve prey.\n  * tests/test_params_match_emevo.py pins the new values plus a grep\n    that check_eating_jax uses food_radius.\n\nAlso adds configs/baseline_endpoint.yaml preserving the endpoint-code\nparameterization (1200\u00d7600 rect, 9 tactile bins, 160\u00b0 FOV, \u03b2=4e-6,\n\u03b6=15) for later experimentation. NOT YET RUNNABLE \u2014 needs rectangular-\nworld + variable-tactile-bin support; documented as TODO at file top.\n\nFull fast suite: 185 passed (was 184; +1 new regression test).",
+      "date": "2026-04-21 19:18:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c69e89c2",
+      "message": "[D23] Mark rollout_dones=True on agent death (semantic fix)",
+      "body": "PPO audit surfaced that sim_step_core writes rollout_dones=False\nunconditionally every step, even when an agent dies that step. GAE\nthen bootstraps past terminal transitions instead of masking them.\n\nSeverity is cosmetic in the current architecture (PPO's is_active\ngate prevents dead-agent rollouts from being consumed and rebirth\nzeros the buffer), so this is NOT the predator-extinction blocker.\nBut the flag is semantically required and future-proofs any change\nthat relaxes the PPO gate.\n\nTwo-part fix:\n  * sim_step_core step 6: rollout_dones write takes prey_caught_mask\n    instead of hard-coded False. D20 catches now flip done=True at\n    the prey's last rollout slot.\n  * process_births_and_deaths_jax: new kwarg rollout_ptrs_for_done\n    (= safe_ptrs used in step 6) drives an OR-merge of dead_mask\n    into rollout_dones at each dying agent's last rollout slot.\n    Handles hazard/starvation deaths too.\n\nRegression test:\n  tests/test_predator_eating.py::TestDoneFlagOnDeath\n  Places a predator touching a prey in the mouth arc, runs one full\n  sim_step_core, asserts rollout_dones[prey, old_ptr] == True.\n\nFast suite: 186 passed (was 185).\n\nExtinction at step 80K persists in isolation \u2014 the PPO audit ruled\nout other plumbing issues, so next-session's priority is either the\nendpoint-code refactor (rectangular world + 9 tactile bins) or\nanother round of audit in yet-unexplored territory.",
+      "date": "2026-04-22 09:54:02 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bd1b9613",
+      "message": "[D24] Energy cost uses act_ratio-scaled action norm",
+      "body": "Physics/observations audit surfaced that emevo's force_norm for the\nenergy-cost formula is derived from post-act_ratio scaled force,\nwhile ours used the raw policy action. For predators,\nact_ratio = (pred_r/prey_r)\u00b2 = 1.96, so our code was undercharging\npredator energy cost by ~49% (not the other direction \u2014 the audit's\nimpact diagnosis was reversed).\n\nFix is in src/jax_lifecycle.py::update_energies_jax:\n  scaled_actions = all_actions * sim_state.act_ratio\n  action_norms = jnp.linalg.norm(scaled_actions, axis=1)\n\nReward motor_norm (in src/jax_sim.py) stays on raw actions \u2014 that's\ncorrect and matches emevo's SensorActFoodExtractor.normalize_action,\nwhich calls act_space.sigmoid_scale(action) without act_ratio.\n\nRegression test: tests/test_predator_eating.py::TestEnergyCostScaling\nfeeds the same raw (50, 50) action to a prey and a predator at\nmatched starting energy and asserts predator drain > 10\u00d7 prey drain.\nCan only hold if act_ratio is applied.\n\nNOT expected to fix extinction (in fact tilts slightly against\npredators), but removes a genuine semantic mismatch with emevo and\nnarrows the remaining unknowns.\n\nFull fast suite: 187 passed (was 186).",
+      "date": "2026-04-22 10:08:59 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ad5aa692",
+      "message": "[D25] Rectangular world support (+ make baseline_endpoint runnable)",
+      "body": "Our code assumed a square world via `world_size` as a scalar. Emevo's\ncf_predator.py endpoint defaults to 1200\u00d7600 rectangular (via\n20241212-predator.toml). Our paper-faithful config uses 960\u00d7960 square\nand has been hitting predator extinction; we want the option to test\nthe endpoint parameterization without rewriting every call site.\n\nAdded: src/environment.py::world_bounds(config) -> tuple[float, float]\nwith three-way back-compat:\n  * world_size_x + world_size_y \u2192 explicit rectangle\n  * world_size = [x, y] \u2192 tuple in the scalar field\n  * world_size = N \u2192 legacy scalar (square) \u2014 returns (N, N)\n\nThreaded (world_x, world_y) through every scalar-world_size site in\nthe JAX path: _build_physics, init_simstate (positions + food),\nregenerate_food_jax, spawn_offspring_jax, _compute_wall_distances,\n_single_tactile. phyjax2d's `make_square_segments` already supports\nrectangles (the name is misleading); emevo calls it the same way.\n\nconfigs/baseline_endpoint.yaml now runs end-to-end through\nsim_step_core. Its \"NOT YET RUNNABLE\" header comment is stale for\nthe world/position plumbing (fixed here) but still applies to\ntactile mouth-range string decoding (\"front-wide\" / \"narrow\"),\nwhich is low-severity; our FOV check is functionally similar.\n\nRegression suite (tests/test_rectangular_world.py, 10 new tests):\n  * world_bounds resolution for all three config shapes\n  * endpoint config bounds, initial positions, food positions all\n    fall inside [0, 1200] \u00d7 [0, 600] AND hit the long axis (no\n    accidental clamping to the smaller dimension)\n  * sim_step_core runs 5 steps end-to-end on the endpoint config\n  * paper-faithful config still resolves to (960, 960); population\n    count unchanged after init (additive-only for square worlds)\n\nFull fast suite: 197 passed (was 187).\n\nNot a deviation from emevo. Emevo supports square (xlim=ylim) and\nrectangle (xlim\u2260ylim) via the same API. We now match that shape.",
+      "date": "2026-04-22 11:04:28 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "50abb227",
+      "message": "[D26] Tactile bin indexing off by 90\u00b0 \u2014 fix mouth arc + tactile obs",
+      "body": "TL;DR: the most likely root cause of predator extinction.\n\nphyjax2d/emevo convention: agent heading=0 means forward=+y (not +x).\nphyjax2d's get_relative_angle subtracts an extra \u03c0/2 when mapping a\nworld-frame angle into the agent's local frame. Our code omitted that\noffset in both check_eating_jax and _single_tactile.\n\nObserved effect:\n  * predator_mouth_tactile_bins = [0, 1, 17] (60\u00b0 front arc per K&D)\n    actually pointed 90\u00b0 to the predator's RIGHT side. Predators\n    physically could not catch prey directly in front of them.\n  * _single_tactile didn't even take obs_angle \u2014 tactile observations\n    were in world frame, so \"bin 0\" varied with the agent's heading,\n    preventing stable policy learning on tactile inputs.\n\nVerified concretely: predator at (500, 500) heading=0, prey at\n(500, 520) \u2014 directly in front per phyjax2d convention. Pre-D26 our\ncode classified this into bin 5 (center 100\u00b0 = right side). emevo\nclassifies the same geometry into bin 0.\n\nFix (src/jax_food.py + src/observations.py):\n  rel = (angle_world - obs_angle - \u03c0/2) % 2\u03c0     # [0, 2\u03c0)\n  bin = floor(rel / (2\u03c0 / n_bins))\nExtracted _bin_in_agent_frame helper for shared use across\ncatch detection + tactile obs (agents, food, walls).\n\nFP subtlety: emevo uses (... + 3\u00b7TWO_PI - \u03c0/2) % TWO_PI, but in fp32\nthe +3\u00b7TWO_PI introduces rounding that snaps rel=0 to near-TWO_PI\n(putting \"directly in front\" into bin n-1). JAX's `%` returns\nnon-negative for positive divisors, so we drop the extra offset.\n\nAlso updated the pre-JAX Python reference compute_tactile_sensors in\nsrc/environment.py to match the convention so the legacy vs JAX\ncomparison tests (test_vectorized_obs.py) stay green.\n\nTests added (tests/test_tactile_bin_indexing.py, 6 tests):\n  - prey directly in front (+y from heading=0) \u2192 bin 0 \u2192 caught\n  - prey at world +x with heading=0 \u2192 bin 13 \u2192 NOT in mouth \u2192 NOT caught\n    (pre-D26 this would have been incorrectly caught \u2014 the bug signature)\n  - directly-in-front catch works for 8 different headings 0\u00b0-315\u00b0\n  - tactile obs agrees with catch pipeline's convention\n  - tactile bin rotates with observer heading (not world-fixed)\n\nExisting predator-eating tests updated to use the correct convention:\nprevious tests placed prey at +x calling it \"east/in front\" (which\nmatched the old broken convention); new placements put prey at +y\nrelative to heading=0 so \"in front\" is actually in front.\n\nFull fast suite: 203 passed (was 197; +6 new tests).",
+      "date": "2026-04-22 11:25:23 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "987faef5",
+      "message": "[Tests] Paper-anchored test suite (14 tests)",
+      "body": "Tests whose assertions quote EXTERNAL sources (K&D 2025 paper sections,\nphyjax2d source comments, emevo TOMLs) rather than our own code. Design\nrule: each test's docstring cites its anchor, so 'baking in our\nassumptions' is explicit \u2014 if our implementation drifts from the paper,\nthese break against the paper quote.\n\nCategories:\n\n  1. Convention pinning (3 tests) \u2014 phyjax2d heading=0 means forward=+y,\n     bin 0 is the forward arc boundary, local +y force produces world\n     velocity in (\u2212sin \u03b8, cos \u03b8). Would have caught D26 directly.\n\n  2. Transformation invariants (3 tests) \u2014 catch outcome rotation-\n     invariant, translation-invariant, sim_step deterministic under\n     same RNG. D26's 90\u00b0-off mouth broke rotation invariance.\n\n  3. Fuzz invariants (2 tests) \u2014 prey directly behind predator never\n     caught across 25 random (heading, position, distance) cases;\n     cumulative counters monotone across 50 steps.\n\n  4. Paper-claim tests (6 tests) \u2014 predator catch gain ~ eta\u00b7prey_e\n     (paper Section 3 'gain 6-10 energy units per predation'), prey\n     birth threshold near e=30 (Section 3 '30 energy required'),\n     predator birth threshold near e=260, initial populations 150/10\n     match Section 4, world bounds 960\u00d7960 match Appendix A.\n\nPaper-claim tests use a separate paper_config fixture that loads the\nreal baseline_faithful.yaml rather than the shrunk test fixture \u2014 so a\nparam regression (zeta, beta_t, world_size, initial counts) in the\nreal config fails here immediately.\n\nFull fast suite: 217 passed (was 203; +14 new tests).",
+      "date": "2026-04-22 11:37:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "89afe963",
+      "message": "[Docs] Split emevo-diff.md into intentional-deviations vs convergence-fixes",
+      "body": "D1-D17 were deliberate deviations from emevo / K&D accepted as scope\ndecisions. D18+ are bug fixes where our code encoded different semantics\nthan the paper describes and the fix brings us BACK to convergence.\n\nContinuing the same numeric sequence through both phases was confusing \u2014\nthe doc was literally titled 'deviation log' while most recent entries\nare the opposite. Added a section break + header before D18 explaining\nthe distinction without touching IDs (commits and code comments already\nreference D18-D26).\n\nOne known quirk: D17 (LSTM policy, intentional extension) still sits\nbelow the split \u2014 it was out of chronological order before this session\nand a re-sort is out of scope for this commit.",
+      "date": "2026-04-22 11:45:25 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dbccfa51",
+      "message": "[Tools] scripts/trace_agent.py \u2014 post-hoc per-agent trace",
+      "body": "Loads a SimState checkpoint and runs sim_step_core forward for N steps,\nrecording everything ONE specific agent experienced along the way.\nBecause the simulation is deterministic (rng_key lives on SimState),\nreplaying from a checkpoint reproduces the original run bit-for-bit \u2014\nno training-time instrumentation needed, no ongoing storage cost.\n\nPer step the trace logs: position, angle, velocity, energy, age,\naction, log_prob, value, reward, done, is_active, plus snapshots of\nthe global cum_catches / cum_deaths / cum_feedings counters. Action /\nreward / log_prob / value are read from the rollout buffer after each\nstep (sim_step_core just wrote them at rollout_ptrs[slot] - 1), so\nthere's no code duplication of the step logic.\n\nSize budget:\n  * thin (no obs):       ~50 B/step     \u2192  10K steps \u2248 500 KB\n  * --include-obs:       ~870 B/step    \u2192  10K steps \u2248 8.6 MB\n\nTracking modes:\n  * --agent-id N   stops early if agent dies (caught, starved, or\n                   hazard); stable identity across lifetime\n  * --slot K       follows a fixed physics body, continuing through\n                   death + rebirth (useful for slot-level analysis)\n\nWrites .npz + .summary.json. Smoke-tested on a step-0 checkpoint:\n501-step predator trace runs cleanly, produces 26 KB compressed,\nsummary shows energy rising from 100 to 144 and 11 global catches\nacross the window.",
+      "date": "2026-04-22 12:22:48 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }

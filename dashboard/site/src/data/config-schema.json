@@ -127,10 +127,17 @@
       "inline_comment": "(Appendix A)"
     },
     {
+      "key": "food_radius",
+      "value": 4.0,
+      "section": "Agent Bodies",
+      "comment": "",
+      "inline_comment": "CONFIRMED: food_radius = 4.0 (emevo cf_predator.py + TOMLs)."
+    },
+    {
       "key": "max_motor_norm",
       "value": 114.0,
       "section": "Agent Bodies",
-      "comment": "",
+      "comment": "Used in prey-food contact: dist <= prey_r + food_r = 14. See docs/emevo-diff.md D22.",
       "inline_comment": "F; max \u2016f\u2016 (Appendix A note: \"0 < \u2016f\u2016 < 114\")"
     },
     {
@@ -260,102 +267,99 @@
       "inline_comment": "CONFIRMED: predator_digestive_rate = 0.6"
     },
     {
-      "key": "predator_mouth_deg",
-      "value": 60.0,
-      "section": "Predator Mouth",
-      "comment": "",
-      "inline_comment": "medium mouth (Figure 3; K&D also run small/large as separate conditions \u2014 we replicate medium only)"
+      "key": "predator_mouth_tactile_bins",
+      "value": [
+        0,
+        1,
+        17
+      ],
+      "section": "Predator Mouth (emevo tactile",
+      "comment": "emevo gecco2026: predator_mouth_range = [0, 1, 17]  # 20\u00b0 \u00d7 3 bins = 60\u00b0 front arc Catch: predator touches prey (dist \u2264 sum_radii) AND prey falls in one of these tactile bins. \"Radial distance range\" [40,80] was our bug; fixed.",
+      "inline_comment": "medium mouth; K&D also run small/large (scope-out)"
     },
     {
-      "key": "predator_mouth_range_min",
-      "value": 40.0,
-      "section": "Predator Mouth",
+      "key": "predator_eat_interval",
+      "value": 10,
+      "section": "Predator Mouth (emevo tactile",
       "comment": "",
-      "inline_comment": "(Section 3 / Figure 3)"
-    },
-    {
-      "key": "predator_mouth_range_max",
-      "value": 80.0,
-      "section": "Predator Mouth",
-      "comment": "",
-      "inline_comment": "(Section 3 / Figure 3)"
+      "inline_comment": "10-step cooldown between catches"
     },
     {
       "key": "kappa_h",
       "value": 0.01,
       "section": "Hazard Function h(t, e)",
       "comment": "h(t,e) = \u03ba_h * (1 - 1/(1 + \u03b1_e\u00b7exp(-\u03b2_h\u00b7e))) * \u03b1_t\u00b7exp(\u03b2_t\u00b7t)",
-      "inline_comment": "(Table 3)"
+      "inline_comment": "emevo: scale = 0.01 (both species)"
     },
     {
       "key": "alpha_e",
       "value": 0.02,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3)"
+      "inline_comment": "emevo: alpha = 0.02 (both species)"
     },
     {
       "key": "beta_h",
       "value": 0.2,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3)"
+      "inline_comment": "emevo: slope = 0.2 (both species)"
     },
     {
       "key": "alpha_t_prey",
       "value": 4e-07,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3, prey)"
+      "inline_comment": "emevo 20240916-sel-a4e7-d15: alpha_age = 4e-7"
     },
     {
       "key": "alpha_t_pred",
       "value": 2e-07,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3, predator)"
+      "inline_comment": "emevo 20241229-predator-d100: alpha_age = 2e-7"
     },
     {
       "key": "beta_t_prey",
       "value": 2e-06,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3, prey)"
+      "inline_comment": "paper Table 3 (D22 fix; prev 4e-6 matched endpoint TOML, not paper)"
     },
     {
       "key": "beta_t_pred",
       "value": 4e-06,
       "section": "Hazard Function h(t, e)",
       "comment": "",
-      "inline_comment": "(Table 3, predator)"
+      "inline_comment": "emevo 20241229-predator-d100: beta = 4e-6"
     },
     {
       "key": "kappa_b",
       "value": 0.001,
       "section": "Birth Function b(e)",
       "comment": "b(e) = \u03ba_b / (1 + exp(\u03b6 - \u03b2_b\u00b7e))",
-      "inline_comment": "(Table 3)"
+      "inline_comment": "emevo: scale = 1e-3 (both species)"
     },
     {
       "key": "beta_b",
-      "value": 0.1,
+      "value": 0.4,
       "section": "Birth Function b(e)",
       "comment": "",
-      "inline_comment": "(Table 3)"
+      "inline_comment": "emevo: slope = 0.4 (both species; was 0.1: D18 bug)"
     },
     {
       "key": "zeta_b_prey",
       "value": 10.0,
       "section": "Birth Function b(e)",
       "comment": "",
-      "inline_comment": "(Table 3, \u03b6=10 for prey \u2192 ~20-30 energy needed)"
+      "inline_comment": "paper Table 3 + Fig 19 saturation at ~e=25-30 (D22 fix; prev 15 matched endpoint TOML)"
     },
     {
       "key": "zeta_b_pred",
       "value": 100.0,
       "section": "Birth Function b(e)",
       "comment": "",
-      "inline_comment": "(Table 3, \u03b6=100 for predator \u2192 ~240-260 needed)"
+      "inline_comment": "emevo 20241229-predator-d100: delay = 100"
     },
     {
       "key": "energy_share_ratio",
@@ -513,10 +517,10 @@
     },
     {
       "key": "replay_record_interval_steps",
-      "value": 100000,
+      "value": 20000,
       "section": "Replay Recording",
       "comment": "Captures short trajectory windows during training and uploads them to a public GCS bucket so the dashboard's /replay page can play them back. Cost: a host\u2194device sync each tick inside the capture window \u2014 outside the window recording is free. All fields hot-reloaded on resume. Disable entirely by setting replay_record_interval_steps to 0 (or removing these fields). Leave the bucket empty string to keep replays local only.",
-      "inline_comment": "flush a replay this often (~67 min wall at 25 sps)"
+      "inline_comment": "flush a replay this often (~13 min wall at 25 sps)"
     },
     {
       "key": "replay_record_length_steps",
@@ -551,20 +555,13 @@
       "value": null,
       "section": "Replay Recording",
       "comment": "",
-      "inline_comment": "last 20 at 100k cadence \u2248 1.6 GB total"
-    },
-    {
-      "key": "keep_at_steps",
-      "value": null,
-      "section": "Replay Recording",
-      "comment": "step_00804501 is the first real-run replay ever captured \u2014 predators spinning in circles, ~7.8% through training. Pinned forever as the \"before\" to compare emergent behavior against. Tolerance 5_000 covers the 4501-step offset from the nearest 100k boundary.",
-      "inline_comment": ""
+      "inline_comment": "last 100 at 20k cadence \u2248 8 GB total (public bucket cost is trivial)"
     },
     {
       "key": "tolerance",
       "value": null,
       "section": "Replay Recording",
-      "comment": "",
+      "comment": "Early-dense pins give us fine-grained coverage of the first 500k steps (where behavior changes fastest) plus coarse milestones out to 10M.",
       "inline_comment": "how close a replay's start_step must be to a pinned step"
     },
     {

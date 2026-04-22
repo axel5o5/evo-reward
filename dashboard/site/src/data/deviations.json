@@ -89,6 +89,60 @@
       "title": "Social observation: heading and speed of conspecifics (Axis 2 extension)",
       "resolved": false,
       "body_preview": "**Component:** `agents.py`, `observations.py`\n\n**emevo:** No social observation. Agents perceive conspecifics only through proximity sensor readings (distance/direction). No information about what a c..."
+    },
+    {
+      "id": "D18",
+      "title": "Predator feeding mechanics \u2014 bug, FIXED 2026-04-21",
+      "resolved": false,
+      "body_preview": "**emevo (gecco2026):**\n1. Catch is gated by `predator_eat_timer <= 0` \u2014 each predator has its own\n   countdown that resets to `predator_eat_interval = 10` on a catch and\n   decrements per step otherwi..."
+    },
+    {
+      "id": "D19",
+      "title": "Slot\u2194body mismatch + post-step contact miss \u2014 bug, FIXED 2026-04-21",
+      "resolved": false,
+      "body_preview": "**emevo (gecco2026):** per-species slot ranges aren't exposed explicitly\nbecause emevo uses separate physics bodies per agent; phyjax2d bakes\nbody radius into the slot index at builder time. emevo's s..."
+    },
+    {
+      "id": "D20",
+      "title": "Caught prey never deactivated \u2014 bug, FIXED 2026-04-21",
+      "resolved": false,
+      "body_preview": "**emevo (gecco2026):** when a predator catches a prey, the prey is\nremoved from the world in the same step (its agent record is\ndeactivated; the physics body is flagged inactive).\n\n**Ours \u2014 BEFORE fix..."
+    },
+    {
+      "id": "D22",
+      "title": "Paper-text vs endpoint-code contradiction \u2014 config fix, 2026-04-21",
+      "resolved": false,
+      "body_preview": "**Context.** After D18/D19/D20 landed, a Phase 1a run still crashed: prey\ndropped 444 \u2192 44 and predators went extinct at step 90K (K&D Table 1\nreports stable populations prey\u2248349, pred\u224823). A deep cro..."
+    },
+    {
+      "id": "D26",
+      "title": "Tactile bin indexing off by 90\u00b0 \u2014 FIXED 2026-04-22",
+      "resolved": false,
+      "body_preview": "**TL;DR: the single most likely root cause of predator extinction.**\n\n**Bug.** phyjax2d/emevo's convention is that an agent's heading=0 means\nits forward direction is **world +y** (not +x). `get_relat..."
+    },
+    {
+      "id": "D25",
+      "title": "Rectangular world support \u2014 infrastructure, 2026-04-22",
+      "resolved": false,
+      "body_preview": "**Motivation.** Our simulation hard-coded a square world via\n`world_size` as a scalar. Emevo's endpoint predator TOML\n(`20241212-predator.toml`) uses a rectangular 1200\u00d7600 world; the\npaper-text uses ..."
+    },
+    {
+      "id": "D24",
+      "title": "Energy cost must use act_ratio-scaled action norm \u2014 FIXED 2026-04-22",
+      "resolved": false,
+      "body_preview": "**Context.** Physics/observations audit (post-D23) found that emevo\ncomputes `force_norm = sqrt(f1_raw\u00b2 + f2_raw\u00b2)` AFTER multiplying the\nraw action by `act_ratio`, and uses that scaled force_norm in ..."
+    },
+    {
+      "id": "D23",
+      "title": "`rollout_dones` never flagged True on agent death \u2014 FIXED 2026-04-22",
+      "resolved": false,
+      "body_preview": "**Context.** During a PPO-pipeline audit (post-D22), we found that\n`sim_step_core` hard-codes\n`rollout_dones.at[agent_idx, safe_ptrs].set(False)` on every step. When\nan agent dies (D20 catch or hazard..."
+    },
+    {
+      "id": "D21",
+      "title": "Real-time run visibility \u2014 instrumentation, 2026-04-21",
+      "resolved": false,
+      "body_preview": "**Motivation:** D18, D19, and D20 all looked fine in the Step log\nbecause the log surfaced populations and reward-weight means but\nno event deltas \u2014 by the time a silent dynamics bug became\nvisible (v..."
     }
   ]
 }
