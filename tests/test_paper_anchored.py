@@ -537,3 +537,21 @@ def test_world_bounds_match_paper_appendix_a(paper_config):
         f"square 960×960. If you're running the endpoint config "
         f"(1200×600), this test isn't meant for that."
     )
+
+
+def test_proximity_sensor_range_matches_paper_appendix_a(paper_config):
+    """Paper Appendix A: 'They are equipped with proximity sensors with a
+    maximum length of 120 units.' Note emevo's own TOMLs (both 20241212 and
+    20251122) set sensor_length = 200; our D8/D27 history reflects choosing
+    paper-text over endpoint-code per the D22 principle.
+
+    Effect of mismatch (D27 rationale): sensor signal is `s = 1 - dist/range`.
+    At dist=100 from a predator, range=200 → s=0.5; range=120 → s=0.17.
+    A ~3× stronger per-step fear reward with range=200 means prey evolve
+    fear faster than K&D — which is what we observed caused predator
+    extinction in phase1a-v5 on the second Lotka-Volterra cycle.
+    """
+    assert paper_config["proximity_max_range"] == 120.0, (
+        f"proximity_max_range is {paper_config['proximity_max_range']} but "
+        f"paper Appendix A says 120. See D27 in docs/emevo-diff.md."
+    )

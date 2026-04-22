@@ -158,7 +158,7 @@ Source: `circle_foraging.py:740-748` obs_space definition, `circle_foraging_with
 
 ---
 
-### [D8] Sensor range: 200 units, not 120
+### [D8] Sensor range: 200 units, not 120 — **REVERTED** (see D27 below)
 
 **Component:** `environment.py`, `configs/baseline_faithful.yaml`
 
@@ -166,11 +166,9 @@ Source: `circle_foraging.py:740-748` obs_space definition, `circle_foraging_with
 
 **Paper (Appendix A):** States "max range 120" for proximity sensors.
 
-**Ours:** Updated to 200.0 to match emevo source code. The paper Appendix A value appears to be outdated or refers to a different condition.
+**Original decision (Phase 0):** Updated to 200.0 to match emevo source code, assuming the paper Appendix A value was outdated.
 
-**Risk:** Sensor range affects how far agents can "see". 200 vs 120 substantially changes the information available to policies and the selection pressure on reward weights.
-
-**Discovered:** Phase 0, during open-item resolution.
+**Post-hoc correction:** This was inconsistent with the D22 principle (follow paper text when paper and endpoint-code disagree). Reverted to 120 under D27 after phase1a-v5's extinction analysis implicated over-strong predator-fear signal per step as the driver — a 3× stronger fear reward with range=200 vs 120 made prey evolve fear too quickly for predators to sustain their population across L-V oscillation troughs.
 
 ---
 
@@ -599,6 +597,68 @@ threshold actually uses the new variable.
 **Discovered:** phase1a-v2 crash analysis. Triple-checked against
 paper PDF + five candidate emevo bd TOMLs + endpoint experiment script
 before commit.
+
+---
+
+### [D27] Sensor range 200 → 120 (paper Appendix A) — FIXED 2026-04-22
+
+**Context.** `phase1a-v5` ran the full D18-D26 fix stack, produced two
+complete Lotka-Volterra cycles (the first healthy oscillation in this
+project), and then extincted at step 410K. Trace analysis
+(`scripts/trace_agent.py`) showed:
+
+- Cycle 2 prey `w_pred` evolved to **−1.14** — 3× stronger fear than at
+  cycle 1's trough (−0.36).
+- The last surviving predator got 0 catches in its final 510 steps
+  despite mean action magnitude 41.9 (actively hunting) — starved out.
+- Evolved-fear prey were too good at evasion by cycle 2 for a solo
+  predator to re-bootstrap the population.
+
+Root-cause hypothesis: our prey receive a stronger per-step fear reward
+signal than K&D's prey, causing fear to evolve faster than the paper's
+L-V equilibrium assumes.
+
+**The mismatch.** Proximity sensor signal is `s = 1 − dist / max_range`.
+At a given distance from a predator:
+
+| dist | our s (range=200) | paper s (range=120) |
+|------|-------------------|---------------------|
+|  50  |  0.75             |  0.58               |
+| 100  |  0.50             |  0.17               |
+| 120  |  0.40             |  0.00 (out of range)|
+| 150  |  0.25             |  0.00 (out of range)|
+
+At moderate distances our prey sees the predator ≈3× more strongly,
+and at long distances (>120) our prey *still* senses the predator
+where K&D's prey would be blind. Reward is
+`0.1 · w_pred · max_s_pred`, so the per-step fear signal scales
+directly with this factor.
+
+**Paper vs emevo.** Paper Appendix A explicitly says "proximity
+sensors with a maximum length of **120 units**." Both emevo env TOMLs
+(`20241212-predator.toml` and `20251122-predator-square.toml`) set
+`sensor_length = 200`. This is a paper-vs-endpoint-code disagreement
+of exactly the D22 class — and D22 established the principle of
+following paper text in those cases.
+
+**Historical note.** During Phase 0 we documented this as D8 and
+chose to match emevo's code (200) on the theory that Appendix A
+was outdated. That was before the D22 principle existed. We are now
+consistent: D27 reverts D8 and our config follows the paper.
+
+**Fix.** One line in `configs/baseline_faithful.yaml`:
+```
+proximity_max_range:    120.0   (was 200.0)
+```
+
+**Risk of regression.** `tests/test_paper_anchored.py::
+test_proximity_sensor_range_matches_paper_appendix_a` pins
+`proximity_max_range == 120.0` against paper Appendix A.
+
+**What this does NOT fix.** Predator-side: predators also see prey
+at 120 instead of 200 units. That makes hunting harder per step,
+partially offsetting the fear-slowdown. Net effect on dynamics is
+empirical — will find out in `phase1a-v7`.
 
 ---
 

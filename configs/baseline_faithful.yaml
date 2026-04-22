@@ -53,7 +53,7 @@ max_motor_norm:     114.0            # F; max ‖f‖ (Appendix A note: "0 < ‖
 n_proximity_sensors:    32           # (Section 3)
 n_proximity_channels:   4            # CONFIRMED: per-type channels [prey, predator, food, wall]
 proximity_fov_deg:      120.0        # forward arc in degrees (Section 3), "wide" in emevo
-proximity_max_range:    200.0        # CONFIRMED: sensor_length = 200.0 (emevo code; paper says 120)
+proximity_max_range:    120.0        # paper Appendix A: "proximity sensors with a maximum length of 120 units" (D27 fix; emevo TOML uses 200 but paper text takes precedence per the D22 principle)
 n_tactile_sensors:      18           # (Section 3), n_tactile_bins = 18
 n_tactile_channels:     4            # CONFIRMED: per-type channels, same 4 types as proximity
 tactile_spacing_deg:    20.0         # degrees between sensors (360/18 = 20)
