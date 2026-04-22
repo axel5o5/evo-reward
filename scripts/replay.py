@@ -10,6 +10,7 @@ Subcommands:
   list-remote   enumerate replays in the public GCS replays bucket
   prune         apply a retention policy to the replays bucket
   delete        delete a single replay from the replays bucket
+  backfill      re-simulate from historic checkpoints to seed replay milestones
 
 Examples:
   python scripts/replay.py list --exp baseline_faithful
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -114,6 +116,78 @@ def cmd_delete(args):
     print(f"removed {n} blob(s)")
 
 
+def cmd_backfill(args):
+    """Simulate forward K steps from one or more historic checkpoints, upload
+    replays in the same quantized format the live recorder emits. Used to seed
+    the public bucket with "before" snapshots at pinned milestones after the
+    fact. Step 0 has no checkpoint — we init_simstate(PRNGKey(seed)) instead."""
+    import os
+    import tempfile
+    from pathlib import Path
+
+    # Heavy imports — only pulled when this command actually runs.
+    os.environ.setdefault("XLA_FLAGS",
+                          "--xla_cpu_enable_fast_math=true")
+    import jax
+    import yaml
+    from src.environment import _build_physics
+    from src.jax_state import init_simstate
+    from src.jax_sim import build_sim_step
+    from src.jax_checkpoint import load_simstate
+
+    from scripts import replay_cache, replay_upload
+    from scripts.replay_recorder import ReplayRecorder
+
+    with open(args.config) as f:
+        config = yaml.safe_load(f) or {}
+
+    steps = [int(s) for s in args.steps.split(",") if s.strip()]
+    bucket = args.bucket or replay_upload.DEFAULT_BUCKET
+
+    # Reuse compiled sim_step across checkpoints — saves ~15s JIT per target.
+    print(f"building sim infra (one-time JIT)…")
+    space, _ = _build_physics(config)
+    sim_step_core, _ = build_sim_step(config, space)
+    template = init_simstate(config, jax.random.PRNGKey(args.seed))
+
+    with tempfile.TemporaryDirectory() as td:
+        for start in steps:
+            print(f"\n=== backfilling start_step={start:,} (length={args.length}) ===")
+            # Load (or synthesize) state at this step
+            if start == 0:
+                sim_state = init_simstate(config, jax.random.PRNGKey(args.seed))
+                print(f"  init state from PRNGKey({args.seed})")
+            else:
+                ckpt = replay_cache.fetch_checkpoint(args.exp, args.seed, start)
+                sim_state = load_simstate(str(ckpt), template)
+                print(f"  loaded checkpoint at sim_state.step={int(sim_state.step)}")
+
+            # Recorder with interval set above length so auto-flush never fires;
+            # we drive the flush manually at the end. Retention runs as normal.
+            cfg = dict(config)
+            cfg["replay_record_interval_steps"] = args.length * 100
+            cfg["replay_record_length_steps"] = args.length
+            recorder = ReplayRecorder(cfg, args.exp, args.seed, td, bucket=bucket)
+
+            t0 = time.time()
+            base = int(sim_state.step)
+            for i in range(args.length):
+                sim_state = sim_step_core(sim_state)
+                recorder._capture(sim_state, base + i + 1)
+                if (i + 1) % 1000 == 0:
+                    sps = (i + 1) / (time.time() - t0)
+                    print(f"  captured {i + 1}/{args.length} "
+                          f"({sps:.1f} sps, ETA {(args.length - i - 1) / max(sps, 0.1):.0f}s)")
+            recorder._flush(sim_state)
+            print(f"  flushed in {time.time() - t0:.1f}s total")
+
+    # Final index rebuild — recorder rebuilds once per flush already, but do it
+    # once more at the end so a dashboard refresh right after this script
+    # finishes sees all N replays atomically.
+    n_idx = replay_upload.rebuild_index(bucket)
+    print(f"\ndone. bucket index now has {n_idx} replay(s)")
+
+
 def cmd_list_remote(args):
     from scripts import replay_upload
 
@@ -189,6 +263,17 @@ def build_parser() -> argparse.ArgumentParser:
     prn.add_argument("--dry-run", action="store_true")
     prn.add_argument("--bucket")
     prn.set_defaults(func=cmd_prune)
+
+    bfl = sub.add_parser("backfill", help="re-simulate milestones from saved checkpoints")
+    bfl.add_argument("--exp", default="baseline_faithful")
+    bfl.add_argument("--seed", type=int, default=0)
+    bfl.add_argument("--steps", required=True,
+                     help="comma-separated start_step values to backfill (0 synthesizes from seed)")
+    bfl.add_argument("--length", type=int, default=10_000,
+                     help="frames per replay (matches the live recorder default)")
+    bfl.add_argument("--config", default="configs/baseline_faithful.yaml")
+    bfl.add_argument("--bucket", help="override EVO_REWARD_REPLAYS_BUCKET")
+    bfl.set_defaults(func=cmd_backfill)
 
     dlt = sub.add_parser("delete", help="delete one replay from the bucket")
     dlt.add_argument("--exp", required=True)
