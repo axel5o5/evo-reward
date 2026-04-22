@@ -221,7 +221,13 @@ def build_sim_step(config, space):
         all_rewards = jnp.where(sim_state.is_active, all_rewards, 0.0)
 
         new_rollout_rewards = sim_state.rollout_rewards.at[agent_idx, safe_ptrs].set(all_rewards)
-        new_rollout_dones = sim_state.rollout_dones.at[agent_idx, safe_ptrs].set(False)
+        # D23: mark caught prey's last rollout slot as terminal. Without this
+        # the GAE bootstrap over a dead agent's trajectory would treat its
+        # transitions as non-terminal. Only affects correctness if PPO ever
+        # consumes a dead-agent rollout (guarded by is_active gate today),
+        # but semantically right. Hazard-death done flags are written further
+        # down after process_births_and_deaths_jax.
+        new_rollout_dones = sim_state.rollout_dones.at[agent_idx, safe_ptrs].set(prey_caught_mask)
         new_ptrs = jnp.where(sim_state.is_active, ptrs + 1, ptrs)
 
         sim_state = sim_state.replace(
@@ -236,7 +242,11 @@ def build_sim_step(config, space):
         )
 
         # === 8. Process births and deaths ===
-        sim_state = process_births_and_deaths_jax(sim_state, config)
+        # Pass the pre-step safe_ptrs so hazard-dead agents get their last
+        # rollout slot flagged as terminal too (D23).
+        sim_state = process_births_and_deaths_jax(
+            sim_state, config, rollout_ptrs_for_done=safe_ptrs,
+        )
 
         # === 9. Regenerate food ===
         sim_state = regenerate_food_jax(sim_state, config)

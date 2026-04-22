@@ -582,6 +582,47 @@ before commit.
 
 ---
 
+### [D23] `rollout_dones` never flagged True on agent death — FIXED 2026-04-22
+
+**Context.** During a PPO-pipeline audit (post-D22), we found that
+`sim_step_core` hard-codes
+`rollout_dones.at[agent_idx, safe_ptrs].set(False)` on every step. When
+an agent dies (D20 catch or hazard/starvation), its last rollout slot
+stays marked `done=False`. GAE in `_compute_gae_jax` uses
+`(1 - dones)` to mask bootstrap across terminal states — with
+`dones` always False, the trajectory is always treated as continuing.
+
+**Severity.** Cosmetic in the *current* architecture. PPO fires only
+on `is_active & (ptr >= rollout_steps)`, and dead agents are
+`is_active=False`, so their rollouts are never consumed; the stale
+`done=False` is never read by GAE in practice. Rebirth via
+`spawn_offspring_jax` zeros the rollout anyway. **Not the extinction
+blocker.** But the flag should be correct for semantic soundness and
+to future-proof any change that relaxes the PPO gate.
+
+**Fix.** Two-part:
+
+  * `sim_step_core`: step-6 `rollout_dones` write takes
+    `prey_caught_mask` instead of `False`, so D20 catches set the
+    terminal flag at the prey's last-written slot.
+  * `process_births_and_deaths_jax`: accept `rollout_ptrs_for_done`
+    (= the safe_ptrs used in step 6) and OR-merge `dead_mask` into
+    `rollout_dones[slot, rollout_ptrs_for_done[slot]]` via
+    `at[].max()`. Hazard/starvation deaths now flag terminal at the
+    same rollout slot that holds the dying agent's last transition.
+
+**Risk of regression.** `tests/test_predator_eating.py::TestDoneFlagOnDeath`
+places a predator + prey touching in the mouth arc, runs one full
+`sim_step_core`, and asserts `rollout_dones[prey_slot, old_ptr] == True`.
+
+**Caveat.** Predator extinction at step 80K persists after this fix in
+isolation. The remaining hypothesis space: (a) the endpoint-code
+parameterization (rectangular world + 9 tactile bins) is load-bearing
+for stable dynamics despite what paper Appendix A says, or (b) another
+silent bug we haven't audited. Next session's work.
+
+---
+
 ### [D21] Real-time run visibility — instrumentation, 2026-04-21
 
 **Motivation:** D18, D19, and D20 all looked fine in the Step log

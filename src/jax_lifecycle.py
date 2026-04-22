@@ -94,14 +94,22 @@ def _batch_birth_prob_jax(energies, species, config):
     return kappa_b / (1.0 + jnp.exp(exponent))
 
 
-def process_births_and_deaths_jax(sim_state, config):
+def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None):
     """Process deaths and births for all agents. Pure JAX, JIT-compatible.
 
     Deaths: energy < 0 OR random < hazard_prob.
     Births: random < birth_prob AND under population cap.
     Uses lax.scan for births (fixed max_births_per_step iterations).
 
-    Returns updated SimState with deaths deactivated and newborns activated.
+    Args:
+        sim_state: SimState before births/deaths.
+        config: dict.
+        rollout_ptrs_for_done: (max_agents,) int32 | None. If provided, marks
+            rollout_dones[slot, rollout_ptrs_for_done[slot]] = True for any
+            agent dying from hazard/starvation this step (D23). Caller should
+            pass the safe_ptrs used to write this step's reward/done, so the
+            terminal flag lands on the same rollout slot that has the last
+            obs/action/reward of the dying agent.
     """
     max_births_per_step = 20  # fixed scan length
     max_agents = sim_state.is_active.shape[0]
@@ -137,11 +145,26 @@ def process_births_and_deaths_jax(sim_state, config):
     # D21: bump cumulative death counter for hazard/starvation deaths here.
     # (D20 catch-deaths are counted separately in sim_step_core.)
     deaths_this_step = jnp.sum(dead_mask.astype(jnp.int32))
+
+    # D23: mark hazard-dead agents' last rollout slot as terminal. The caller
+    # (sim_step_core) passes safe_ptrs from the pre-step write, which is the
+    # position where this dying agent's last obs/action/reward landed. We
+    # OR-merge (via at[].max()) to preserve any prey_caught_mask=True flags
+    # already written in sim_step_core step 6.
+    if rollout_ptrs_for_done is not None:
+        agent_idx = jnp.arange(max_agents)
+        new_rollout_dones = sim_state.rollout_dones.at[
+            agent_idx, rollout_ptrs_for_done
+        ].max(dead_mask)
+    else:
+        new_rollout_dones = sim_state.rollout_dones
+
     sim_state = sim_state.replace(
         is_active=new_is_active,
         rollout_ptrs=new_rollout_ptrs,
         phyjax_stated=new_stated,
         cum_deaths=sim_state.cum_deaths + deaths_this_step,
+        rollout_dones=new_rollout_dones,
     )
 
     # --- Birth processing ---

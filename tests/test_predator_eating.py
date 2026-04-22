@@ -325,6 +325,45 @@ class TestEnergyTransfer:
         )
 
 
+class TestDoneFlagOnDeath:
+    """D23 regression: when an agent dies, its last rollout slot must be
+    marked `rollout_dones = True`. Without this, GAE bootstraps as if the
+    agent's trajectory continued past death with a valid value estimate.
+    Currently guarded by the PPO is_active gate (which never fires PPO on
+    dead agents), but the flag is needed for correct semantics and to
+    future-proof any architecture change that relaxes the gate."""
+
+    def test_caught_prey_rollout_done_flag_set(self, config):
+        """A prey caught by a predator this step must have
+        rollout_dones[prey_slot, old_ptr] = True after sim_step_core."""
+        import jax
+        from src.environment import _build_physics
+        from src.jax_sim import build_sim_step
+
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        state, slots = _place_agents(state, config, [
+            (1, 500.0, 500.0, 0.0),    # predator
+            (0, 520.0, 500.0, 0.0),    # prey in mouth, will be caught
+        ])
+        pred_slot, prey_slot = slots[0], slots[1]
+        state = state.replace(
+            energies=state.energies
+                .at[pred_slot].set(100.0)
+                .at[prey_slot].set(80.0),
+        )
+        # Remember the prey's rollout ptr before the step.
+        prey_ptr_before = int(state.rollout_ptrs[prey_slot])
+
+        space, _ = _build_physics(config)
+        sim_step_core, _ = build_sim_step(config, space)
+        new_state = sim_step_core(state)
+
+        assert not bool(new_state.is_active[prey_slot]), "prey should be caught"
+        assert bool(new_state.rollout_dones[prey_slot, prey_ptr_before]), (
+            f"rollout_dones[prey, {prey_ptr_before}] should be True after catch"
+        )
+
+
 class TestIndependentTimers:
 
     def test_two_predators_independent_cooldowns(self, config):
