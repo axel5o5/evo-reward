@@ -332,6 +332,26 @@ Fix: cache key is now the next power of 2 (64, 128, 256…). Inputs are zero-pad
 
 ---
 
+---
+
+# Convergence Fixes — Bugs Where Our Implementation Diverged from emevo / K&D
+
+Entries below are **NOT intentional deviations**. Each one is a bug where our
+code encoded different semantics than the paper / emevo describes, and the
+fix brings us back into convergence with the reference. The `D` numeric
+prefix is **historical** (continues the sequence from the intentional-
+deviations section above) rather than semantic. The document was originally
+called "deviation log" because the first 17 entries were all deliberate
+deviations; once Phase 1a surfaced real bugs, we kept extending the same
+numeric sequence instead of branching a new ID namespace — the commits and
+code comments already reference `D18`, `D19`, etc.
+
+Rule of thumb when reading:
+  * Looking for reasons our code *differs* from emevo on purpose?  → above.
+  * Looking for bugs we found and fixed (or lessons learned)?      → below.
+
+---
+
 ### [D18] Predator feeding mechanics — bug, FIXED 2026-04-21
 
 **emevo (gecco2026):**
