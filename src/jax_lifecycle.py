@@ -37,7 +37,12 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_catch_slots, pred_n_catche
     eta = config["predator_eta"]
     cap = config.get("energy_capacity", 1000.0)
 
-    action_norms = jnp.linalg.norm(all_actions, axis=1)  # (max_agents,)
+    # D24: emevo's energy cost is `d_a · ||f_applied|| + d_b`, where f_applied
+    # is the post-act_ratio scaled force. For predators, act_ratio=(pred_r/prey_r)²
+    # ≈ 1.96, so using the raw action here undercharges them ~49%. Matching
+    # emevo's `force_norm = sqrt(f1_raw² + f2_raw²)` after scaling.
+    scaled_actions = all_actions * sim_state.act_ratio
+    action_norms = jnp.linalg.norm(scaled_actions, axis=1)  # (max_agents,)
 
     # Prey food gain
     prey_gain = prey_n_eaten.astype(jnp.float32) * e_food

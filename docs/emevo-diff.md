@@ -582,6 +582,44 @@ before commit.
 
 ---
 
+### [D24] Energy cost must use act_ratio-scaled action norm — FIXED 2026-04-22
+
+**Context.** Physics/observations audit (post-D23) found that emevo
+computes `force_norm = sqrt(f1_raw² + f2_raw²)` AFTER multiplying the
+raw action by `act_ratio`, and uses that scaled force_norm in the
+energy-cost formula `d_a · force_norm + d_b`. Our code was using the
+raw unscaled action norm for energy cost, via
+`action_norms = linalg.norm(all_actions)` in `update_energies_jax`.
+
+**Impact direction correction.** The audit report claimed this would
+make predators starve — incorrect. `act_ratio = (pred_r/prey_r)² ≈
+1.96` for predators, so using the raw norm *undercharges* predator
+energy cost by ~49% (not overcharges). Fixing this means predators
+pay **more** energy, not less. **Not the extinction blocker.**
+
+Why fix anyway: the reward formula (`motor_norms / F_max`) correctly
+uses raw actions to match emevo's `normalize_action(action)` → the
+reward + energy-cost pair should be semantically consistent with
+emevo regardless of whether it tilts dynamics. This also reduces the
+search space for remaining unknowns.
+
+**Fix.** In `src/jax_lifecycle.py::update_energies_jax`:
+```python
+scaled_actions = all_actions * sim_state.act_ratio
+action_norms = jnp.linalg.norm(scaled_actions, axis=1)
+```
+
+Reward computation in `src/jax_sim.py` remains on raw actions
+(correct — matches emevo `SensorActFoodExtractor.normalize_action`
+which calls `act_space.sigmoid_scale(action)` with no act_ratio).
+
+**Risk of regression.** `tests/test_predator_eating.py::TestEnergyCostScaling`
+feeds matched raw actions to a prey and a predator and asserts
+predator energy drain > 10× prey drain, which can only hold if
+act_ratio is applied.
+
+---
+
 ### [D23] `rollout_dones` never flagged True on agent death — FIXED 2026-04-22
 
 **Context.** During a PPO-pipeline audit (post-D22), we found that

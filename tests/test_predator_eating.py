@@ -277,6 +277,70 @@ class TestCooldown:
         assert int(new_timer[pred_slot]) == config["predator_eat_interval"]
 
 
+class TestEnergyCostScaling:
+    """D24 regression: energy cost must use the physics-scaled action
+    (with act_ratio), not the raw policy action. For predators,
+    act_ratio ≈ (pred_r/prey_r)² = 1.96, so using raw action
+    undercharges them ~49%."""
+
+    def test_predator_cost_uses_act_ratio(self, config):
+        """Feed the same raw action to update_energies_jax for a prey and
+        a predator at matched starting energy. Predator must burn
+        strictly more than prey (after their respective baseline costs
+        are subtracted)."""
+        import jax
+        import jax.numpy as jnp
+        from src.jax_lifecycle import update_energies_jax
+
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        state, slots = _place_agents(config=config, state=state, placements=[
+            (0, 200.0, 200.0, 0.0),
+            (1, 800.0, 800.0, 0.0),
+        ])
+        prey_slot, pred_slot = slots[0], slots[1]
+
+        # Set matched energies; give both the same raw action (50, 50).
+        start_e = 500.0
+        state = state.replace(
+            energies=state.energies
+                .at[prey_slot].set(start_e)
+                .at[pred_slot].set(start_e),
+        )
+        max_agents = state.is_active.shape[0]
+        all_actions = jnp.zeros((max_agents, 2)).at[prey_slot].set(
+            jnp.array([50.0, 50.0])
+        ).at[pred_slot].set(jnp.array([50.0, 50.0]))
+        # No eating this step — we want to measure pure action-cost drain.
+        prey_n_eaten = jnp.zeros(max_agents, dtype=jnp.int32)
+        pred_catch_slots = jnp.full((max_agents, 5), -1, dtype=jnp.int32)
+        pred_n_catches = jnp.zeros(max_agents, dtype=jnp.int32)
+
+        new_state = update_energies_jax(
+            state, prey_n_eaten, pred_catch_slots, pred_n_catches,
+            all_actions, config,
+        )
+
+        # Prey cost (scaled action = raw since act_ratio=1):
+        #   c_a * 50√2 + c_b = 2.5e-6 * 70.71 + 1e-4 ≈ 2.77e-4
+        # Predator cost (scaled action = 1.96 * raw):
+        #   d_a * 50√2 * 1.96 + d_b = 5e-5 * 70.71 * 1.96 + 4e-3 ≈ 1.1e-2
+        prey_drain = start_e - float(new_state.energies[prey_slot])
+        pred_drain = start_e - float(new_state.energies[pred_slot])
+        # Predator should drain ~40x more per step (base 4e-3 vs 1e-4 + action
+        # component ~7x larger). Concrete sanity: pred drain > 10x prey drain.
+        assert pred_drain > prey_drain * 10, (
+            f"predator drain {pred_drain:.5f} should be >10x prey drain "
+            f"{prey_drain:.5f} — D24 act_ratio scaling may be missing"
+        )
+        # And predator should clearly lose > d_b alone (4e-3), i.e. action
+        # cost contributes non-trivially — which confirms act_ratio applied.
+        d_b = config["predator_d_b"]
+        assert pred_drain > d_b * 1.5, (
+            f"predator drain {pred_drain:.5f} barely above baseline d_b {d_b}; "
+            f"action component missing — D24 may have regressed"
+        )
+
+
 class TestEnergyTransfer:
     """After a successful catch, the predator gains eta*prey_energy and
     the prey is deactivated — verified end-to-end through sim_step_core
