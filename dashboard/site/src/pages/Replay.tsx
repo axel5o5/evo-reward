@@ -227,6 +227,39 @@ export default function Replay() {
     };
   }, [playing, speed, data]);
 
+  // Search the replay for the slot holding `parentAgentId` and jump to its
+  // last-alive frame, pinning it. Returns silently if the parent's lifetime
+  // falls outside the captured window (common — capture length << training).
+  const jumpToParent = useCallback(
+    (parentAgentId: number) => {
+      if (!data || !data.agentIds) return;
+      const n = data.meta.n_frames;
+      const N = data.meta.max_agents;
+      let bestSlot = -1;
+      let bestFrame = -1;
+      // Walk latest frame first — first hit wins.
+      for (let f = n - 1; f >= 0; f--) {
+        for (let s = 0; s < N; s++) {
+          if (
+            data.agentIds[f * N + s] === parentAgentId &&
+            data.alive[f * N + s] === 1
+          ) {
+            bestSlot = s;
+            bestFrame = f;
+            break;
+          }
+        }
+        if (bestSlot >= 0) break;
+      }
+      if (bestSlot < 0) return;
+      setPlaying(false);
+      setFrameIdx(bestFrame);
+      setSelectedSlot(bestSlot);
+      setPinnedSlot(bestSlot);
+    },
+    [data],
+  );
+
   const togglePlay = useCallback(() => {
     if (!data) return;
     if (frameIdx >= data.meta.n_frames - 1) setFrameIdx(0);
@@ -432,6 +465,7 @@ export default function Replay() {
                       setSelectedSlot(null);
                       setPinnedSlot(null);
                     }}
+                    onJumpToParent={jumpToParent}
                   />
                 </div>
               )}

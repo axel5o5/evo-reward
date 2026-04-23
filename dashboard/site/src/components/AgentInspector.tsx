@@ -8,6 +8,9 @@ interface Props {
   pinned: boolean;
   onTogglePin: () => void;
   onClose: () => void;
+  // Emitted when user clicks "jump to parent". Parent lookup + state wiring
+  // lives in Replay.tsx since it needs to mutate frameIdx + pinnedSlot.
+  onJumpToParent?: (parentAgentId: number) => void;
 }
 
 const COLOR_PREY = "#4ade80";
@@ -18,12 +21,23 @@ const COLOR_DEAD = "#9ca3af"; // gray-400
 // the canvas so the two visual cues share a reference.
 const ENERGY_CAP = 200;
 
+// Reward-weight bar axis. reward_weights_init_std defaults to ~0.5; weights
+// drift over generations but rarely exceed |2| in the runs we've inspected.
+const WEIGHT_AXIS = 2.0;
+
+// Action components are tanh-ish in [-1, 1]; small headroom for clarity.
+const ACTION_AXIS = 1.1;
+
+const WEIGHT_LABELS = ["w_eat", "w_act", "w_prey", "w_pred"] as const;
+
 function computeAgentSeries(
   data: ReplayData,
   slot: number,
 ): {
   energy: Float32Array;
   alive: Uint8Array;
+  actionFwd: Float32Array | null;
+  actionTurn: Float32Array | null;
   distance: number;
   aliveFirst: number;
   aliveLast: number;
@@ -32,6 +46,9 @@ function computeAgentSeries(
   const N = data.meta.max_agents;
   const energy = new Float32Array(n);
   const alive = new Uint8Array(n);
+  const hasAction = data.action !== null;
+  const actionFwd = hasAction ? new Float32Array(n) : null;
+  const actionTurn = hasAction ? new Float32Array(n) : null;
   let distance = 0;
   let prevX = 0;
   let prevY = 0;
@@ -42,6 +59,10 @@ function computeAgentSeries(
     const a = data.alive[f * N + slot];
     alive[f] = a;
     energy[f] = data.energy[f * N + slot];
+    if (hasAction) {
+      actionFwd![f] = data.action![(f * N + slot) * 2];
+      actionTurn![f] = data.action![(f * N + slot) * 2 + 1];
+    }
     if (a) {
       const x = data.pos[(f * N + slot) * 2];
       const y = data.pos[(f * N + slot) * 2 + 1];
@@ -61,19 +82,24 @@ function computeAgentSeries(
       havePrev = false;
     }
   }
-  return { energy, alive, distance, aliveFirst: first, aliveLast: last };
+  return { energy, alive, actionFwd, actionTurn, distance, aliveFirst: first, aliveLast: last };
 }
 
-function energySparkline(
-  energy: Float32Array,
+// Build two SVG path `d` strings — one for alive segments (species color),
+// one for dead segments (grey) — driven by a value series on [0, maxV] mapped
+// to an H-tall strip. Segments break on alive-state transitions so line style
+// tracks the on/off state.
+function splitSparkline(
+  series: Float32Array,
   alive: Uint8Array,
   W: number,
   H: number,
-): { alive: string; dead: string; maxE: number } {
-  const n = energy.length;
-  if (n === 0) return { alive: "", dead: "", maxE: ENERGY_CAP };
-  let maxE = ENERGY_CAP;
-  for (let i = 0; i < n; i++) if (energy[i] > maxE) maxE = energy[i];
+  minV: number,
+  maxV: number,
+): { alive: string; dead: string } {
+  const n = series.length;
+  if (n === 0) return { alive: "", dead: "" };
+  const range = maxV - minV || 1;
   const aliveSegs: string[] = [];
   const deadSegs: string[] = [];
   let curAlive: string[] = [];
@@ -87,7 +113,8 @@ function energySparkline(
   let lastAlive: number | null = null;
   for (let f = 0; f < n; f++) {
     const x = (f / (n - 1)) * W;
-    const y = H - (energy[f] / maxE) * H;
+    const v = series[f];
+    const y = H - ((v - minV) / range) * H;
     const pt = `${x.toFixed(2)},${y.toFixed(2)}`;
     const isAlive = alive[f] === 1;
     if (lastAlive !== null && isAlive !== (lastAlive === 1)) flush();
@@ -96,7 +123,19 @@ function energySparkline(
     lastAlive = isAlive ? 1 : 0;
   }
   flush();
-  return { alive: aliveSegs.join(" "), dead: deadSegs.join(" "), maxE };
+  return { alive: aliveSegs.join(" "), dead: deadSegs.join(" ") };
+}
+
+function energySparkline(
+  energy: Float32Array,
+  alive: Uint8Array,
+  W: number,
+  H: number,
+): { alive: string; dead: string; maxE: number } {
+  let maxE = ENERGY_CAP;
+  for (let i = 0; i < energy.length; i++) if (energy[i] > maxE) maxE = energy[i];
+  const s = splitSparkline(energy, alive, W, H, 0, maxE);
+  return { ...s, maxE };
 }
 
 export default function AgentInspector({
@@ -106,12 +145,28 @@ export default function AgentInspector({
   pinned,
   onTogglePin,
   onClose,
+  onJumpToParent,
 }: Props) {
   const series = useMemo(() => computeAgentSeries(data, slot), [data, slot]);
   const W = 240;
   const H = 40;
+  const HA = 24;
   const spark = useMemo(
     () => energySparkline(series.energy, series.alive, W, H),
+    [series],
+  );
+  const actFwd = useMemo(
+    () =>
+      series.actionFwd
+        ? splitSparkline(series.actionFwd, series.alive, W, HA, -ACTION_AXIS, ACTION_AXIS)
+        : null,
+    [series],
+  );
+  const actTurn = useMemo(
+    () =>
+      series.actionTurn
+        ? splitSparkline(series.actionTurn, series.alive, W, HA, -ACTION_AXIS, ACTION_AXIS)
+        : null,
     [series],
   );
 
@@ -125,11 +180,27 @@ export default function AgentInspector({
   const angleRad = data.angle[frameIdx * N + slot];
   const angleDeg = ((angleRad * 180) / Math.PI + 360) % 360;
 
+  // v2 fields — null on v1 replays, in which case the phenotype/lineage
+  // sections render a "not recorded" fallback.
+  const agentId = data.agentIds ? data.agentIds[frameIdx * N + slot] : null;
+  const parentId = data.parentIds ? data.parentIds[frameIdx * N + slot] : null;
+  const age = data.ages ? data.ages[frameIdx * N + slot] : null;
+  const birthStep =
+    age !== null && age >= 0 ? data.stepNums[frameIdx] - age : null;
+  const weights = data.rewardWeights
+    ? Array.from(
+        data.rewardWeights.subarray((frameIdx * N + slot) * 4, (frameIdx * N + slot + 1) * 4),
+      )
+    : null;
+
   const playX =
     series.energy.length > 1 ? (frameIdx / (series.energy.length - 1)) * W : 0;
 
   const speciesLabel = species === 1 ? "predator" : "prey";
   const speciesColor = species === 1 ? COLOR_PRED : COLOR_PREY;
+
+  const canJumpParent =
+    onJumpToParent && parentId !== null && parentId >= 0;
 
   return (
     <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
@@ -141,6 +212,9 @@ export default function AgentInspector({
           />
           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
             slot {slot} · {speciesLabel}
+            {agentId !== null && (
+              <span className="text-gray-500 font-mono"> · id {agentId}</span>
+            )}
           </span>
           {!aliveNow && (
             <span className="text-[10px] uppercase tracking-wide text-gray-500">
@@ -177,12 +251,60 @@ export default function AgentInspector({
         <div className="col-span-2">
           pos <span className="text-gray-500">({x.toFixed(1)}, {y.toFixed(1)})</span>
         </div>
+        {birthStep !== null && (
+          <div className="col-span-2">
+            born <span className="text-gray-500">step {birthStep.toLocaleString()}</span>
+            <span className="text-gray-500"> · age {age}</span>
+          </div>
+        )}
+        <div className="col-span-2 flex items-center gap-2">
+          <span>parent</span>
+          {parentId === null ? (
+            <span className="text-gray-500 italic">not recorded</span>
+          ) : parentId < 0 ? (
+            <span className="text-gray-500">founder</span>
+          ) : (
+            <button
+              onClick={() => canJumpParent && onJumpToParent!(parentId)}
+              disabled={!canJumpParent}
+              className="text-blue-600 dark:text-blue-400 hover:underline disabled:no-underline disabled:text-gray-500"
+              title="Jump to parent's last-alive frame and pin"
+            >
+              id {parentId} →
+            </button>
+          )}
+        </div>
         {series.aliveFirst >= 0 && (
           <div className="col-span-2 text-[10px] text-gray-500">
             alive frames {series.aliveFirst}–{series.aliveLast} of {data.meta.n_frames}
           </div>
         )}
       </div>
+
+      {weights && (
+        <div className="mb-2">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+            reward weights{" "}
+            <span className="normal-case tracking-normal">(±{WEIGHT_AXIS.toFixed(1)})</span>
+          </div>
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-2 gap-y-0.5 items-center text-[11px] font-mono">
+            {WEIGHT_LABELS.map((label, i) => {
+              const v = weights[i];
+              const pct = Math.min(1, Math.abs(v) / WEIGHT_AXIS);
+              const isNeg = v < 0;
+              return (
+                <WeightBarRow
+                  key={label}
+                  label={label}
+                  value={v}
+                  pct={pct}
+                  isNeg={isNeg}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">
@@ -213,6 +335,122 @@ export default function AgentInspector({
           />
         </svg>
       </div>
+
+      {actFwd && actTurn && (
+        <div className="mt-2 grid grid-cols-1 gap-1">
+          <ActionTrack
+            label="forward"
+            spark={actFwd}
+            W={W}
+            H={HA}
+            color={speciesColor}
+            playX={playX}
+          />
+          <ActionTrack
+            label="turn"
+            spark={actTurn}
+            W={W}
+            H={HA}
+            color={speciesColor}
+            playX={playX}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeightBarRow({
+  label,
+  value,
+  pct,
+  isNeg,
+}: {
+  label: string;
+  value: number;
+  pct: number;
+  isNeg: boolean;
+}) {
+  return (
+    <>
+      <span className="text-gray-600 dark:text-gray-400">{label}</span>
+      <div className="relative h-3 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden">
+        {/* center baseline */}
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-300 dark:bg-gray-700" />
+        <div
+          className={isNeg ? "absolute top-0 bottom-0 bg-red-400/70" : "absolute top-0 bottom-0 bg-blue-500/70"}
+          style={
+            isNeg
+              ? { right: "50%", width: `${pct * 50}%` }
+              : { left: "50%", width: `${pct * 50}%` }
+          }
+        />
+      </div>
+      <span className="text-gray-700 dark:text-gray-300 tabular-nums text-right">
+        {value >= 0 ? "+" : ""}
+        {value.toFixed(2)}
+      </span>
+    </>
+  );
+}
+
+function ActionTrack({
+  label,
+  spark,
+  W,
+  H,
+  color,
+  playX,
+}: {
+  label: string;
+  spark: { alive: string; dead: string };
+  W: number;
+  H: number;
+  color: string;
+  playX: number;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">
+        {label}{" "}
+        <span className="normal-case tracking-normal">(±{ACTION_AXIS.toFixed(1)})</span>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        width="100%"
+        height={H}
+        className="block border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-900/50"
+      >
+        {/* zero baseline */}
+        <line
+          x1={0}
+          x2={W}
+          y1={H / 2}
+          y2={H / 2}
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="2 2"
+          vectorEffect="non-scaling-stroke"
+          className="text-gray-300 dark:text-gray-700"
+        />
+        {spark.dead && (
+          <path d={spark.dead} fill="none" stroke={COLOR_DEAD} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        )}
+        {spark.alive && (
+          <path d={spark.alive} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        )}
+        <line
+          x1={playX}
+          x2={playX}
+          y1={0}
+          y2={H}
+          stroke="currentColor"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+          className="text-gray-400 dark:text-gray-500"
+        />
+      </svg>
     </div>
   );
 }
