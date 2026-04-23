@@ -15,6 +15,7 @@ const DocsViewer = lazy(() => import("./pages/DocsViewer"));
 const References = lazy(() => import("./pages/References"));
 const GcpMonitor = lazy(() => import("./pages/GcpMonitor"));
 const Replay = lazy(() => import("./pages/Replay"));
+const ReplayCompare = lazy(() => import("./pages/ReplayCompare"));
 
 function useTheme() {
   const [dark, setDark] = useState(() => {
@@ -156,6 +157,7 @@ export default function App() {
               <Route path="/docs" element={<DocsViewer />} />
               <Route path="/gcp" element={<GcpMonitor />} />
               <Route path="/replay" element={<Replay />} />
+              <Route path="/replay/compare" element={<ReplayCompare />} />
             </Routes>
           </Suspense>
         </main>
