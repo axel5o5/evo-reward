@@ -10,11 +10,27 @@ Order: 1.1 → 1.2 → 1.4 → 1.6 → 1.7 → 1.5 → 1.3 → Phase 2.
 - [x] 1.6 Click-agent panel lite (AgentInspector) — shipped 70fe1d0
 - [x] 1.7 Canvas trail layer — shipped 70fe1d0
 - [x] 1.5 "Interesting frames" chips — shipped 4fc2019
-- [x] 1.3 Per-replay sparkline thumbnails — shipped PENDING (inlined into index.json instead of separate sparkline.json, see script header for rationale)
-- [ ] 2.1 Replay schema v2
-- [ ] 2.2 Full click-agent panel
-- [ ] 2.3 Reward-weight histogram
-- [ ] 2.4 Compare mode
+- [x] 1.3 Per-replay sparkline thumbnails — shipped 3fb3be1 (inlined into index.json instead of separate sparkline.json, see script header for rationale)
+- [x] 2.1 Replay schema v2 — shipped b7ae35c (per-frame identity/lineage/phenotype/action; v1 replays still load)
+- [x] 2.2 Full click-agent panel — shipped 5ad1846 (weight bars, action trace, parent-jump)
+- [x] 2.3 Reward-weight histogram — shipped 54de062 (per-species overlaid, w_eat/w_act/w_prey/w_pred selector)
+- [x] 2.4 Compare mode — shipped a41f66a (/replay/compare?a=…&b=… with shared scrubber)
+
+Phase 2 deviations from plan:
+  - reward_weights / parent_ids / ages are **per-frame** sections, not
+    "static, written once". Slot reuse after death would otherwise
+    misattribute the phenotype/parent to the previous occupant.
+  - No separate generation-depth field — parent-jump traverses one hop
+    at a time, and users can chain it. Pre-computing full lineage depth
+    would require a second pass at load time for marginal UI value.
+  - `action` is sampled from the last-written `rollout_actions` slot
+    (`(ptrs - 1) % rollout_steps`). First frame after a PPO ptr reset
+    reads the stale tail of the rollout buffer — documented artifact.
+
+Existing v1 replays still render: phenotype/action blocks in the
+inspector drop out; WeightHistogram shows a "phenotype not recorded"
+notice. To populate the new payload, re-record with the current
+recorder.
 
 ---
 
