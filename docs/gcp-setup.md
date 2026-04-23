@@ -190,8 +190,28 @@ gcloud compute instances create evo-reward-gpu \
   --image-project=deeplearning-platform-release \
   --boot-disk-size=200GB \
   --maintenance-policy=TERMINATE \
-  --metadata="install-nvidia-driver=True" \
+  --metadata="install-nvidia-driver=True,gcs-bucket=evo-reward-ckpts" \
+  --metadata-from-file=startup-script=scripts/vm_startup.sh \
+  --scopes=cloud-platform \
   --no-address
+```
+
+**⚠️ `--scopes=cloud-platform` is essential.** Without it the VM's default
+compute service account gets `devstorage.read_only` by default, which
+breaks BOTH the replay-uploader (writes to `gs://evo-reward-replays-public/`)
+AND the gcs-sync sidecar (writes to `gs://evo-reward-ckpts/`). Symptoms
+are a stream of 403 "Provided scope(s) are not authorized" errors in
+`~/phase1a.log` — training continues fine but every upload fails silently,
+so a crash or accidental delete loses everything.
+
+If you forgot `--scopes` on an existing VM, fix in-place without
+recreating (disk + checkpoints preserved):
+
+```
+gcloud compute instances stop evo-reward-gpu --zone=<zone>
+gcloud compute instances set-service-account evo-reward-gpu \
+  --zone=<zone> --scopes=cloud-platform
+gcloud compute instances start evo-reward-gpu --zone=<zone>
 ```
 
 Notes:
