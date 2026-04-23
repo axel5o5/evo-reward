@@ -4,6 +4,7 @@ import ReplaySelector from "../components/ReplaySelector";
 import PopulationStrip from "../components/PopulationStrip";
 import AgentInspector from "../components/AgentInspector";
 import EventChips from "../components/EventChips";
+import WeightHistogram from "../components/WeightHistogram";
 import {
   ReplayData,
   ReplayIndex,
@@ -504,6 +505,9 @@ export default function Replay() {
                   <span>frame {frameIdx + 1} / {data.meta.n_frames}</span>
                   <span>sim step {data.stepNums[frameIdx].toLocaleString()}</span>
                 </div>
+                {data.rewardWeights && (
+                  <WeightHistogram data={data} frameIdx={frameIdx} />
+                )}
               </div>
             )}
           </section>
