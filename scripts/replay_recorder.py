@@ -332,7 +332,11 @@ class ReplayRecorder:
             print(f"[replay] index rebuild failed: {e!r}")
             return
 
-        msg = f"[replay] uploaded to gs://{self.bucket}/{self.exp_name}/seed_{self.seed}/step_{start_step:08d}/"
+        tag_seg = f"{self.run_tag}/" if self.run_tag else ""
+        msg = (
+            f"[replay] uploaded to gs://{self.bucket}/{self.exp_name}/"
+            f"seed_{self.seed}/{tag_seg}step_{start_step:08d}/"
+        )
         if deleted:
             msg += f" (pruned {len(deleted)} via {self.retention_policy})"
         msg += f"; index has {n_idx} replay(s)"
