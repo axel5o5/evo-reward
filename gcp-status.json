@@ -1,35 +1,31 @@
 {
-  "updated_at": "2026-04-23T13:21:01+00:00",
+  "updated_at": "2026-04-23T14:12:44+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
-    "status": "RUNNING",
-    "zone": "us-central1-a",
-    "machine_type": "g2-standard-8",
-    "provisioning": "STANDARD",
-    "created_at": "2026-04-22T20:56:14.319-07:00",
-    "last_started_at": "2026-04-22T20:56:24.177-07:00",
-    "runtime_hours_current": 9.4101,
-    "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 7.9986,
-    "labels": {
-      "seed": "0",
-      "phase": "1a",
-      "experiment": "baseline_faithful"
-    }
+    "status": "MISSING",
+    "zone": null,
+    "machine_type": null,
+    "provisioning": "UNKNOWN",
+    "created_at": null,
+    "last_started_at": null,
+    "runtime_hours_current": null,
+    "hourly_rate_usd": null,
+    "estimated_current_run_usd": null,
+    "labels": {}
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 84,
+    "count": 88,
     "latest_step": 530000,
-    "latest_age_hours": 3.207,
-    "total_gb": 17.7607
+    "latest_age_hours": 4.069,
+    "total_gb": 18.6007
   },
   "costs": {
-    "compute_current_run": 7.9986,
-    "nat_since_active": 4.89,
-    "storage_current": 0.2632,
-    "live_estimate_total": 13.15,
+    "compute_current_run": 0.0,
+    "nat_since_active": 4.93,
+    "storage_current": 0.2761,
+    "live_estimate_total": 5.21,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -37,56 +33,56 @@
   "training": {
     "experiment_name": "baseline_faithful",
     "seed": 0,
-    "step": 170000,
+    "step": 320000,
     "total_steps": 10240000,
-    "progress_frac": 0.0166,
-    "sps": 26.327,
-    "eta_hours": 106.25,
+    "progress_frac": 0.03125,
+    "sps": 24.759,
+    "eta_hours": 111.3,
     "population": {
       "prey": 450,
-      "pred": 50,
-      "food": 599,
-      "mean_energy": 197.53892517089844
+      "pred": 0,
+      "food": 600,
+      "mean_energy": 156.4549102783203
     },
     "reward_weights": {
       "prey": {
         "eat": [
-          -0.0649968832731247,
-          0.8761345744132996
+          0.2463633120059967,
+          1.9979459047317505
         ],
         "act": [
-          -0.013500123284757137,
-          1.0189094543457031
+          -0.3115379214286804,
+          1.933775782585144
         ],
         "prey": [
-          0.024998458102345467,
-          1.1200939416885376
+          -0.9332542419433594,
+          2.344848155975342
         ],
         "pred": [
-          -0.04123372957110405,
-          0.9541650414466858
+          0.1770186424255371,
+          1.8278800249099731
         ]
       },
       "pred": {
         "eat": [
-          -0.4373686611652374,
-          0.9194564819335938
+          0.0,
+          0.0
         ],
         "act": [
-          0.23144139349460602,
-          0.918181300163269
+          0.0,
+          0.0
         ],
         "prey": [
-          0.7660637497901917,
-          3.062847375869751
+          0.0,
+          0.0
         ],
         "pred": [
-          -0.4774835407733917,
-          2.8435487747192383
+          0.0,
+          0.0
         ]
       }
     },
-    "progress_file_age_hours": 0.0,
+    "progress_file_age_hours": 0.447,
     "evolution_detected": true
   },
   "errors": []
