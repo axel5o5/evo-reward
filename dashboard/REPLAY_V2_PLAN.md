@@ -16,6 +16,12 @@ Order: 1.1 → 1.2 → 1.4 → 1.6 → 1.7 → 1.5 → 1.3 → Phase 2.
 - [x] 2.3 Reward-weight histogram — shipped 54de062 (per-species overlaid, w_eat/w_act/w_prey/w_pred selector)
 - [x] 2.4 Compare mode — shipped a41f66a (/replay/compare?a=…&b=… with shared scrubber)
 
+v2 quantization — reward_weights/action go to int8 (scale 4/127 and 1/127),
+agent_ids/parent_ids go to uint16 with a per-replay id_base offset. At
+defaults this brings v2 replays from ~26 MB to ~14 MB (1.75× v1 vs 3.2×
+unquantized). Falls back to int32 for ids if the window's id range exceeds
+65534. Shipped before any v2 replays land on GCS so bucket stays tight.
+
 Phase 2 deviations from plan:
   - reward_weights / parent_ids / ages are **per-frame** sections, not
     "static, written once". Slot reuse after death would otherwise

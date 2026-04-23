@@ -21,14 +21,22 @@ Key properties:
     goes to uint8 (scale = energy_capacity/255). ~2–3× smaller on disk.
 
 Binary format is versioned via meta.json.version. v2 (current) adds per-frame
-identity/lineage/phenotype tracks on top of v1:
-  agent_ids      int32   (n_frames, max_agents)     stable ID across slot reuse
-  parent_ids     int32   (n_frames, max_agents)     -1 for founders
+identity/lineage/phenotype tracks on top of v1. Dtypes below assume quantize=True:
+  agent_ids      uint16  (n_frames, max_agents)     stored = (id - id_base + 1),
+                                                    0 = sentinel (-1). id_base
+                                                    lives in meta.id_base.
+                                                    Falls back to int32 when
+                                                    the window's id range
+                                                    exceeds 65534.
+  parent_ids     uint16  (n_frames, max_agents)     same encoding as agent_ids
   ages           int32   (n_frames, max_agents)     birth_step = step - age
-  reward_weights float32 (n_frames, max_agents, 4)  [w_eat, w_act, w_prey, w_pred]
-  action         float32 (n_frames, max_agents, 2)  last action that drove this step
+  reward_weights int8    (n_frames, max_agents, 4)  scale = 4/127 (covers ±4)
+  action         int8    (n_frames, max_agents, 2)  scale = 1/127 (covers ±1)
 Per-frame (not static) because slot reuse after death replaces the occupant
 mid-window — a static section would misattribute to the previous tenant.
+Unquantized replays keep everything as float32 / int32.
+
+v2 storage at defaults (length=1000, max_agents=500): ~14 MB (vs ~8 MB v1).
 """
 from __future__ import annotations
 
@@ -176,6 +184,11 @@ class ReplayRecorder:
         action = self._buf["action"][:n]
 
         scales: dict[str, float] = {}
+        # Per-replay id base for uint16 id compression. Stored in meta so the
+        # loader can reconstruct absolute agent ids. 0 when quantize is off
+        # or there are no valid ids in the window.
+        id_base = 0
+        quant_ids = False
         if self.quantize:
             pos_scale = self.world_size / 65535.0
             e_scale = self.energy_capacity / 255.0
@@ -185,9 +198,47 @@ class ReplayRecorder:
             pos_out = pos_q.astype(np.uint16)
             fp_out = fp_q.astype(np.uint16)
             energy_out = e_q.astype(np.uint8)
-            scales = {"pos": pos_scale, "food_pos": pos_scale, "energy": e_scale}
+            # Reward weights: ±4 range covers init (N(0, ~0.5)) and long-run
+            # drift with headroom. Precision ~0.03, imperceptible in the
+            # histogram at ±2 display axis.
+            rw_scale = 4.0 / 127.0
+            rw_out = np.clip(reward_weights / rw_scale, -127, 127).astype(np.int8)
+            # Actions: tanh-ish in [-1, 1]. ±1 range, precision ~0.008.
+            act_scale = 1.0 / 127.0
+            act_out = np.clip(action / act_scale, -127, 127).astype(np.int8)
+            scales = {
+                "pos": pos_scale, "food_pos": pos_scale, "energy": e_scale,
+                "reward_weights": rw_scale, "action": act_scale,
+            }
+            # Agent/parent id compression. Absolute ids are globally monotonic
+            # (next_agent_id counter); within a 1000-frame window the range
+            # stays small. Encoding: 0 is the -1 sentinel ("no parent" /
+            # "inactive slot"), 1..65535 stores (id - id_base + 1). Falls
+            # back to int32 if the window's id range exceeds 65534.
+            valids = np.concatenate([
+                agent_ids[agent_ids >= 0].ravel(),
+                parent_ids[parent_ids >= 0].ravel(),
+            ])
+            if valids.size > 0:
+                id_min = int(valids.min())
+                id_max = int(valids.max())
+                if id_max - id_min + 1 <= 65534:
+                    id_base = id_min
+                    aid_out = np.where(agent_ids < 0, 0, agent_ids - id_base + 1).astype(np.uint16)
+                    pid_out = np.where(parent_ids < 0, 0, parent_ids - id_base + 1).astype(np.uint16)
+                    quant_ids = True
+                else:
+                    aid_out, pid_out = agent_ids, parent_ids
+            else:
+                # Empty window — emit zero-filled uint16 and id_base=0.
+                id_base = 0
+                aid_out = np.zeros_like(agent_ids, dtype=np.uint16)
+                pid_out = np.zeros_like(parent_ids, dtype=np.uint16)
+                quant_ids = True
         else:
             pos_out, fp_out, energy_out = pos, food_pos, energy
+            rw_out, act_out = reward_weights, action
+            aid_out, pid_out = agent_ids, parent_ids
 
         # Section order is the contract with the JS loader. Don't reorder
         # without updating replayLoader.ts.
@@ -202,11 +253,11 @@ class ReplayRecorder:
             ("species",     species,     "int32"),
             ("radii",       radii,       "float32"),
             # v2 additions — identity, lineage, phenotype, action. See header.
-            ("agent_ids",      agent_ids,      "int32"),
-            ("parent_ids",     parent_ids,     "int32"),
+            ("agent_ids",      aid_out,        "uint16" if quant_ids     else "int32"),
+            ("parent_ids",     pid_out,        "uint16" if quant_ids     else "int32"),
             ("ages",           ages,           "int32"),
-            ("reward_weights", reward_weights, "float32"),
-            ("action",         action,         "float32"),
+            ("reward_weights", rw_out,         "int8"   if self.quantize else "float32"),
+            ("action",         act_out,        "int8"   if self.quantize else "float32"),
         ]
 
         bin_path = out_dir / "frames.bin"
@@ -232,6 +283,7 @@ class ReplayRecorder:
             "world_size": self.world_size,
             "quantize": self.quantize,
             "scales": scales,
+            "id_base": int(id_base),
             "sections": offsets,
             "frames_bin": "frames.bin",
             "frames_bin_size": bin_path.stat().st_size,

@@ -16,17 +16,16 @@
 //   step_nums     int32
 //   species       int32    (static, length = max_agents)
 //   radii         float32  (static, length = max_agents)
-// v2 adds per-frame identity/lineage/phenotype (all populated on every frame
-// because slot reuse means a static section would misattribute to the previous
-// tenant after a death→birth in the same slot):
-//   agent_ids      int32   (n_frames, max_agents)
-//   parent_ids     int32   (n_frames, max_agents)
-//   ages           int32   (n_frames, max_agents)    — birth_step = step - age
-//   reward_weights float32 (n_frames, max_agents, 4) — [w_eat, w_act, w_prey, w_pred]
-//   action         float32 (n_frames, max_agents, 2) — last action driving this step
-// When quantize=false (older replays), pos/food_pos/energy are float32 directly.
-// Consumers always see Float32Array — dequantization happens here, eagerly.
-// v1 replays still load; the v2 fields on ReplayData are null/undefined.
+// v2 adds per-frame identity/lineage/phenotype tracks. Dtypes below are the
+// quantized form (what ships to GCS); quantize=false falls back to raw:
+//   agent_ids      uint16  (scale via meta.id_base, 0 = -1 sentinel)
+//   parent_ids     uint16  (same encoding as agent_ids)
+//   ages           int32                                — birth_step = step - age
+//   reward_weights int8    (scale = meta.scales.reward_weights)
+//   action         int8    (scale = meta.scales.action)
+// Sizes at defaults (length=1000, max_agents=500): v2 ≈ 14 MB vs v1 ≈ 8 MB.
+// Consumers always see Float32Array / Int32Array — dequantization happens
+// here, eagerly. v1 replays still load; the v2 fields are null.
 
 export interface ReplayIndexEntry {
   exp: string;
@@ -52,7 +51,7 @@ export interface ReplayIndex {
   replays: ReplayIndexEntry[];
 }
 
-type Dtype = "float32" | "uint8" | "int32" | "uint16";
+type Dtype = "float32" | "uint8" | "int8" | "int32" | "uint16";
 
 interface SectionMeta {
   offset: number;
@@ -71,9 +70,13 @@ export interface ReplayMeta {
   frames_bin: string;
   frames_bin_size: number;
   sections: Record<string, SectionMeta>;
-  // Present on v1 quantized replays only.
+  // Present on quantized replays. scales maps section name → multiplicative
+  // scale for dequantization (e.g. pos uint16 * scale → world units).
   quantize?: boolean;
   scales?: Record<string, number>;
+  // v2 only: additive offset for agent_ids / parent_ids when stored as
+  // uint16. Absolute id = (stored - 1) + id_base; stored 0 → -1 sentinel.
+  id_base?: number;
 }
 
 export interface ReplayData {
@@ -136,6 +139,7 @@ function elementSize(dtype: Dtype): number {
     case "uint16":
       return 2;
     case "uint8":
+    case "int8":
       return 1;
   }
 }
@@ -178,7 +182,32 @@ function loadFloat32(buf: ArrayBuffer, meta: ReplayMeta, name: string): Float32A
     for (let i = 0; i < src.length; i++) dst[i] = src[i] * scale;
     return dst;
   }
+  if (s.dtype === "int8") {
+    const src = rawView(buf, s, Int8Array);
+    const dst = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i++) dst[i] = src[i] * scale;
+    return dst;
+  }
   throw new Error(`unexpected dtype ${s.dtype} for float section ${name}`);
+}
+
+// Load an agent-id section (agent_ids / parent_ids). When quantized (uint16)
+// the encoding is: stored 0 → -1 sentinel, stored k≥1 → k - 1 + id_base.
+// Unquantized sections (int32) pass through unchanged.
+function loadIds(buf: ArrayBuffer, meta: ReplayMeta, name: string): Int32Array | null {
+  const s = meta.sections[name];
+  if (!s) return null;
+  if (s.dtype === "int32") return rawView(buf, s, Int32Array);
+  if (s.dtype === "uint16") {
+    const base = meta.id_base ?? 0;
+    const src = rawView(buf, s, Uint16Array);
+    const dst = new Int32Array(src.length);
+    for (let i = 0; i < src.length; i++) {
+      dst[i] = src[i] === 0 ? -1 : src[i] - 1 + base;
+    }
+    return dst;
+  }
+  throw new Error(`unexpected dtype ${s.dtype} for id section ${name}`);
 }
 
 function optionalRaw<T>(
@@ -204,11 +233,13 @@ function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
     stepNums: rawView(buf, sectionOrThrow(meta, "step_nums"), Int32Array),
     species: rawView(buf, sectionOrThrow(meta, "species"), Int32Array),
     radii: rawView(buf, sectionOrThrow(meta, "radii"), Float32Array),
-    agentIds: optionalRaw(buf, meta, "agent_ids", Int32Array),
-    parentIds: optionalRaw(buf, meta, "parent_ids", Int32Array),
+    agentIds: loadIds(buf, meta, "agent_ids"),
+    parentIds: loadIds(buf, meta, "parent_ids"),
     ages: optionalRaw(buf, meta, "ages", Int32Array),
-    rewardWeights: optionalRaw(buf, meta, "reward_weights", Float32Array),
-    action: optionalRaw(buf, meta, "action", Float32Array),
+    rewardWeights: meta.sections["reward_weights"]
+      ? loadFloat32(buf, meta, "reward_weights")
+      : null,
+    action: meta.sections["action"] ? loadFloat32(buf, meta, "action") : null,
   };
 }
 
