@@ -5,7 +5,7 @@
 // build; swap it for a GCS public prefix or a serverless endpoint later
 // without touching this file's consumers.
 //
-// Binary format evolves — meta.json.version gates any future breaking changes.
+// Binary format evolves — meta.json.version gates any breaking changes.
 // v1 sections (in file order) and their dtypes when quantize=true:
 //   pos           uint16   (scale = meta.scales.pos)
 //   angle         float32
@@ -16,8 +16,17 @@
 //   step_nums     int32
 //   species       int32    (static, length = max_agents)
 //   radii         float32  (static, length = max_agents)
+// v2 adds per-frame identity/lineage/phenotype (all populated on every frame
+// because slot reuse means a static section would misattribute to the previous
+// tenant after a death→birth in the same slot):
+//   agent_ids      int32   (n_frames, max_agents)
+//   parent_ids     int32   (n_frames, max_agents)
+//   ages           int32   (n_frames, max_agents)    — birth_step = step - age
+//   reward_weights float32 (n_frames, max_agents, 4) — [w_eat, w_act, w_prey, w_pred]
+//   action         float32 (n_frames, max_agents, 2) — last action driving this step
 // When quantize=false (older replays), pos/food_pos/energy are float32 directly.
 // Consumers always see Float32Array — dequantization happens here, eagerly.
+// v1 replays still load; the v2 fields on ReplayData are null/undefined.
 
 export interface ReplayIndexEntry {
   exp: string;
@@ -79,6 +88,12 @@ export interface ReplayData {
   stepNums: Int32Array;     // length = n_frames
   species: Int32Array;      // length = max_agents (static)
   radii: Float32Array;      // length = max_agents (static)
+  // v2 per-frame fields. Null for v1 replays — consumers must handle both.
+  agentIds: Int32Array | null;        // length = n_frames * max_agents
+  parentIds: Int32Array | null;       // length = n_frames * max_agents
+  ages: Int32Array | null;            // length = n_frames * max_agents
+  rewardWeights: Float32Array | null; // length = n_frames * max_agents * 4
+  action: Float32Array | null;        // length = n_frames * max_agents * 2
 }
 
 export function replaysBaseUrl(): string {
@@ -166,6 +181,17 @@ function loadFloat32(buf: ArrayBuffer, meta: ReplayMeta, name: string): Float32A
   throw new Error(`unexpected dtype ${s.dtype} for float section ${name}`);
 }
 
+function optionalRaw<T>(
+  buf: ArrayBuffer,
+  meta: ReplayMeta,
+  name: string,
+  ctor: new (b: ArrayBuffer, o: number, n: number) => T,
+): T | null {
+  const s = meta.sections[name];
+  if (!s) return null;
+  return rawView(buf, s, ctor);
+}
+
 function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
   return {
     meta,
@@ -178,6 +204,11 @@ function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
     stepNums: rawView(buf, sectionOrThrow(meta, "step_nums"), Int32Array),
     species: rawView(buf, sectionOrThrow(meta, "species"), Int32Array),
     radii: rawView(buf, sectionOrThrow(meta, "radii"), Float32Array),
+    agentIds: optionalRaw(buf, meta, "agent_ids", Int32Array),
+    parentIds: optionalRaw(buf, meta, "parent_ids", Int32Array),
+    ages: optionalRaw(buf, meta, "ages", Int32Array),
+    rewardWeights: optionalRaw(buf, meta, "reward_weights", Float32Array),
+    action: optionalRaw(buf, meta, "action", Float32Array),
   };
 }
 
@@ -193,12 +224,23 @@ export interface FrameView {
   foodPos: Float32Array;    // (food_max, 2) flat
   foodActive: Uint8Array;   // (food_max,)
   step: number;
+  // v2 — null on v1 replays
+  agentIds: Int32Array | null;        // (max_agents,)
+  parentIds: Int32Array | null;       // (max_agents,)
+  ages: Int32Array | null;            // (max_agents,)
+  rewardWeights: Float32Array | null; // (max_agents, 4) flat
+  action: Float32Array | null;        // (max_agents, 2) flat
 }
 
 export function frameView(data: ReplayData, frameIdx: number): FrameView {
   const n = data.meta.max_agents;
   const f = data.meta.food_max;
   const i = Math.max(0, Math.min(frameIdx, data.meta.n_frames - 1));
+  const slice = <T extends Int32Array | Float32Array>(
+    arr: T | null,
+    stride: number,
+  ): T | null =>
+    arr ? (arr.subarray(i * n * stride, (i + 1) * n * stride) as T) : null;
   return {
     pos: data.pos.subarray(i * n * 2, (i + 1) * n * 2),
     angle: data.angle.subarray(i * n, (i + 1) * n),
@@ -207,5 +249,10 @@ export function frameView(data: ReplayData, frameIdx: number): FrameView {
     foodPos: data.foodPos.subarray(i * f * 2, (i + 1) * f * 2),
     foodActive: data.foodActive.subarray(i * f, (i + 1) * f),
     step: data.stepNums[i],
+    agentIds: slice(data.agentIds, 1),
+    parentIds: slice(data.parentIds, 1),
+    ages: slice(data.ages, 1),
+    rewardWeights: slice(data.rewardWeights, 4),
+    action: slice(data.action, 2),
   };
 }

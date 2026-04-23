@@ -19,6 +19,16 @@ Key properties:
   * Quantization: when `replay_quantize` is true, positions and food positions
     go to uint16 (scale = world_size/65535, ~0.015 unit precision) and energy
     goes to uint8 (scale = energy_capacity/255). ~2–3× smaller on disk.
+
+Binary format is versioned via meta.json.version. v2 (current) adds per-frame
+identity/lineage/phenotype tracks on top of v1:
+  agent_ids      int32   (n_frames, max_agents)     stable ID across slot reuse
+  parent_ids     int32   (n_frames, max_agents)     -1 for founders
+  ages           int32   (n_frames, max_agents)     birth_step = step - age
+  reward_weights float32 (n_frames, max_agents, 4)  [w_eat, w_act, w_prey, w_pred]
+  action         float32 (n_frames, max_agents, 2)  last action that drove this step
+Per-frame (not static) because slot reuse after death replaces the occupant
+mid-window — a static section would misattribute to the previous tenant.
 """
 from __future__ import annotations
 
@@ -76,6 +86,15 @@ class ReplayRecorder:
             "food_pos":    np.empty((L, F, 2), dtype=np.float32),
             "food_active": np.empty((L, F),    dtype=np.uint8),
             "step":        np.empty((L,),      dtype=np.int32),
+            # v2 phenotype/identity tracks. Per-frame because slot reuse after
+            # death replaces the occupant mid-window; a "written once" static
+            # section would silently misattribute parent/reward to the previous
+            # tenant.
+            "agent_ids":      np.empty((L, N),    dtype=np.int32),
+            "parent_ids":     np.empty((L, N),    dtype=np.int32),
+            "ages":           np.empty((L, N),    dtype=np.int32),
+            "reward_weights": np.empty((L, N, 4), dtype=np.float32),
+            "action":         np.empty((L, N, 2), dtype=np.float32),
         }
         self._count = 0
 
@@ -116,6 +135,20 @@ class ReplayRecorder:
         self._buf["food_pos"][i] = np.asarray(sim_state.food_positions)
         self._buf["food_active"][i] = np.asarray(sim_state.food_active, dtype=np.uint8)
         self._buf["step"][i] = int(step_after)
+
+        self._buf["agent_ids"][i] = np.asarray(sim_state.agent_ids, dtype=np.int32)
+        self._buf["parent_ids"][i] = np.asarray(sim_state.parent_ids, dtype=np.int32)
+        self._buf["ages"][i] = np.asarray(sim_state.ages, dtype=np.int32)
+        self._buf["reward_weights"][i] = np.asarray(sim_state.reward_weights, dtype=np.float32)
+        # Last-written action from the per-slot circular rollout buffer.
+        # rollout_ptrs advances after each sim_step, so ptrs-1 (mod len) is
+        # the action that drove this step. Right after a PPO update ptrs
+        # resets to 0 and this falls back to the stale tail of the buffer —
+        # acceptable artifact (affects at most 1 frame per PPO boundary).
+        rollout_actions = np.asarray(sim_state.rollout_actions)
+        rollout_ptrs = np.asarray(sim_state.rollout_ptrs)
+        last = (rollout_ptrs - 1) % rollout_actions.shape[1]
+        self._buf["action"][i] = rollout_actions[np.arange(self.max_agents), last]
         self._count += 1
 
     # ---------------------------- flush --------------------------------------
@@ -136,6 +169,11 @@ class ReplayRecorder:
         food_pos = self._buf["food_pos"][:n]
         food_active = self._buf["food_active"][:n]
         step_arr = self._buf["step"][:n]
+        agent_ids = self._buf["agent_ids"][:n]
+        parent_ids = self._buf["parent_ids"][:n]
+        ages = self._buf["ages"][:n]
+        reward_weights = self._buf["reward_weights"][:n]
+        action = self._buf["action"][:n]
 
         scales: dict[str, float] = {}
         if self.quantize:
@@ -163,6 +201,12 @@ class ReplayRecorder:
             ("step_nums",   step_arr,    "int32"),
             ("species",     species,     "int32"),
             ("radii",       radii,       "float32"),
+            # v2 additions — identity, lineage, phenotype, action. See header.
+            ("agent_ids",      agent_ids,      "int32"),
+            ("parent_ids",     parent_ids,     "int32"),
+            ("ages",           ages,           "int32"),
+            ("reward_weights", reward_weights, "float32"),
+            ("action",         action,         "float32"),
         ]
 
         bin_path = out_dir / "frames.bin"
@@ -180,7 +224,7 @@ class ReplayRecorder:
                 f.write(buf)
 
         meta = {
-            "version": 1,
+            "version": 2,
             "start_step": start_step,
             "n_frames": int(n),
             "max_agents": int(self.max_agents),
