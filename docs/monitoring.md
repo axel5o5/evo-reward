@@ -10,6 +10,66 @@ day-to-day monitoring layer once the run is going.
 
 ---
 
+## 🛑 STOP vs DELETE — read this first
+
+There are two different lifecycle operations that sound similar but are
+**very different** in what they destroy.
+
+### You want to PAUSE the VM to save $$$ (keep everything)
+
+Use `stop`. Disk is preserved, including all local checkpoints that
+haven't yet been synced to GCS. No compute charges while stopped
+(disk storage still costs ~$10/month for 200 GB, negligible).
+
+```bash
+source scripts/gcloud-env.sh
+gcloud compute instances stop evo-reward-gpu --zone=us-west1-a
+```
+
+To bring it back online later, `start` instead of `create`:
+
+```bash
+gcloud compute instances start evo-reward-gpu --zone=us-west1-a
+# then SSH in; the vm_startup.sh will re-mount, re-sync, and if
+# phase1a_loop.sh is present it auto-resumes training.
+```
+
+### You are ABSOLUTELY DONE (destroy the VM)
+
+Use `delete`. This is **irreversible for the VM's local disk**.
+Anything that hasn't been synced to GCS at the moment of delete is
+gone forever.
+
+```bash
+# Only run this if you've already pulled everything you want out of GCS
+gcloud compute instances delete evo-reward-gpu --zone=us-west1-a --quiet
+```
+
+**What gets lost on delete:**
+- Local checkpoints under `~/evo-reward/results/` that haven't been
+  rsync'd to `gs://evo-reward-ckpts/results/` yet (the gcs-sync tmux
+  session only pushes every 5 min — so up to 5 min of training state
+  can be lost if you delete mid-sync).
+- SSH keys the VM was authenticated with (you'll re-generate on next
+  VM).
+- tmux session history, `phase1a.log`, any ad-hoc trace files under
+  `~/` that aren't inside `results/`.
+
+**What survives a delete:**
+- Everything already in `gs://evo-reward-ckpts/` (the checkpoint
+  bucket) — replays, progress.json, whatever the sync sidecar pushed.
+- Everything in `gs://evo-reward-replays-public/` — all uploaded
+  replays (these upload at flush time, every 20K sim steps).
+- The GCP project configuration, IAP firewall, NAT router.
+
+### Rule of thumb
+
+If you're not 100% sure you want to lose the VM's disk, **always use
+`stop`**. You can always `delete` later from a stopped VM; you can't
+un-delete.
+
+---
+
 ## Tools at a glance
 
 | Tool | Purpose |

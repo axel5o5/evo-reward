@@ -1,0 +1,204 @@
+# EXPERIMENT v9 — "slow evolution" hypothesis test
+#
+# Based on baseline_faithful.yaml with TWO targeted deviations, documented
+# below. Purpose: test whether tightening the mutation clip prevents the
+# runaway prey-fear over-evolution that caused v5's cycle-2 extinction
+# (prey w_pred hit -1.14 by step 400K).
+#
+# CHANGES vs baseline_faithful.yaml:
+#   * proximity_max_range: 120 → 200   (revert D27 — match v5 baseline)
+#   * weight_clip: 100.0 → 10.0        (match emevo gops TOML instead of
+#                                        paper Section 4.2's ±100)
+#
+# Expected effect if runaway fear evolution is the cycle-2 extinction cause:
+#   - Prey w_pred bounded to [-10, +10] — no -100-scale values
+#   - Fear signal saturates sooner, can't keep intensifying without bound
+#   - Predators face a less-perfect evader in cycle-2 troughs, more
+#     likely to sustain their population
+#
+# Deviates from paper text on weight_clip (paper Section 4.2 says ±100).
+# Justification: same paper-vs-endpoint-code split D22 addressed, and
+# paper's ±100 rarely bites in practice (weights typically stay in [-3, +3]
+# per K&D Figure 7). Tightening to ±10 only matters if weights actually
+# drift that far, which we observed in v5.
+#
+# See docs/phase1a-v5-analysis.md for the fear-overshoot analysis.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "exp_v9_slow_evolution"
+policy_mode:        "independent"    # one policy network per agent — K&D faithful
+lifecycle_mode:     "continuous"     # energy-driven birth-death — K&D faithful
+reward_type:        "linear"         # 4-weight linear genome — K&D faithful
+social_obs:         "position_only"  # no heading/velocity of neighbors
+policy_type:        "mlp"            # feedforward MLP — K&D faithful
+coevolution_mode:   "concurrent"     # both species evolve simultaneously
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960              # 960×960 units (Appendix A)
+total_steps:        10_240_000       # 1024 × 10^4 steps (Section 4)
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+# VERIFIED against emevo gecco2026 branch (circle_foraging.py:740-748).
+# 128 = 32 proximity sensors × 4 per-type channels (prey, predator, food, wall)
+#  72 = 4 types × 18 tactile bins (binary contact per type per bin)
+#   2 = velocity (vx, vy) — 2D, not scalar
+#   1 = angle, 1 = angular velocity, 1 = energy
+# Total: 128 + 72 + 2 + 1 + 1 + 1 = 205
+obs_dim:            205              # CONFIRMED: see emevo-diff.md items #1, #2
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150              # (Section 4)
+predator_initial:   10               # (Section 4)
+prey_cap:           450              # (Section 3)
+predator_cap:       50               # (Section 3)
+
+# Initial energy for the starting population (not offspring — those use parent energy).
+# VERIFIED: config/env/20251122-predator-square.toml:22,37
+prey_e_initial:     100.0            # CONFIRMED: init_energy = 100.0
+predator_e_initial: 100.0            # CONFIRMED: predator_init_energy = 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0             # (Appendix A)
+predator_radius:    14.0             # (Appendix A)
+food_radius:        4.0              # CONFIRMED: food_radius = 4.0 (emevo cf_predator.py + TOMLs).
+                                     # Used in prey-food contact: dist <= prey_r + food_r = 14.
+                                     # See docs/emevo-diff.md D22.
+max_motor_norm:     114.0            # F; max ‖f‖ (Appendix A note: "0 < ‖f‖ < 114")
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32           # (Section 3)
+n_proximity_channels:   4            # CONFIRMED: per-type channels [prey, predator, food, wall]
+proximity_fov_deg:      120.0        # forward arc in degrees (Section 3), "wide" in emevo
+proximity_max_range:    200.0        # v9 deviation: reverts D27 to match v5 (best trajectory). Empirical grounds over paper-text principle.
+n_tactile_sensors:      18           # (Section 3), n_tactile_bins = 18
+n_tactile_channels:     4            # CONFIRMED: per-type channels, same 4 types as proximity
+tactile_spacing_deg:    20.0         # degrees between sensors (360/18 = 20)
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:3-4
+# food_num_fn = ["linear", 40, 0.5, 600] → initial=40, growth=0.5/step, cap=600
+# Body text (600) is correct, Appendix A (100) is wrong.
+food_max:               600          # CONFIRMED: n_max_foods = 600
+food_initial:           40           # CONFIRMED: initial food count at start
+food_growth_rate:       0.5          # CONFIRMED: linear growth per step
+food_max_regen_per_step: 10          # CONFIRMED: n_max_food_regen = 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0       # CONFIRMED: max energy cap (20251122 config:23)
+prey_e_food:            1.0          # energy gained per food item (Section 3)
+prey_c_b:               1.0e-4       # CONFIRMED: basic_energy_consumption (emevo code)
+prey_c_a:               2.5e-6       # CONFIRMED: force_energy_consumption (emevo code)
+# Energy update: Δe = n_eaten * e_food - c_a * ‖action‖ - c_b
+# NOTE on paper Table 2: paper lists c_b=2.5e-6 and c_a=1.0e-4 (reversed from our
+# values). The paper's own sanity check (main.tex:443 — "c_a·‖a‖ is ~2× c_b at
+# max motor") only holds with our code values, so Table 2 has the c_a/c_b labels
+# swapped. Magnitudes match; the discrepancy is a labeling error in the paper.
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3       # CONFIRMED: predator_basic_ec = 4e-3 (matches Table 2)
+predator_d_a:           5.0e-5       # CONFIRMED: predator_force_ec = 5e-5 (matches Table 2)
+# Energy gain: Σ_{prey caught} η * prey_energy_at_catch
+# VERIFIED: config/env/20251122-predator-square.toml:40
+predator_eta:           0.6          # CONFIRMED: predator_digestive_rate = 0.6
+
+# ─── Predator Mouth (emevo tactile-bin mechanic; see emevo-diff.md D18) ─────
+# emevo gecco2026: predator_mouth_range = [0, 1, 17]  # 20° × 3 bins = 60° front arc
+# Catch: predator touches prey (dist ≤ sum_radii) AND prey falls in one of
+# these tactile bins. "Radial distance range" [40,80] was our bug; fixed.
+predator_mouth_tactile_bins: [0, 1, 17]   # medium mouth; K&D also run small/large (scope-out)
+predator_eat_interval:       10            # 10-step cooldown between catches
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+# h(t,e) = κ_h * (1 - 1/(1 + α_e·exp(-β_h·e))) * α_t·exp(β_t·t)
+kappa_h:            0.01             # emevo: scale = 0.01 (both species)
+alpha_e:            0.02             # emevo: alpha = 0.02 (both species)
+beta_h:             0.2              # emevo: slope = 0.2 (both species)
+alpha_t_prey:       4.0e-7           # emevo 20240916-sel-a4e7-d15: alpha_age = 4e-7
+alpha_t_pred:       2.0e-7           # emevo 20241229-predator-d100: alpha_age = 2e-7
+beta_t_prey:        2.0e-6           # paper Table 3 (D22 fix; prev 4e-6 matched endpoint TOML, not paper)
+beta_t_pred:        4.0e-6           # emevo 20241229-predator-d100: beta = 4e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+# b(e) = κ_b / (1 + exp(ζ - β_b·e))
+kappa_b:            1.0e-3           # emevo: scale = 1e-3 (both species)
+beta_b:             0.4              # emevo: slope = 0.4 (both species; was 0.1: D18 bug)
+zeta_b_prey:        10.0             # paper Table 3 + Fig 19 saturation at ~e=25-30 (D22 fix; prev 15 matched endpoint TOML)
+zeta_b_pred:        100.0            # emevo 20241229-predator-d100: delay = 100
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:26,10
+energy_share_ratio: 0.4              # CONFIRMED: parent loses 0.4×e, child gets 0.4×e
+spawn_spread:       100.0            # CONFIRMED: neighbor_stddev = 100.0 world units
+
+# ─── Reward Genome ───────────────────────────────────────────────────────────
+# Weight order (canonical, never change): [w_eat, w_act, w_prey, w_pred]
+reward_weights_init_std:  0.1        # weights ~ N(0, 0.1) at birth (Section 4)
+mutation_df:              2          # Student's t degrees of freedom (2025 paper)
+mutation_scale:           0.4        # Student's t scale parameter (2025 paper)
+weight_clip:              10.0       # v9 deviation: tighter clip per emevo gops TOML (clip_min/max=±10), testing whether K&D's paper-reported ±100 was for the experiment the paper describes OR whether emevo's ±10 was in effect. Prevents runaway fear evolution that over-evolved to w_pred=-1.14 in v5.
+# Note: 2024 paper used Cauchy (df=1), scale=0.02, clip=[-10,10]. Do NOT use those values.
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64             # hidden units per layer (Table 4)
+policy_n_hidden_layers: 2            # CONFIRMED: 2 hidden layers in shared trunk (ppo_normal.py:43-48)
+# Architecture (CONFIRMED from ppo_normal.py:28-65):
+#   Shared trunk: input → Linear(obs_dim, 64) → tanh → Linear(64, 64) → tanh
+#   Value head:   Linear(64, 1)
+#   Policy head:  Linear(64, 2) — action means, with orthogonal init (scale=0.01)
+#   log_std:      learned parameter shape (2,), state-independent, init zeros
+# Activation: tanh
+# Output: Gaussian policy — action_mean (2,) + learned log_std (2,)
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+# All from Table 4 of the 2025 paper.
+gamma:              0.999            # discount factor
+rollout_steps:      1024             # N — steps per PPO update
+minibatch_size:     256              # minibatch size
+ppo_epochs:         10               # optimization epochs per rollout
+clip_epsilon:       0.2              # PPO clipping parameter
+entropy_coef:       0.001            # entropy bonus coefficient
+gae_lambda:         0.95             # GAE λ parameter (note: paper calls this γ)
+lr:                 3.0e-4           # Adam learning rate
+adam_eps:           1.0e-7           # Adam ε
+# Value function clipping: not specified in paper. Use standard PPO with VF clipping.
+vf_clip:            true             # clip value function loss
+vf_coef:            0.5              # value function loss coefficient (standard)
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+# VERIFIED: config/env/20251122-predator-square.toml:20-21, circle_foraging.py:739
+# Note: emevo uses sigmoid_scale mapping (smooth) not hard clipping.
+# Network output → sigmoid_scale(x) = 100*sigmoid(x) + (-20) → [-20, 80]
+action_clip_low:    -20.0            # CONFIRMED: min_force = -20.0
+action_clip_high:   80.0             # CONFIRMED: max_force = 80.0
+action_mapping:     "sigmoid"        # CONFIRMED: sigmoid_scale, not hard clip
+
+# Logging cadence (checkpoint_interval_steps, log_interval_steps) lives
+# in configs/runtime/*.yaml — those values do not affect the experiment
+# result, only save/log frequency.
+
+# ─── Replay Recording ────────────────────────────────────────────────────────
+# Captures short trajectory windows during training and uploads them to a
+# public GCS bucket so the dashboard's /replay page can play them back.
+# Cost: a host↔device sync each tick inside the capture window — outside the
+# window recording is free. All fields hot-reloaded on resume.
+#
+# Disable entirely by setting replay_record_interval_steps to 0 (or removing
+# these fields). Leave the bucket empty string to keep replays local only.
+replay_record_interval_steps: 20_000    # flush a replay this often (~13 min wall at 25 sps)
+replay_record_length_steps:   10_000    # frames per replay (~80 MB quantized; ~2.8 min on-screen at 60 fps)
+replay_quantize:              true      # uint16 pos + uint8 energy (~3× smaller)
+replay_bucket:                "evo-reward-replays-public"   # "" → local only
+replay_retention_policy:      "milestones"   # last_n | milestones | logarithmic
+replay_retention_config:
+  keep_last_n: 100                      # last 100 at 20k cadence ≈ 8 GB total (public bucket cost is trivial)
+  # Early-dense pins give us fine-grained coverage of the first 500k steps
+  # (where behavior changes fastest) plus coarse milestones out to 10M.
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance:   5_000                    # how close a replay's start_step must be to a pinned step
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+# Run separately per seed. K&D used 5 seeds for the main results.
+# Phase 1a: start with seeds 0 and 1; add more after qualitative validation.
+seed:               0
