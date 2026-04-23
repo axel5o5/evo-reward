@@ -1,35 +1,35 @@
 {
-  "updated_at": "2026-04-23T03:16:01+00:00",
+  "updated_at": "2026-04-23T04:25:04+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
     "status": "RUNNING",
-    "zone": "us-west1-a",
+    "zone": "us-central1-a",
     "machine_type": "g2-standard-8",
     "provisioning": "STANDARD",
-    "created_at": "2026-04-21T08:57:31.943-07:00",
-    "last_started_at": "2026-04-22T07:13:35.009-07:00",
-    "runtime_hours_current": 13.0403,
+    "created_at": "2026-04-22T20:56:14.319-07:00",
+    "last_started_at": "2026-04-22T20:56:24.177-07:00",
+    "runtime_hours_current": 0.4775,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 11.0843,
+    "estimated_current_run_usd": 0.4059,
     "labels": {
-      "experiment": "baseline_faithful",
       "phase": "1a",
-      "seed": "0"
+      "seed": "0",
+      "experiment": "baseline_faithful"
     }
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 3,
+    "count": 5,
     "latest_step": 170000,
-    "latest_age_hours": 31.697,
-    "total_gb": 0.5763
+    "latest_age_hours": 32.848,
+    "total_gb": 1.0086
   },
   "costs": {
-    "compute_current_run": 11.0843,
-    "nat_since_active": 4.44,
-    "storage_current": 0.0084,
-    "live_estimate_total": 15.53,
+    "compute_current_run": 0.4059,
+    "nat_since_active": 4.5,
+    "storage_current": 0.0147,
+    "live_estimate_total": 4.92,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
