@@ -61,7 +61,10 @@ def _single_proximity_agents(obs_pos, obs_angle, obs_radius, obs_idx,
     edge_dist = jnp.maximum(dist - obs_radius - all_radii, 0.0)    # (A,)
     angle_to = jnp.arctan2(delta[:, 1], delta[:, 0])               # (A,)
 
-    rel_angle = _wrap(angle_to - obs_angle)                         # (A,)
+    # D31: proximity sensors share phyjax2d's heading convention with tactile:
+    # heading=0 means forward is world +y, so rotate by -pi/2 when mapping
+    # world angles into the agent frame.
+    rel_angle = _wrap(angle_to - obs_angle - jnp.pi / 2.0)          # (A,)
     bin_idx = jnp.floor((rel_angle + half_fov) / bin_width).astype(jnp.int32)
 
     self_mask = jnp.arange(A) != obs_idx
@@ -97,7 +100,8 @@ def _single_proximity_food(obs_pos, obs_angle, obs_radius,
     edge_dist = jnp.maximum(dist - obs_radius, 0.0)                # (F,)
     angle_to = jnp.arctan2(delta[:, 1], delta[:, 0])               # (F,)
 
-    rel_angle = _wrap(angle_to - obs_angle)
+    # D31: same heading convention fix as _single_proximity_agents.
+    rel_angle = _wrap(angle_to - obs_angle - jnp.pi / 2.0)
     bin_idx = jnp.floor((rel_angle + half_fov) / bin_width).astype(jnp.int32)
 
     in_fov = (bin_idx >= 0) & (bin_idx < n_sensors)
@@ -124,7 +128,9 @@ def _compute_wall_distances(positions, angles, radii,
     """
     k = jnp.arange(n_sensors)
     offsets = -half_fov + (k + 0.5) * bin_width                    # (S,)
-    sensor_dirs = angles[:, None] + offsets[None, :]                # (A, S)
+    # D31: heading=0 forward is world +y (not +x), so add +pi/2 to the
+    # ray directions before applying per-sensor offsets.
+    sensor_dirs = angles[:, None] + jnp.pi / 2.0 + offsets[None, :]  # (A, S)
 
     cos_s = jnp.cos(sensor_dirs)
     sin_s = jnp.sin(sensor_dirs)

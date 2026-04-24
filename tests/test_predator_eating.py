@@ -503,7 +503,7 @@ class TestEmevoSemanticPins:
         base = init_simstate(cfg_mean, jax.random.PRNGKey(7))
         base, slots = _place_agents(base, cfg_mean, [
             (1, 500.0, 500.0, 0.0),  # predator
-            (0, 560.0, 500.0, 0.0),  # prey in front for proximity, not touching
+            (0, 500.0, 560.0, 0.0),  # prey in front (+y) for proximity, not touching
         ])
         pred_slot = slots[0]
 
@@ -552,15 +552,16 @@ class TestEmevoSemanticPins:
 
         base = init_simstate(cfg_pre, jax.random.PRNGKey(11))
         base, slots = _place_agents(base, cfg_pre, [
-            (1, 500.0, 500.0, 0.0),  # predator
-            (0, 528.5, 500.0, 0.0),  # prey barely in range from predator's front
+            (1, 500.0, 500.0, 0.0),  # predator (forward = +y)
+            (0, 500.0, 528.5, 0.0),  # prey barely in range from predator's front
         ])
         pred_slot = slots[0]
 
-        # Give predator outward velocity and zero act_ratio (ignore sampled action)
+        # Give predator outward velocity (away from +y prey) and zero act_ratio
+        # (ignore sampled action)
         # so t -> t+1 sensor stimulus changes deterministically.
         circle = base.phyjax_stated.get("circle")
-        v_xy = circle.v.xy.at[pred_slot].set(jnp.array([-10.0, 0.0]))
+        v_xy = circle.v.xy.at[pred_slot].set(jnp.array([0.0, -10.0]))
         circle = circle.replace(v=pj.Velocity(angle=circle.v.angle, xy=v_xy))
         base = base.replace(
             phyjax_stated=base.phyjax_stated.replace(circle=circle),

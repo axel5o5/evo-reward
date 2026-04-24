@@ -444,8 +444,11 @@ def compute_proximity_sensors(
 
     half_fov = fov_rad / 2.0
     bin_width = fov_rad / n_sensors
+    # D31: proximity sensors follow phyjax2d's heading convention where
+    # heading=0 points along world +y (forward). Add +pi/2 so the FOV is
+    # centered on forward, matching emevo's _get_sensors local +y rays.
     sensor_centers = np.array([
-        agent_heading - half_fov + (i + 0.5) * bin_width
+        agent_heading + math.pi / 2.0 - half_fov + (i + 0.5) * bin_width
         for i in range(n_sensors)
     ])
     sensor_half_width = bin_width / 2.0 + 1e-9

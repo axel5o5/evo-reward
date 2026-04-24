@@ -600,6 +600,39 @@ before commit.
 
 ---
 
+### [D31] Proximity sensor heading frame off by 90° — FIXED 2026-04-24
+
+**Bug.** We fixed D26 for tactile bins, but proximity sensors still used a
+different heading frame. In both `src/observations.py` and
+`src/environment.py`, heading `0` treated world **+x** as forward for
+proximity, while phyjax2d/emevo uses world **+y** as forward (same
+convention tactile already follows via `-π/2`).
+
+**Impact.** A target directly ahead of an agent (world +y at heading 0)
+was outside the center of the proximity FOV, while a target to the right
+(world +x) was treated as "in front." This distorts prey fear/chase reward
+stimuli and policy learning geometry, and can make ablations around D29/D30
+look inconclusive because the underlying stimulus frame is wrong.
+
+**Fix.** Align proximity to the same +y-forward frame as emevo:
+
+- `src/observations.py`
+  - `_single_proximity_agents`: `rel_angle = angle_to - obs_angle - π/2`
+  - `_single_proximity_food`: same `-π/2` shift
+  - `_compute_wall_distances`: ray direction uses `angles + π/2 + offset`
+- `src/environment.py::compute_proximity_sensors`
+  - sensor centers now use `heading + π/2` as forward before FOV offsets
+
+**Risk of regression.** Added convention-pinning tests:
+
+- `tests/test_paper_anchored.py::test_proximity_forward_convention_reference_path`
+- `tests/test_paper_anchored.py::test_proximity_forward_convention_vectorized_path`
+
+and updated `tests/test_phase0.py` contact/range placements to use +y
+forward semantics.
+
+---
+
 ### [D30] Reward computed from post-step obs, not pre-step — FIXED 2026-04-23
 
 **Bug.** Our `sim_step_core` sampled an action from `all_obs` at the start

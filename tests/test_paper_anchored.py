@@ -225,6 +225,108 @@ def test_heading_force_direction_convention():
         )
 
 
+def test_proximity_forward_convention_reference_path(config):
+    """Proximity forward convention must match phyjax2d (+y at heading=0).
+
+    Source anchor: emevo `_get_sensors` casts rays from local +y and rotates by
+    heading. So with heading=0, targets at world +y are in front and world +x are
+    to the right (outside a ±60° FOV for 120° sensors).
+    """
+    from src.environment import (
+        AgentState,
+        WorldState,
+        compute_proximity_sensors,
+        CHANNEL_PREY,
+    )
+
+    observer = AgentState(
+        agent_id=0,
+        species=1,
+        position=jnp.array([500.0, 500.0]),
+        velocity=jnp.zeros(2),
+        angle=0.0,
+        ang_vel=0.0,
+        energy=100.0,
+    )
+
+    prey_front = AgentState(
+        agent_id=1,
+        species=0,
+        position=jnp.array([500.0, 560.0]),  # +y (front)
+        velocity=jnp.zeros(2),
+        angle=0.0,
+        ang_vel=0.0,
+        energy=100.0,
+    )
+    prey_right = AgentState(
+        agent_id=2,
+        species=0,
+        position=jnp.array([560.0, 500.0]),  # +x (right side)
+        velocity=jnp.zeros(2),
+        angle=0.0,
+        ang_vel=0.0,
+        energy=100.0,
+    )
+
+    world_front = WorldState(
+        step=0,
+        agents=[observer, prey_front],
+        food_positions=jnp.zeros((0, 2)),
+        rng_key=jax.random.PRNGKey(0),
+    )
+    world_right = WorldState(
+        step=0,
+        agents=[observer, prey_right],
+        food_positions=jnp.zeros((0, 2)),
+        rng_key=jax.random.PRNGKey(1),
+    )
+
+    front_readings = compute_proximity_sensors(observer, world_front, config)[:, CHANNEL_PREY]
+    right_readings = compute_proximity_sensors(observer, world_right, config)[:, CHANNEL_PREY]
+
+    assert float(jnp.max(front_readings)) > 0.0, "front (+y) target should be detected"
+    assert float(jnp.max(right_readings)) <= 0.0, "right (+x) target should be outside FOV"
+
+
+def test_proximity_forward_convention_vectorized_path(config):
+    """Vectorized proximity path must share the same +y-forward convention."""
+    from src.observations import compute_all_observations
+    from src.environment import CHANNEL_PREY
+
+    def _prey_channel_max(prey_xy):
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        state, slots = _place_agents(state, config, [
+            (1, 500.0, 500.0, 0.0),  # observer predator, heading=0
+            (0, prey_xy[0], prey_xy[1], 0.0),
+        ])
+        obs_slot = slots[0]
+        circle = state.phyjax_stated.get("circle")
+        obs_state = {
+            "positions": circle.p.xy,
+            "angles": circle.p.angle,
+            "velocities_xy": circle.v.xy,
+            "velocities_ang": circle.v.angle,
+            "is_active": state.is_active,
+            "species": state.species,
+            "radii": state.radii,
+            "energies": state.energies,
+            "food_positions": state.food_positions,
+            "food_active": state.food_active,
+            "max_agents": int(state.is_active.shape[0]),
+        }
+        obs = compute_all_observations(obs_state, config)
+        n_s = config["n_proximity_sensors"]
+        n_c = config["n_proximity_channels"]
+        prox = obs[obs_slot, : n_s * n_c].reshape(n_s, n_c)
+        return float(jnp.max(prox[:, CHANNEL_PREY]))
+
+    max_front = _prey_channel_max((500.0, 560.0))  # +y
+    max_right = _prey_channel_max((560.0, 500.0))  # +x
+
+    assert max_front > 0.0, "front (+y) target should be detected"
+    assert max_right <= 0.0, "right (+x) target should be outside FOV"
+
+
 # ════════════════════════════════════════════════════════════════════════
 # 2. TRANSFORMATION INVARIANTS
 #    Things that MUST hold under rotation / translation / repeated calls,

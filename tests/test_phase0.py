@@ -195,7 +195,8 @@ class TestSensorContact:
             AgentState, WorldState, compute_proximity_sensors, CHANNEL_FOOD,
         )
 
-        # Place agent at (480, 480) facing right (angle=0)
+        # Place agent at (480, 480). With phyjax2d convention, angle=0 means
+        # forward is world +y.
         agent = AgentState(
             agent_id=0, species=0,
             position=jnp.array([480.0, 480.0]),
@@ -204,9 +205,9 @@ class TestSensorContact:
             energy=100.0,
         )
 
-        # Place food directly in front, at contact distance
-        # Contact = food at agent_pos + (agent_radius, 0) = (490, 480)
-        food_pos = jnp.array([[490.0, 480.0]])
+        # Place food directly in front (+y), at contact distance.
+        # Contact center distance for prey-food is prey_r + food_r = 14.
+        food_pos = jnp.array([[480.0, 494.0]])
 
         world = WorldState(
             step=0,
@@ -240,8 +241,8 @@ class TestSensorContact:
             energy=100.0,
         )
 
-        # Place food very far away (outside max range=200)
-        food_pos = jnp.array([[480.0 + 250.0, 480.0]])
+        # Place food very far away straight ahead (+y), outside max range=200.
+        food_pos = jnp.array([[480.0, 480.0 + 250.0]])
 
         world = WorldState(
             step=0,
