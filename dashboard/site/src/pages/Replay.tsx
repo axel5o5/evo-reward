@@ -14,6 +14,7 @@ import {
   replaysBaseUrl,
 } from "../lib/replayLoader";
 import { computeReplayStats } from "../lib/replayStats";
+import { displayRunTag } from "../lib/replayNaming";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -306,7 +307,8 @@ export default function Replay() {
             />
             {selected?.run_tag && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                ⚠ Archived run: <code>{selected.run_tag}</code> — see
+                ⚠ Archived run: <code>{displayRunTag(selected.run_tag)}</code>
+                <span className="text-[10px] ml-1">(raw: {selected.run_tag})</span> — see
                 <a
                   href="https://github.com/axel5o5/evo-reward/blob/main/docs/emevo-diff.md#d18"
                   target="_blank"

@@ -24,7 +24,7 @@ Running log of every Phase 1a run, the code state it was launched against, outco
 | `d31a` | 2026-04-24 | `94fc91c` (+D31) | 0 | 80K | Extinct @ 70K | (max,pre_step). pred peak 38@20K |
 | `d31b` | 2026-04-24 | same | 0 | 80K | Extinct @ 80K | (mean,pre_step). pred peak 36@20K |
 | `d31c` | 2026-04-24 | same | 0 | 80K | Pred=3@80K (not extinct yet, declining) | (max,post_step). **First run where fear evolved (prey_w_pred=-0.53)** |
-| `d31d` | 2026-04-24 | same | 0 | 80K | running… | (mean,post_step) — nominal emevo-faithful combo |
+| `d31d` | 2026-04-24 | same | 0 | 80K | Pred=2@80K (declining from 38) | (mean,post_step) nominal emevo-faithful. pred peak 38@20K. Same crash as a/b/c |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = |prey_w_pred| > 0.3 sustained.
 
@@ -94,9 +94,13 @@ Same class as D26 (which was previously the "single most likely cause of extinct
 - **d31a** (max, pre_step): pred peak 38 @ 20K, extinct @ 70K
 - **d31b** (mean, pre_step): pred peak 36 @ 20K, extinct @ 80K
 - **d31c** (max, post_step): pred peak 35 @ 30K, **pred=3 at 80K** — first run where fear actually evolved (prey_w_pred=-0.53)
-- **d31d** (mean, post_step): in progress
+- **d31d** (mean, post_step): pred peak 38 @ 20K, pred=2 at 80K, prey crashed to 104. pred_w_pred drifted **positive** (+0.18) — peer-presence-is-good, not fear.
 
-D31 helped — d31c shows real evolutionary signal — but no cell has yet sustained predators past a single LV cycle. Same overshoot-then-crash pattern.
+**2x2 verdict: D29 and D30 don't materially change outcome.** All four cells overshoot (peak 35-38 around step 20-30K), then crash as prey deplete. The reward-signal wiring (max vs mean, pre vs post) is not the lever. The structural issue is the population dynamics at first peak.
+
+### Decision: run emevo end-to-end (2026-04-24)
+
+Three months of source-level verification hasn't resolved the overshoot. Next move: actually run emevo's `cf_predator.py` on the paper-default config and compare log trajectories at matched seed. If emevo reproduces pred≈23 and ours doesn't at the same seed + config, the divergence is real and diffing logs isolates where. If emevo *also* extincts on seed 0, we're in paper's silently-dropped-seed regime and need multi-seed anyway.
 
 ---
 
@@ -137,9 +141,10 @@ So seed variance / extinction is real in the paper too. But their default clearl
 
 ## Next experiments planned
 
-- **Seed variance on D31**: run seeds 1, 2, 3 on `baseline_faithful.yaml` (`d31d` combo) — see if paper-default behavior reproduces for some subset
+- **emevo reproduction smoke (priority 1)**: run emevo `cf_predator.py evolve --seed 0 --cfconfig-path config/env/20251001-predator-default.toml` to 500K steps (~6h L4). Decides whether their code reproduces paper on our hardware. See `scripts/emevo_repro/`.
+- **Seed variance on D31** (priority 2): run seeds 1, 2, 3 on `baseline_faithful.yaml` (`d31d` combo) — see if paper-default behavior reproduces for some subset
 - **Parameter sensitivity**: ±20% on `predator_eta` and `zeta_b_pred` to test overshoot hypothesis
-- **Specific emevo commit pin**: cross-check src/ against emevo `a777689` (gecco2026 tip just before arxiv submission)
+- **Specific emevo commit pin**: if HEAD (`f87a880`) doesn't reproduce, fall back to `a777689` (closer to arxiv v2 submission)
 
 ---
 

@@ -1,5 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ReplayIndexEntry } from "../lib/replayLoader";
+import {
+  describeReplay,
+  displayExperimentName,
+  displayRunTag,
+  variantForExp,
+} from "../lib/replayNaming";
 
 interface Props {
   replays: ReplayIndexEntry[];
@@ -9,9 +15,6 @@ interface Props {
 
 const tagOf = (r: ReplayIndexEntry) => r.run_tag || "current";
 
-const tagLabel = (tag: string) =>
-  tag === "current" ? "Current" : tag.replace(/_/g, " ");
-
 function pickFirst(
   replays: ReplayIndexEntry[],
   pred: (r: ReplayIndexEntry) => boolean,
@@ -19,10 +22,32 @@ function pickFirst(
   return replays.find(pred);
 }
 
+function compareVariant(a: string, b: string): number {
+  const rank = (v: string): number => {
+    if (v === "Baseline") return 0;
+    const axis = v.match(/^Axis (\d+)$/);
+    if (axis) return 10 + Number(axis[1]);
+    if (v === "Demo") return 90;
+    return 50;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  if (ra !== rb) return ra - rb;
+  return a.localeCompare(b);
+}
+
 export default function ReplaySelector({ replays, selected, onSelect }: Props) {
-  const activeTag = selected ? tagOf(selected) : "current";
-  const activeExp = selected?.exp ?? "";
-  const activeSeed = selected?.seed ?? -1;
+  const [expSort, setExpSort] = useState<"recent" | "az">("recent");
+  const fallback = replays[0] ?? null;
+  const activeTag = selected ? tagOf(selected) : fallback ? tagOf(fallback) : "current";
+  const activeVariant = selected
+    ? variantForExp(selected.exp)
+    : fallback
+      ? variantForExp(fallback.exp)
+      : "";
+  const activeExp = selected?.exp ?? fallback?.exp ?? "";
+  const activeSeed = selected?.seed ?? fallback?.seed ?? -1;
+  const selectedDisplay = selected ? describeReplay(selected) : null;
 
   // Tags — "current" first, rest alpha.
   const tags = useMemo(() => {
@@ -34,19 +59,47 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
     });
   }, [replays]);
 
-  const expsInTag = useMemo(() => {
-    const s = new Set(replays.filter((r) => tagOf(r) === activeTag).map((r) => r.exp));
-    return Array.from(s).sort();
+  const variantsInTag = useMemo(() => {
+    const s = new Set(
+      replays
+        .filter((r) => tagOf(r) === activeTag)
+        .map((r) => variantForExp(r.exp)),
+    );
+    return Array.from(s).sort(compareVariant);
   }, [replays, activeTag]);
+
+  const expsInVariant = useMemo(() => {
+    const grouped = new Map<string, number>();
+    for (const r of replays) {
+      if (tagOf(r) !== activeTag) continue;
+      if (variantForExp(r.exp) !== activeVariant) continue;
+      const cur = grouped.get(r.exp) ?? -1;
+      if (r.start_step > cur) grouped.set(r.exp, r.start_step);
+    }
+    const entries = Array.from(grouped.entries());
+    if (expSort === "recent") {
+      entries.sort((a, b) => b[1] - a[1]);
+    } else {
+      entries.sort((a, b) =>
+        displayExperimentName(a[0]).localeCompare(displayExperimentName(b[0])),
+      );
+    }
+    return entries.map(([exp]) => exp);
+  }, [replays, activeTag, activeVariant, expSort]);
 
   const seedsInExp = useMemo(() => {
     const s = new Set(
       replays
-        .filter((r) => tagOf(r) === activeTag && r.exp === activeExp)
+        .filter(
+          (r) =>
+            tagOf(r) === activeTag &&
+            variantForExp(r.exp) === activeVariant &&
+            r.exp === activeExp,
+        )
         .map((r) => r.seed),
     );
     return Array.from(s).sort((a, b) => a - b);
-  }, [replays, activeTag, activeExp]);
+  }, [replays, activeTag, activeVariant, activeExp]);
 
   const timeline = useMemo(() => {
     const matches = replays
@@ -77,6 +130,29 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
         replays,
         (r) => tagOf(r) === activeTag && r.exp === exp && r.seed === activeSeed,
       ) ?? pickFirst(replays, (r) => tagOf(r) === activeTag && r.exp === exp);
+    if (next) onSelect(next);
+  };
+  const pickVariant = (variant: string) => {
+    const next =
+      pickFirst(
+        replays,
+        (r) =>
+          tagOf(r) === activeTag &&
+          variantForExp(r.exp) === variant &&
+          r.exp === activeExp &&
+          r.seed === activeSeed,
+      ) ??
+      pickFirst(
+        replays,
+        (r) =>
+          tagOf(r) === activeTag &&
+          variantForExp(r.exp) === variant &&
+          r.exp === activeExp,
+      ) ??
+      pickFirst(
+        replays,
+        (r) => tagOf(r) === activeTag && variantForExp(r.exp) === variant,
+      );
     if (next) onSelect(next);
   };
   const pickSeed = (seed: number) => {
@@ -111,6 +187,33 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
+      {selectedDisplay && (
+        <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 p-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Selected replay
+          </div>
+          <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {selectedDisplay.title}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {selectedDisplay.chips.map((chip) => (
+              <span
+                key={chip}
+                className="px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
+            Run: {selectedDisplay.runLabel}
+          </div>
+          <div className="mt-0.5 text-[10px] font-mono text-gray-500 dark:text-gray-400 break-all">
+            Raw id: {selectedDisplay.rawId}
+          </div>
+        </div>
+      )}
+
       {tags.length > 1 && (
         <Row label="Run">
           {tags.map((t) => (
@@ -120,23 +223,63 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
               className={chipClass(t === activeTag)}
               title={t}
             >
-              {tagLabel(t)}
+              {displayRunTag(t === "current" ? undefined : t)}
             </button>
           ))}
         </Row>
       )}
 
-      <Row label="Experiment">
-        {expsInTag.map((e) => (
-          <button
-            key={e}
-            onClick={() => pickExp(e)}
-            className={chipClass(e === activeExp)}
+      {variantsInTag.length > 1 && (
+        <Row label="Variant">
+          {variantsInTag.map((v) => (
+            <button
+              key={v}
+              onClick={() => pickVariant(v)}
+              className={chipClass(v === activeVariant)}
+            >
+              {v}
+            </button>
+          ))}
+        </Row>
+      )}
+
+      <div>
+        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 flex items-center justify-between gap-2">
+          <span>Simulation</span>
+          <select
+            value={expSort}
+            onChange={(e) => setExpSort(e.target.value as "recent" | "az")}
+            className="text-[11px] normal-case tracking-normal border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded px-1.5 py-0.5 text-gray-600 dark:text-gray-300"
+            title="Sort simulations"
           >
-            {e}
-          </button>
-        ))}
-      </Row>
+            <option value="recent">Most recent</option>
+            <option value="az">A → Z</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {expsInVariant.map((e) => {
+            const active = e === activeExp;
+            return (
+              <button
+                key={e}
+                onClick={() => pickExp(e)}
+                className={`w-full rounded-lg border p-2 text-left transition ${
+                  active
+                    ? "border-blue-600 bg-blue-50 dark:bg-blue-950/40"
+                    : "border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-blue-400 dark:hover:border-blue-500"
+                }`}
+              >
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {displayExperimentName(e)}
+                </div>
+                <div className="text-[10px] font-mono text-gray-500 dark:text-gray-400 mt-0.5">
+                  {e}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <Row label="Seed">
         {seedsInExp.map((s) => (
@@ -199,7 +342,8 @@ function TimelineMarker({
   onSelect: () => void;
 }) {
   const spark = entry.sparkline;
-  const title = `${entry.exp} seed ${entry.seed} · step ${entry.start_step.toLocaleString()} (+${entry.n_frames})`;
+  const display = describeReplay(entry);
+  const title = `${display.title} · ${display.runLabel} · seed ${entry.seed} · step ${entry.start_step.toLocaleString()} (+${entry.n_frames})`;
   return (
     <button
       onClick={onSelect}

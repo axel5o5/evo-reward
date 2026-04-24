@@ -10,6 +10,7 @@ import {
   fetchReplay,
 } from "../lib/replayLoader";
 import { computeReplayStats } from "../lib/replayStats";
+import { describeReplay } from "../lib/replayNaming";
 
 // Compact replay key: "tag:exp:seed:step". `tag` is empty for untagged
 // replays (rendered as just ":exp:seed:step"). Kept deliberately human-
@@ -40,8 +41,8 @@ function matchEntry(replays: ReplayIndexEntry[], key: Key): ReplayIndexEntry | n
 }
 
 function labelFor(e: ReplayIndexEntry): string {
-  const tag = e.run_tag || "current";
-  return `${tag} / ${e.exp} / seed ${e.seed} @ step ${e.start_step.toLocaleString()}`;
+  const display = describeReplay(e);
+  return `${display.title} · ${display.runLabel} · seed ${e.seed} · step ${e.start_step.toLocaleString()}`;
 }
 
 export default function ReplayCompare() {
@@ -195,8 +196,11 @@ export default function ReplayCompare() {
               { data: dataB, stats: statsB, entry: entryB },
             ].map((p, i) => (
               <div key={i} className="flex flex-col gap-2">
-                <div className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                <div className="text-sm text-gray-700 dark:text-gray-300">
                   {String.fromCharCode(65 + i)}. {labelFor(p.entry)}
+                  <div className="text-[10px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 break-all">
+                    raw: {describeReplay(p.entry).rawId}
+                  </div>
                 </div>
                 <div className="aspect-square border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-950">
                   <ReplayCanvas
