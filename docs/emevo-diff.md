@@ -621,6 +621,11 @@ computation. Pre-step `all_obs` is still used for policy sampling and the
 rollout buffer (correct — the action was conditioned on that obs).
 Extra cost: one obs_fn call per step (~few ms at 500 agents).
 
+**Verification notes (2026-04-24):** confirmed directly in `emevo_src/`
+for both `origin/gecco2026` and the older `origin/predator` branch:
+`exec_rollout` always computes reward from `obs_t1 = timestep.obs` after
+`env.step(...)`, not from `obs_t` / `obs_t_array`.
+
 ---
 
 ### [D29] Proximity sensor reward: mean, not max — FIXED 2026-04-23
@@ -637,6 +642,11 @@ is damped but still wrong direction.
 **Fix.** `sensor_agg_type` config key, default `"mean"` (paper-faithful).
 Set in `baseline_faithful.yaml`. Captured at build-time in `jax_sim.py`
 so the JIT trace sees a concrete fn.
+
+**Verification notes (2026-04-24):** in `emevo_src/experiments/cf_predator.py`
+the older `origin/predator` branch has mean-only aggregation; later
+`origin/gecco2026` adds a max option but keeps the default as
+`sensor_agg_type="mean"`.
 
 ---
 

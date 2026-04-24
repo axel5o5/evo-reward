@@ -106,6 +106,38 @@ def test_predator_mouth_tactile_bins():
     assert cfg["predator_mouth_tactile_bins"] == [0, 1, 17]
 
 
+def test_reward_sensor_agg_default_mean():
+    """D29 pin: baseline defaults to emevo's mean aggregation over sensors.
+
+    emevo gecco2026 cf_predator.py default is `sensor_agg_type="mean"`.
+    """
+    cfg = _load_baseline()
+    assert cfg["sensor_agg_type"] == "mean"
+
+
+def test_reward_obs_timing_default_post_step():
+    """D30 pin: baseline reward proximity stimulus uses post-step obs.
+
+    emevo computes reward from `obs_t1.sensor` (post env.step), so our
+    faithful baseline should keep `reward_obs_timing="post_step"`.
+    """
+    cfg = _load_baseline()
+    assert cfg["reward_obs_timing"] == "post_step"
+
+
+def test_jax_sim_exposes_reward_obs_timing_toggle():
+    """Ablation safety rail: jax_sim must keep both pre/post timing paths.
+
+    We intentionally pin this as a source-level contract so D30a/D30b
+    one-variable ablations remain possible without editing code again.
+    """
+    import src.jax_sim as sim_mod
+    src_text = pathlib.Path(sim_mod.__file__).read_text()
+    assert 'config.get("reward_obs_timing", "post_step")' in src_text
+    assert 'reward_obs = obs_fn(obs_state_post)' in src_text
+    assert 'reward_obs = all_obs' in src_text
+
+
 def test_physics_iter_count():
     """emevo nstep runs N=5 physics substeps per sim step."""
     assert N_PHYSICS_ITER == 5

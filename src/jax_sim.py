@@ -61,6 +61,16 @@ def build_sim_step(config, space):
     assert _agg_type in ("mean", "max"), f"sensor_agg_type must be mean|max, got {_agg_type!r}"
     _sensor_agg = jnp.mean if _agg_type == "mean" else jnp.max
 
+    # D30 ablation control: reward proximity stimulus can be computed from
+    # pre-step observations (`all_obs`) or post-step observations (`all_obs_post`).
+    # emevo computes reward from obs_t1.sensor (post-step). Keep that as default,
+    # but expose a toggle so we can run one-variable ablations cleanly.
+    _reward_obs_timing = config.get("reward_obs_timing", "post_step")
+    assert _reward_obs_timing in ("pre_step", "post_step"), (
+        f"reward_obs_timing must be pre_step|post_step, got {_reward_obs_timing!r}"
+    )
+    _use_post_obs_for_reward = _reward_obs_timing == "post_step"
+
     # Pre-build the policy network for action sampling
     net = PolicyNetwork(hidden_size=config["policy_hidden_size"], action_dim=2)
 
@@ -213,32 +223,31 @@ def build_sim_step(config, space):
         )
 
         # === 6. Compute rewards (vectorized) ===
-        # D30: reward uses POST-physics, POST-catch observations. emevo's
-        # cf_predator.py computes reward from `obs_t1.sensor` (the obs the
-        # agent will see next step), not the pre-step obs the action was
-        # sampled from. Credit alignment: action at t is paired with the
-        # stimulus that resulted from it, not the stimulus that motivated
-        # it. Our old code used pre-step `all_obs`, shifting the fear/chase
-        # gradient by one step — subtle but non-trivial for policy learning.
-        circle_post = sim_state.phyjax_stated.get("circle")
-        obs_state_post = {
-            "positions": circle_post.p.xy,
-            "angles": circle_post.p.angle,
-            "velocities_xy": circle_post.v.xy,
-            "velocities_ang": circle_post.v.angle,
-            "is_active": sim_state.is_active,
-            "species": sim_state.species,
-            "radii": sim_state.radii,
-            "energies": sim_state.energies,
-            "food_positions": sim_state.food_positions,
-            "food_active": sim_state.food_active,
-            "max_agents": max_agents,
-        }
-        all_obs_post = obs_fn(obs_state_post)
+        # D30 default: reward uses POST-physics, POST-catch observations
+        # (emevo's `obs_t1.sensor` semantics). For controlled ablations, we can
+        # optionally force PRE-step obs via reward_obs_timing="pre_step".
+        if _use_post_obs_for_reward:
+            circle_post = sim_state.phyjax_stated.get("circle")
+            obs_state_post = {
+                "positions": circle_post.p.xy,
+                "angles": circle_post.p.angle,
+                "velocities_xy": circle_post.v.xy,
+                "velocities_ang": circle_post.v.angle,
+                "is_active": sim_state.is_active,
+                "species": sim_state.species,
+                "radii": sim_state.radii,
+                "energies": sim_state.energies,
+                "food_positions": sim_state.food_positions,
+                "food_active": sim_state.food_active,
+                "max_agents": max_agents,
+            }
+            reward_obs = obs_fn(obs_state_post)
+        else:
+            reward_obs = all_obs
 
         # D29: aggregate proximity stimuli via mean (emevo default) or max
         # per sensor_agg_type config key. Captured in closure at build time.
-        prox_all = all_obs_post[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)
+        prox_all = reward_obs[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)
         s_prey = _sensor_agg(jnp.clip(prox_all[:, :, CHANNEL_PREY], 0.0), axis=1)
         s_pred = _sensor_agg(jnp.clip(prox_all[:, :, CHANNEL_PREDATOR], 0.0), axis=1)
         motor_norms = jnp.linalg.norm(all_actions, axis=1) / F_max

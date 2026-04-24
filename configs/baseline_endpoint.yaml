@@ -65,6 +65,8 @@ proximity_max_range:    200.0
 n_tactile_sensors:      9            # endpoint: n_tactile_bins = 9 (DIFFERS from faithful 18)
 n_tactile_channels:     4
 tactile_spacing_deg:    40.0         # 360 / 9 = 40° per bin
+sensor_agg_type:        "mean"       # endpoint cf_predator.py default
+reward_obs_timing:      "post_step"  # endpoint computes reward from obs_t1.sensor
 
 # ─── Food ─────────────────────────────────────────────────────────────────────
 food_max:               600

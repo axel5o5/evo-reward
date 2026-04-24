@@ -449,3 +449,140 @@ class TestIndependentTimers:
         # B didn't catch, timer decremented from 0 to -1
         assert int(pred_n_catches[pred_b]) == 0
         assert int(new_timer[pred_b]) == -1
+
+
+class TestEmevoSemanticPins:
+    """Pins for D28/D29/D30 semantics used by ablation runs.
+
+    These are small, one-step checks so we can safely flip the new
+    ablation knobs without accidentally changing the baseline semantics.
+    """
+
+    def test_shared_credit_two_predators_same_prey(self, config):
+        """D28 pin: if two predators contact the same prey in-mouth on the
+        same step, both receive catch credit/energy (emevo semantics).
+
+        Prey should still die once (caught mask true for that prey slot).
+        """
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        state, slots = _place_agents(state, config, [
+            (1, 498.0, 500.0, 0.0),   # predator A, slightly left of center
+            (1, 502.0, 500.0, 0.0),   # predator B, slightly right
+            (0, 500.0, 520.0, 0.0),   # prey in front of both, touching both
+        ])
+        pred_a, pred_b, prey_slot = slots
+        prey_e = 80.0
+        state = state.replace(energies=state.energies.at[prey_slot].set(prey_e))
+
+        _, pred_caught_energy, pred_n_catches, _, _, prey_caught_mask = check_eating_jax(
+            state, config, _synthetic_contact_mat(state)
+        )
+
+        assert int(pred_n_catches[pred_a]) == 1
+        assert int(pred_n_catches[pred_b]) == 1
+        assert float(pred_caught_energy[pred_a]) == pytest.approx(prey_e, rel=1e-6)
+        assert float(pred_caught_energy[pred_b]) == pytest.approx(prey_e, rel=1e-6)
+        assert bool(prey_caught_mask[prey_slot])
+
+    def test_sensor_agg_mean_vs_max_switch_affects_reward(self, config):
+        """D29 ablation pin: max aggregation should yield >= mean for the
+        same scene; in a sparse scene (single prey target) it should be
+        strictly larger.
+        """
+        from src.environment import _build_physics
+        from src.jax_sim import build_sim_step
+
+        cfg_mean = dict(config)
+        cfg_mean["sensor_agg_type"] = "mean"
+        cfg_mean["reward_obs_timing"] = "pre_step"  # isolate D29 from D30
+
+        cfg_max = dict(config)
+        cfg_max["sensor_agg_type"] = "max"
+        cfg_max["reward_obs_timing"] = "pre_step"
+
+        base = init_simstate(cfg_mean, jax.random.PRNGKey(7))
+        base, slots = _place_agents(base, cfg_mean, [
+            (1, 500.0, 500.0, 0.0),  # predator
+            (0, 560.0, 500.0, 0.0),  # prey in front for proximity, not touching
+        ])
+        pred_slot = slots[0]
+
+        # Isolate predator reward to proximity-prey stimulus only.
+        w = jnp.zeros_like(base.reward_weights).at[pred_slot, 2].set(1.0)  # w_prey=1
+        base = base.replace(reward_weights=w)
+
+        space_mean, _ = _build_physics(cfg_mean)
+        step_mean, _ = build_sim_step(cfg_mean, space_mean)
+        out_mean = step_mean(base)
+
+        space_max, _ = _build_physics(cfg_max)
+        step_max, _ = build_sim_step(cfg_max, space_max)
+        out_max = step_max(base)
+
+        r_mean = float(out_mean.rollout_rewards[pred_slot, 0])
+        r_max = float(out_max.rollout_rewards[pred_slot, 0])
+        assert r_max > r_mean + 1e-6, (
+            f"Expected max-agg reward > mean-agg reward in sparse scene; "
+            f"got mean={r_mean:.6f}, max={r_max:.6f}"
+        )
+
+    def test_reward_obs_timing_pre_vs_post_switch(self, config):
+        """D30 ablation pin: reward_obs_timing must be a real semantic
+        switch, not a dead config key.
+
+        Scene: predator has a prey barely inside proximity range at t, and
+        moves away during physics so the prey is out of range at t+1.
+        Predator reward depends only on s_prey. With pre_step timing reward
+        sees prey; with post_step timing it should drop.
+        """
+        from src.environment import _build_physics
+        from src.jax_sim import build_sim_step
+        import phyjax2d as pj
+
+        cfg_pre = dict(config)
+        cfg_pre["sensor_agg_type"] = "mean"
+        cfg_pre["reward_obs_timing"] = "pre_step"
+        # Keep this tiny so a ~1 unit movement flips in-range -> out-of-range.
+        cfg_pre["proximity_max_range"] = 5.0
+
+        cfg_post = dict(config)
+        cfg_post["sensor_agg_type"] = "mean"
+        cfg_post["reward_obs_timing"] = "post_step"
+        cfg_post["proximity_max_range"] = 5.0
+
+        base = init_simstate(cfg_pre, jax.random.PRNGKey(11))
+        base, slots = _place_agents(base, cfg_pre, [
+            (1, 500.0, 500.0, 0.0),  # predator
+            (0, 528.5, 500.0, 0.0),  # prey barely in range from predator's front
+        ])
+        pred_slot = slots[0]
+
+        # Give predator outward velocity and zero act_ratio (ignore sampled action)
+        # so t -> t+1 sensor stimulus changes deterministically.
+        circle = base.phyjax_stated.get("circle")
+        v_xy = circle.v.xy.at[pred_slot].set(jnp.array([-10.0, 0.0]))
+        circle = circle.replace(v=pj.Velocity(angle=circle.v.angle, xy=v_xy))
+        base = base.replace(
+            phyjax_stated=base.phyjax_stated.replace(circle=circle),
+            act_ratio=base.act_ratio.at[pred_slot].set(jnp.array([0.0])),
+        )
+
+        # Isolate predator reward to proximity-prey stimulus only.
+        w = jnp.zeros_like(base.reward_weights).at[pred_slot, 2].set(1.0)  # w_prey=1
+        base = base.replace(reward_weights=w)
+
+        space_pre, _ = _build_physics(cfg_pre)
+        step_pre, _ = build_sim_step(cfg_pre, space_pre)
+        out_pre = step_pre(base)
+
+        space_post, _ = _build_physics(cfg_post)
+        step_post, _ = build_sim_step(cfg_post, space_post)
+        out_post = step_post(base)
+
+        r_pre = float(out_pre.rollout_rewards[pred_slot, 0])
+        r_post = float(out_post.rollout_rewards[pred_slot, 0])
+
+        assert r_pre > r_post + 1e-6, (
+            f"Expected pre_step reward > post_step reward in catch scene; "
+            f"got pre={r_pre:.6f}, post={r_post:.6f}"
+        )

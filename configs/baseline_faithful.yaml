@@ -58,9 +58,12 @@ n_tactile_sensors:      18           # (Section 3), n_tactile_bins = 18
 n_tactile_channels:     4            # CONFIRMED: per-type channels, same 4 types as proximity
 tactile_spacing_deg:    20.0         # degrees between sensors (360/18 = 20)
 sensor_agg_type:        "mean"       # emevo cf_predator.py default; aggregates the
-                                     # 32 proximity bins into a single scalar per
-                                     # type for the reward stimulus (w_prey, w_pred).
-                                     # Our pre-D29 code was hardcoded to "max".
+                                      # 32 proximity bins into a single scalar per
+                                      # type for the reward stimulus (w_prey, w_pred).
+                                      # Our pre-D29 code was hardcoded to "max".
+reward_obs_timing:      "post_step"  # emevo reward uses obs_t1.sensor (post env.step).
+                                      # Ablation knob: set "pre_step" to mimic our
+                                      # pre-D30 behavior for controlled comparisons.
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
 # VERIFIED: config/env/20251122-predator-square.toml:3-4

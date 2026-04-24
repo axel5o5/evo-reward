@@ -200,7 +200,7 @@ TOTAL    obs_dim = 205  (128 + 72 + 2 + 1 + 1 + 1)
 **Reward stimulus extraction** (for the 4-weight linear reward genome):
 - `max_s_prey`: max (or mean) over 32 sensors of channel 0 (prey), clipped ≥0. Source: `cf_predator.py:60-69`.
 - `max_s_pred`: max (or mean) over 32 sensors of channel 1 (predator), clipped ≥0.
-- Note: emevo default uses **mean** over sensors (`sensor_agg_type="mean"`), not max. The paper describes "most prominent" which may suggest max. Need to confirm which was used for the paper experiments.
+- Note: emevo `cf_predator.py` default uses **mean** over sensors (`sensor_agg_type="mean"`), not max (verified in both `origin/predator` and `origin/gecco2026` branches). The paper phrase "most prominent" may read like max, so we keep this as an explicit config knob (`sensor_agg_type`) for ablations.
 
 ```yaml
 obs_dim: 205   # CONFIRMED: 128 + 72 + 2 + 1 + 1 + 1
