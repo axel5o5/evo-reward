@@ -311,11 +311,11 @@ class TestEnergyCostScaling:
         ).at[pred_slot].set(jnp.array([50.0, 50.0]))
         # No eating this step — we want to measure pure action-cost drain.
         prey_n_eaten = jnp.zeros(max_agents, dtype=jnp.int32)
-        pred_catch_slots = jnp.full((max_agents, 5), -1, dtype=jnp.int32)
+        pred_caught_energy = jnp.zeros(max_agents, dtype=jnp.float32)
         pred_n_catches = jnp.zeros(max_agents, dtype=jnp.int32)
 
         new_state = update_energies_jax(
-            state, prey_n_eaten, pred_catch_slots, pred_n_catches,
+            state, prey_n_eaten, pred_caught_energy, pred_n_catches,
             all_actions, config,
         )
 

@@ -17,14 +17,15 @@ from src.jax_evolution import spawn_offspring_jax
 # Energy updates
 # ---------------------------------------------------------------------------
 
-def update_energies_jax(sim_state, prey_n_eaten, pred_catch_slots, pred_n_catches,
+def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
                         all_actions, config):
     """Vectorized energy update for all agents. Pure JAX.
 
     Args:
         sim_state: SimState
         prey_n_eaten: (max_agents,) int32 — food eaten per prey
-        pred_catch_slots: (max_agents, max_catches) int32 — caught prey slot indices
+        pred_caught_energy: (max_agents,) float32 — sum of caught prey
+            energies per predator (shared credit; D28). eta applied here.
         pred_n_catches: (max_agents,) int32 — catches per predator
         all_actions: (max_agents, 2) — actions taken (sigmoid-scaled)
         config: dict
@@ -47,12 +48,9 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_catch_slots, pred_n_catche
     # Prey food gain
     prey_gain = prey_n_eaten.astype(jnp.float32) * e_food
 
-    # Predator food gain: sum of eta * caught_prey_energy
-    # pred_catch_slots has -1 for empty; gather energies safely
-    safe_slots = jnp.clip(pred_catch_slots, 0, sim_state.energies.shape[0] - 1)
-    caught_energies = sim_state.energies[safe_slots]  # (max_agents, max_catches)
-    caught_valid = pred_catch_slots >= 0               # (max_agents, max_catches) bool
-    pred_gain = eta * jnp.sum(caught_energies * caught_valid, axis=1)  # (max_agents,)
+    # Predator food gain: eta * sum-of-caught-prey-energies, where the sum
+    # was computed upstream without nearest-pred dedup (D28 shared-credit).
+    pred_gain = eta * pred_caught_energy  # (max_agents,)
 
     # Species-conditional update
     is_prey = sim_state.species == 0

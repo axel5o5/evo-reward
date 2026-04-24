@@ -45,18 +45,17 @@ def check_eating_jax(sim_state, config, contact_mat):
 
     Returns:
         prey_n_eaten: (max_agents,) int32 — food count eaten by each agent
-        pred_catch_slots: (max_agents, max_catches) int32 — caught prey slot indices (-1 = empty)
-        pred_n_catches: (max_agents,) int32 — number of prey caught per predator
+        pred_caught_energy: (max_agents,) float32 — sum of caught prey energies
+            per predator (shared credit; no nearest-pred dedup). eta is applied
+            downstream in update_energies_jax. D28 fix.
+        pred_n_catches: (max_agents,) int32 — number of prey this predator
+            contacted this step (with mouth+contact+cooldown gates). Used as
+            the n_eaten reward-stimulus for predators.
         food_eaten_mask: (food_max,) bool — which food items were eaten
         new_predator_eat_timer: (max_agents,) int32 — updated cooldown state
-        prey_caught_mask: (max_agents,) bool — prey slots that were caught this step
-            (caller must deactivate these; see D20 in docs/emevo-diff.md). Without
-            this the predator gets the energy bonus but the prey keeps existing
-            and can be re-caught every cooldown, which lets predators eat for
-            free forever.
+        prey_caught_mask: (max_agents,) bool — prey slots caught by ANY
+            predator this step (caller must deactivate these; see D20).
     """
-    max_catches = 5  # max prey a single predator can catch per step (per eat event)
-
     # Extract state
     circle = sim_state.phyjax_stated.get("circle")
     positions = circle.p.xy
@@ -171,48 +170,33 @@ def check_eating_jax(sim_state, config, contact_mat):
                    & pred_mask[:, None] & prey_target_mask[None, :]
                    & can_eat[:, None])                            # (A, A)
 
-    # Deduplication: each prey caught by nearest valid predator
-    valid_catch_dists = jnp.where(valid_catch, dists_agents, jnp.inf)
-    nearest_pred = jnp.argmin(valid_catch_dists, axis=0)          # (A,) — which pred catches each prey
-    prey_is_caught = jnp.min(valid_catch_dists, axis=0) < jnp.inf  # (A,)
-    prey_caught_mask = prey_is_caught & prey_target_mask          # (A,)
+    # D28: shared-credit energy transfer (emevo-faithful).
+    # emevo's cf_predator.py does NOT dedup contacts to a single "nearest"
+    # predator before computing predator energy gain — every predator whose
+    # tactile-bin+contact+cooldown gates fire on a given prey receives
+    # `eta * prey_energy`. Our old code took argmin(dist) across predators
+    # and gave credit to exactly one, compressing the upper tail of the
+    # predator energy distribution. With zeta_b_pred=100 making breeding
+    # knife-edge (needs E > ~250), that compression was likely a root cause
+    # of predator extinction — a swarm-of-3 catches contributed 3× less
+    # here than in emevo.
+    #
+    # Representation change: instead of (max_agents, max_catches) slot lists
+    # we return per-predator sums directly. `pred_n_catches[i]` counts all
+    # prey predator i contacted this step; `pred_caught_energy[i]` is the
+    # sum of their energies (pre-catch). update_energies_jax applies eta.
+    pred_caught_energy = jnp.sum(
+        valid_catch.astype(jnp.float32) * energies[None, :], axis=1
+    )  # (A,)
+    pred_n_catches = jnp.sum(valid_catch.astype(jnp.int32), axis=1)  # (A,)
 
-    # Build per-predator catch arrays: (max_agents, max_catches) slot indices
-    # For each predator, collect up to max_catches caught prey slots
-    pred_catch_slots = jnp.full((max_agents, max_catches), -1, dtype=jnp.int32)
-    pred_n_catches = jnp.zeros(max_agents, dtype=jnp.int32)
-
-    # For each caught prey, scatter into the catching predator's catch list
-    # This is tricky to do purely in JAX without loops. Use lax.scan over caught prey.
-    caught_prey_indices = jnp.where(prey_caught_mask, jnp.arange(max_agents), -1)
-
-    def add_catch(carry, prey_slot):
-        catch_slots, n_catches = carry
-        is_valid = prey_slot >= 0
-        pred_slot = jnp.where(is_valid, nearest_pred[prey_slot], 0)
-        catch_idx = jnp.where(is_valid, n_catches[pred_slot], 0)
-        can_add = is_valid & (catch_idx < max_catches)
-
-        catch_slots = jnp.where(
-            can_add,
-            catch_slots.at[pred_slot, catch_idx].set(prey_slot),
-            catch_slots,
-        )
-        n_catches = jnp.where(
-            can_add,
-            n_catches.at[pred_slot].add(1),
-            n_catches,
-        )
-        return (catch_slots, n_catches), None
-
-    (pred_catch_slots, pred_n_catches), _ = jax.lax.scan(
-        add_catch,
-        (pred_catch_slots, pred_n_catches),
-        caught_prey_indices,
-    )
+    # Prey dies if ANY predator caught it (not just nearest).
+    prey_is_caught = jnp.any(valid_catch, axis=0)                  # (A,)
+    prey_caught_mask = prey_is_caught & prey_target_mask           # (A,)
 
     # Zero out non-predator agents
     pred_n_catches = jnp.where(pred_mask, pred_n_catches, 0)
+    pred_caught_energy = jnp.where(pred_mask, pred_caught_energy, 0.0)
 
     # Cooldown update (mirrors emevo's circle_foraging_with_predator step):
     #   timer = eat_interval if caught_this_step else max(timer - 1, floor)
@@ -225,7 +209,7 @@ def check_eating_jax(sim_state, config, contact_mat):
         caught_this_step, jnp.int32(eat_interval), decremented
     )
 
-    return (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
+    return (prey_n_eaten, pred_caught_energy, pred_n_catches, food_eaten_mask,
             new_predator_eat_timer, prey_caught_mask)
 
 

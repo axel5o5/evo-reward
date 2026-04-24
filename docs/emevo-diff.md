@@ -600,6 +600,76 @@ before commit.
 
 ---
 
+### [D30] Reward computed from post-step obs, not pre-step — FIXED 2026-04-23
+
+**Bug.** Our `sim_step_core` sampled an action from `all_obs` at the start
+of the step, then computed reward later using that same `all_obs`. emevo's
+`cf_predator.py` computes reward from `obs_t1.sensor` — the observation the
+agent will see *next* step, after physics and contact processing. The
+credit signal is paired with the consequence of the action, not with the
+stimulus that motivated it.
+
+**Impact.** Temporal shift of the proximity-reward gradient by one step.
+Fear/chase learning pairs action at `t` with `sensor(t)` instead of
+`sensor(t+1)`. For a predator-prey evasion loop this means the prey's
+"I should have moved away" signal is miscomputed as "I moved because I saw
+predator here" rather than "I still see predator here after moving."
+
+**Fix.** `jax_sim.py` now rebuilds obs-state from post-physics,
+post-catch `sim_state` and calls `obs_fn` a second time for the reward
+computation. Pre-step `all_obs` is still used for policy sampling and the
+rollout buffer (correct — the action was conditioned on that obs).
+Extra cost: one obs_fn call per step (~few ms at 500 agents).
+
+---
+
+### [D29] Proximity sensor reward: mean, not max — FIXED 2026-04-23
+
+**Bug.** Our reward code hardcoded `jnp.max(...)` over the 32 proximity
+bins for the `s_prey`/`s_pred` stimulus. emevo's `cf_predator.py` defaults
+to `sensor_agg_type="mean"`. A single sharp detection in any bin gave a
+far stronger fear/chase gradient than emevo produces.
+
+**Impact.** Coupled with D27's already-large pre-fix fear signal: prey
+evolve fear too fast, over-evade, starve predators. Post-D27 this effect
+is damped but still wrong direction.
+
+**Fix.** `sensor_agg_type` config key, default `"mean"` (paper-faithful).
+Set in `baseline_faithful.yaml`. Captured at build-time in `jax_sim.py`
+so the JIT trace sees a concrete fn.
+
+---
+
+### [D28] Predator energy credit: shared, not deduplicated — FIXED 2026-04-23
+
+**TL;DR: likely root cause of predator knife-edge extinction.**
+
+**Bug.** `check_eating_jax` took `argmin(dist)` over predators and gave
+catch credit to exactly one predator per prey. emevo's `cf_predator.py`
+does not dedup — every predator whose tactile+contact+cooldown gates
+fire on a given prey receives `eta · prey_energy`. If three predators
+swarm a prey, emevo credits three transfers; we credited one.
+
+**Impact.** Upper tail of the predator energy distribution is compressed.
+With `zeta_b_pred = 100` (saturates breeding at E ≈ 250), only predators
+spiking above that threshold reproduce. Our diagnosis of seed 0 and
+seed 1 runs showed predator `max(E)` crossing 250 only in the first
+~30K steps, then dropping irrecoverably once prey populations dipped.
+With shared credit, swarm catches (which are common at high pred
+density) give 2-3× the energy, keeping the upper tail above breeding
+threshold long enough for offspring to establish.
+
+**Fix.** Removed the `nearest_pred` argmin + `add_catch` scan in
+`jax_food.py::check_eating_jax`. New return shape:
+`pred_caught_energy[i] = Σⱼ valid_catch[i,j] · energies[j]`;
+`pred_n_catches[i] = Σⱼ valid_catch[i,j]`;
+`prey_caught_mask[j] = any(valid_catch[:,j])` — each prey still dies
+exactly once but can feed multiple predators.
+`update_energies_jax` now takes `pred_caught_energy` directly and
+applies `η` itself.
+
+---
+
 ### [D27] Sensor range 200 → 120 (paper Appendix A) — FIXED 2026-04-22
 
 **Context.** `phase1a-v5` ran the full D18-D26 fix stack, produced two

@@ -52,6 +52,15 @@ def build_sim_step(config, space):
     # Pre-build the JIT-compiled observation function
     obs_fn = _build_obs_fn(config, max_agents, food_max)
 
+    # D29: sensor aggregation for the prey/pred reward stimuli. emevo's
+    # cf_predator.py defaults to `sensor_agg_type="mean"` (averages over the
+    # 32 proximity bins); our old code was hardcoded to `max`, giving a
+    # stronger fear/chase signal than the paper actually used. Config-gated
+    # with "mean" as the paper-faithful default.
+    _agg_type = config.get("sensor_agg_type", "mean")
+    assert _agg_type in ("mean", "max"), f"sensor_agg_type must be mean|max, got {_agg_type!r}"
+    _sensor_agg = jnp.mean if _agg_type == "mean" else jnp.max
+
     # Pre-build the policy network for action sampling
     net = PolicyNetwork(hidden_size=config["policy_hidden_size"], action_dim=2)
 
@@ -161,7 +170,7 @@ def build_sim_step(config, space):
         )
 
         # === 5. Check eating ===
-        (prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask,
+        (prey_n_eaten, pred_caught_energy, pred_n_catches, food_eaten_mask,
          new_predator_eat_timer, prey_caught_mask) = check_eating_jax(
              sim_state, config, contact_mat
          )
@@ -204,9 +213,34 @@ def build_sim_step(config, space):
         )
 
         # === 6. Compute rewards (vectorized) ===
-        prox_all = all_obs[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)
-        max_s_prey = jnp.max(jnp.clip(prox_all[:, :, CHANNEL_PREY], 0.0), axis=1)
-        max_s_pred = jnp.max(jnp.clip(prox_all[:, :, CHANNEL_PREDATOR], 0.0), axis=1)
+        # D30: reward uses POST-physics, POST-catch observations. emevo's
+        # cf_predator.py computes reward from `obs_t1.sensor` (the obs the
+        # agent will see next step), not the pre-step obs the action was
+        # sampled from. Credit alignment: action at t is paired with the
+        # stimulus that resulted from it, not the stimulus that motivated
+        # it. Our old code used pre-step `all_obs`, shifting the fear/chase
+        # gradient by one step — subtle but non-trivial for policy learning.
+        circle_post = sim_state.phyjax_stated.get("circle")
+        obs_state_post = {
+            "positions": circle_post.p.xy,
+            "angles": circle_post.p.angle,
+            "velocities_xy": circle_post.v.xy,
+            "velocities_ang": circle_post.v.angle,
+            "is_active": sim_state.is_active,
+            "species": sim_state.species,
+            "radii": sim_state.radii,
+            "energies": sim_state.energies,
+            "food_positions": sim_state.food_positions,
+            "food_active": sim_state.food_active,
+            "max_agents": max_agents,
+        }
+        all_obs_post = obs_fn(obs_state_post)
+
+        # D29: aggregate proximity stimuli via mean (emevo default) or max
+        # per sensor_agg_type config key. Captured in closure at build time.
+        prox_all = all_obs_post[:, :n_sensors * n_channels].reshape(max_agents, n_sensors, n_channels)
+        s_prey = _sensor_agg(jnp.clip(prox_all[:, :, CHANNEL_PREY], 0.0), axis=1)
+        s_pred = _sensor_agg(jnp.clip(prox_all[:, :, CHANNEL_PREDATOR], 0.0), axis=1)
         motor_norms = jnp.linalg.norm(all_actions, axis=1) / F_max
 
         n_eaten_reward = jnp.where(
@@ -216,7 +250,7 @@ def build_sim_step(config, space):
         )
 
         coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
-        stimuli = jnp.stack([n_eaten_reward, motor_norms, max_s_prey, max_s_pred], axis=1)
+        stimuli = jnp.stack([n_eaten_reward, motor_norms, s_prey, s_pred], axis=1)
         all_rewards = jnp.sum(sim_state.reward_weights * stimuli * coefs, axis=1)
         all_rewards = jnp.where(sim_state.is_active, all_rewards, 0.0)
 
@@ -237,7 +271,7 @@ def build_sim_step(config, space):
 
         # === 7. Update energies ===
         sim_state = update_energies_jax(
-            sim_state, prey_n_eaten, pred_catch_slots, pred_n_catches,
+            sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
             all_actions, config,
         )
 

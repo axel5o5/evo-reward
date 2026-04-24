@@ -126,11 +126,11 @@ def build_phase_fns(config, space):
         return check_eating_jax(sim_state, config, contact_mat)
 
     @jax.jit
-    def phase_energy_births_food(sim_state, prey_n_eaten, pred_catch_slots, pred_n_catches,
+    def phase_energy_births_food(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
                                  all_actions, food_eaten_mask):
         sim_state = remove_eaten_food_jax(sim_state, food_eaten_mask)
         sim_state = update_energies_jax(
-            sim_state, prey_n_eaten, pred_catch_slots, pred_n_catches, all_actions, config
+            sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches, all_actions, config
         )
         sim_state = process_births_and_deaths_jax(sim_state, config)
         sim_state = regenerate_food_jax(sim_state, config)
@@ -217,12 +217,12 @@ def main():
     mean, std = time_phase(phase_eating, (sim_state_post_phys, contacts), args.iter)
     phase_times.append(("eating (O(N^2) catch)", mean, std))
 
-    prey_n_eaten, pred_catch_slots, pred_n_catches, food_eaten_mask, _, _ = phase_eating(sim_state_post_phys, contacts)
+    prey_n_eaten, pred_caught_energy, pred_n_catches, food_eaten_mask, _, _ = phase_eating(sim_state_post_phys, contacts)
 
     # Phase: energy + births/deaths + food regen
     mean, std = time_phase(
         phase_ebd,
-        (sim_state_post_phys, prey_n_eaten, pred_catch_slots, pred_n_catches, all_actions, food_eaten_mask),
+        (sim_state_post_phys, prey_n_eaten, pred_caught_energy, pred_n_catches, all_actions, food_eaten_mask),
         args.iter,
     )
     phase_times.append(("energy + births + food regen", mean, std))
