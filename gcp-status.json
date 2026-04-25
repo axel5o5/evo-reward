@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-25T10:00:51+00:00",
+  "updated_at": "2026-04-25T10:28:25+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,23 +9,23 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-23T08:54:36.579-07:00",
     "last_started_at": "2026-04-24T06:19:02.950-07:00",
-    "runtime_hours_current": 20.6961,
+    "runtime_hours_current": 21.1558,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 17.5917,
+    "estimated_current_run_usd": 17.9824,
     "labels": {}
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
     "count": 105,
     "latest_step": 530000,
-    "latest_age_hours": 47.871,
+    "latest_age_hours": 48.33,
     "total_gb": 33.5855
   },
   "costs": {
-    "compute_current_run": 17.5917,
-    "nat_since_active": 6.85,
-    "storage_current": 0.5389,
-    "live_estimate_total": 24.98,
+    "compute_current_run": 17.9824,
+    "nat_since_active": 6.87,
+    "storage_current": 0.5393,
+    "live_estimate_total": 25.39,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -82,7 +82,7 @@
         ]
       }
     },
-    "progress_file_age_hours": 8.517,
+    "progress_file_age_hours": 8.977,
     "evolution_detected": true
   },
   "errors": []
