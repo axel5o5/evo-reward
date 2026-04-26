@@ -77,7 +77,7 @@ prey_c_a:               2.5e-6
 # ─── Energy — Predator ───────────────────────────────────────────────────────
 predator_d_b:           4.0e-3
 predator_d_a:           5.0e-5
-predator_eta:           0.6
+predator_eta:           0.50  # Tuned from paper's 0.6 — see tune_eta experiments in experiments-log.md
 
 # ─── Predator Mouth ──────────────────────────────────────────────────────────
 predator_mouth_tactile_bins: [0, 1, 17]   # emevo gecco2026 medium mouth (60° front arc)
