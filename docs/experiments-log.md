@@ -25,6 +25,14 @@ Running log of every Phase 1a run, the code state it was launched against, outco
 | `d31b` | 2026-04-24 | same | 0 | 80K | Extinct @ 80K | (mean,pre_step). pred peak 36@20K |
 | `d31c` | 2026-04-24 | same | 0 | 80K | Pred=3@80K (not extinct yet, declining) | (max,post_step). **First run where fear evolved (prey_w_pred=-0.53)** |
 | `d31d` | 2026-04-24 | same | 0 | 80K | Pred=2@80K (declining from 38) | (mean,post_step) nominal emevo-faithful. pred peak 38@20K. Same crash as a/b/c |
+| `emevo_smoke_rect` | 2026-04-24 | emevo `f87a880` gecco2026 | 0 | 102K | Pred=3@102K (terminal) | Emevo's own code on `20251001-predator-default.toml` (1200×600 rect). Same overshoot as us, peak 45@30K |
+| `emevo_smoke_square` | 2026-04-24 | same | 0 | 112K | Pred=1@112K (terminal) | Emevo on `20251122-predator-square.toml` (correct paper geometry, 960×960). Peak delayed 10K but same crash |
+| `tune_eta_0.45/seed0` | 2026-04-24 | `94fc91c` (D31) | 0 | 150K | **Survived: prey=450 pred=5 at 150K** | **FIRST NON-EXTINCT RUN.** Full LV cycle: pred plateau 22-24@30-50K, trough pred=3@110K, recovery pred_E_max crosses 240 @ 150K. Fear evolved to -0.55, chase drive +1.03. |
+| `tune_eta_0.50/seed0` | 2026-04-24 | same | 0 | 150K | Survived: prey=450 pred=18 at 150K | Softer change. Less fragile trough (pred_min=6 vs 0.45's 3). |
+| `tune_eta_0.50/seed0/extension` | 2026-04-25 | same | 0 | 500K (resumed) | Survived: prey=450 pred=5 at 500K | **Two complete LV cycles, period ~270K**. Cycle-2 peak pred=25 @ 440K. Strong weight evolution (prey_w_prey 0.71→4.13, pred_w_pred -0.11→+0.40) but **prey_w_pred = +0.25 unchanged → no fear evolution**. |
+| `tune_eta_0.55/seed0` | 2026-04-25 | same | 0 | 150K | Survived: prey=450 pred=17 | Single-cycle view comparable to 0.45/0.50. Same shape, no fear yet. |
+| `tune_eta_0.50/seed0/extend_1M` | 2026-04-26 | same | 0 | 1M | **Extinct at ~670K (damped osc)** | 3 cycles (peaks 24→25→18), each smaller. No fear evolved (drift to +1.5). |
+| `tune_eta_0.55/seed0/extend_1M` | 2026-04-26 | same | 0 | 870K (killed post-ext) | **Extinct at ~720K (runaway osc)** | **4 cycles, peaks 21→30→38→50(cap)**. Cycle 4 hit predator cap → prey crash → extinction. **Fear evolved: prey_w_pred -0.04→-4.95 by cycle 3, -16 post-extinction.** |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = |prey_w_pred| > 0.3 sustained.
 
@@ -101,6 +109,76 @@ Same class as D26 (which was previously the "single most likely cause of extinct
 ### Decision: run emevo end-to-end (2026-04-24)
 
 Three months of source-level verification hasn't resolved the overshoot. Next move: actually run emevo's `cf_predator.py` on the paper-default config and compare log trajectories at matched seed. If emevo reproduces pred≈23 and ours doesn't at the same seed + config, the divergence is real and diffing logs isolates where. If emevo *also* extincts on seed 0, we're in paper's silently-dropped-seed regime and need multi-seed anyway.
+
+### Emevo smoke run v1 — wrong config (rectangular), 2026-04-24
+
+Ran emevo @ `f87a880` gecco2026 on `20251001-predator-default.toml` (1200×600 rectangle) seed=0 to step 102K. **Emevo crashed to pred=3 by step 102K** — same overshoot-crash shape as our d31d:
+
+| Step | Emevo pred | d31d pred |
+|---|---|---|
+| 10K | 22 | 31 |
+| 20K | 39 | 38 |
+| 30K | **45 (peak)** | 33 |
+| 50K | 34 | 17 |
+| 70K | 10 | 3 |
+| 100K | 3 | — (extinct by 80K) |
+
+At step 102K: prey=193 (rebounding) but predators terminal (E_max=35, way below E>240 breeding threshold).
+
+### Config-file discovery (2026-04-24)
+
+Audit of emevo commit history revealed **we used the wrong config**. Commit `fd09012` (2026-04-10) is titled **"predator 1200 (unused now)"** — the authors explicitly deprecated the 1200×600 rectangular config. Paper's figures match the square variant.
+
+**Correct config: `20251122-predator-square.toml`** (960×960 square, +28% area vs rectangular). Only difference from the config we used is `xlim`/`ylim`. Lower encounter density could dramatically reduce the overshoot.
+
+Archived the wrong-config run as `~/emevo_repro/logs/smoke_seed0_rect_wrongcfg/` and relaunched on the correct square config. Also noted: emevo `main` branch has 20+ commits beyond gecco2026 (including `c90e959 predator-a4b2-d100` bd config and `8d83775 action_magnitude is incorrect` — a log-field rename only, not dynamics). Paper results should match gecco2026 tip; if square-config run still crashes we try `main` HEAD next.
+
+### Square config also crashes (2026-04-24)
+
+Square config delays peak by ~10K steps (peak pred=42 @ step 40K vs 45 @ step 30K rectangular) and prey stays at cap longer (through step 30K vs collapsing by 20K rectangular). But the crash trajectory shape is identical: prey→154 at step 60K, →107 at step 70K, predators decline 42→32→24→16→8→3→1 by step 112K. **Both emevo configs extinct on seed 0.**
+
+Settles the diagnosis cleanly:
+- **Our code reproduces emevo's behavior at matched seed/config — not broken.**
+- Paper's reported pred≈23 is a survivor-bias cross-seed average. Authors silently drop seeds that crash (paper Table 1 reports 5/13 survival for n=0.6, 1/6 for large-mouth, etc.).
+- Paper-default parameters are in a knife-edge regime where most seeds extinct.
+
+### Pivot to parameter tuning (2026-04-24)
+
+Decision: stop chasing exact paper match, tune parameters to find a stable LV regime. First lever: `predator_eta` 0.6 → 0.45 (configs/experiments/tune_eta_0.45.yaml). Reduces per-catch energy windfall by 25%, slows predator energy accumulation, should prevent the early overshoot. If predators starve immediately (don't reach breeding threshold at all), we know the lever was too aggressive and need a softer change.
+
+### Fear-vs-extinction tension (2026-04-26)
+
+Long runs to 1M reveal a fundamental tension across our eta sweep:
+
+| eta | Cycles | Extinct? | Fear evolution |
+|---|---|---|---|
+| 0.45 | 1 (150K) | No (pred=5 surviving) | None (-0.07) |
+| 0.50 | 3 (1M) | **Yes @ ~670K** | None (drifted to +1.5) |
+| 0.55 | 4 (1M) | **Yes @ ~720K** | **Strong (-5 by cycle 3, -16 post-ext)** |
+| 0.60 (paper) | 0 (extinct ~80K) | **Yes (immediate)** | Brief partial (-0.5 in d31c before death) |
+
+**Pattern:** the regime that gives fear evolution is the regime where overshoots create strong predation pressure. The same overshoots that drive fear also drive eventual extinction. Lower eta = stable but no selection for fear. Higher eta = fear evolves but population collapses.
+
+This may be a fundamental dynamics problem, OR something stabilizing in paper that we're missing. Open questions:
+1. Does paper actually maintain fear across many cycles, or is it transient like our cycle-3 onset?
+2. Is there a parameter we haven't tuned (predator metabolic burn, mouth width, breeding threshold) that decouples the two?
+3. Multi-seed: do some seeds at eta=0.55 survive cycle 4 by avoiding the runaway peak?
+
+### BREAKTHROUGH: tune_eta_0.45 survived (2026-04-24)
+
+Final state at step 150K: prey=450 (at cap), pred=5, pred_E_max=264, prey_w_pred=-0.55, pred_w_prey=+1.03. **First non-extinct run in the project.** Trajectory captures a complete Lotka-Volterra cycle:
+
+1. **No overshoot**: pred plateau at 22-24 during steps 20K-50K (vs d31d where pred hit 38 and prey crashed to 104 by 50K)
+2. **Prey decline**: 302 → 201 → 221 (steps 50K-70K) as predators deplete
+3. **Pred crash**: 23 → 16 → 7 → 4 → 3 (steps 50K-110K) — starvation trough
+4. **Prey recovery**: rebounded to cap 450 by step 100K with predator pressure off
+5. **Pred recovery**: pred_E_max climbed 67 → 117 → 209 → 264 (steps 90K-150K) — just crossed the E>240 breeding threshold; births beginning
+6. **Fear evolution**: prey_w_pred drifted monotonically from 0 → -0.50 by step 110K, in paper's reported range
+7. **Chase drive**: pred_w_prey swung to +1.03 at step 140K — predators evolved strong prey-pursuit
+
+This is a near-replication of paper Figure 6's cycle structure. The 25% reduction in digestive rate was enough to break the knife-edge.
+
+Next: tune_eta_0.50 (softer change) launched to map the response curve. Longer-run tune_eta_0.45 extensions will tell us whether the oscillation sustains through cycle 2+.
 
 ---
 

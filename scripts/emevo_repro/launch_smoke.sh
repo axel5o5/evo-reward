@@ -21,7 +21,12 @@ LOG_ROOT="$HOME/emevo_repro/logs/smoke_seed0"
 TMUX_SESSION="emevo-smoke"
 SEED=0
 N_TOTAL_STEPS=$((1024 * 500))  # 512,000 steps
-CONFIG="$EMEVO_DIR/config/env/20251001-predator-default.toml"
+#
+# Config: 20251122-predator-square.toml (960x960 square, +28% area vs rectangular).
+# The earlier 20251001-predator-default.toml (1200x600 rect) is explicitly marked
+# "unused now" by the authors (commit fd09012, 2026-04-10). The square variant
+# matches the paper's figures and is the intended canonical config.
+CONFIG="$EMEVO_DIR/config/env/20251122-predator-square.toml"
 
 if ! command -v uv >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$PATH"
@@ -41,9 +46,11 @@ CMD="cd $EMEVO_DIR && uv run python experiments/cf_predator.py evolve \
   --n-total-steps $N_TOTAL_STEPS \
   --cfconfig-path $CONFIG \
   --logdir $LOG_ROOT \
-  --log-interval 1000 \
+  --log-interval 10 \
   --savestate-interval 10000 \
   --log-mode reward-log-state \
+  --debug-print \
+  --measure-time \
   2>&1 | tee $HOME/emevo_smoke.log"
 
 echo "Launching emevo smoke (seed=$SEED, $N_TOTAL_STEPS steps) in tmux '$TMUX_SESSION'"

@@ -13,6 +13,9 @@ dashboard/app/utils/__pycache__/
 # Results (large data files)
 results/
 
+# External emevo source clone (separate upstream repo, not part of this project)
+emevo_src/
+
 # Orchestrator + Claude runtime state (local only)
 .claude-orch-state.json
 .claude/scheduled_tasks.lock
