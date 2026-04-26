@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-26T19:49:14+00:00",
+  "updated_at": "2026-04-26T20:06:45+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,23 +9,23 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-23T08:54:36.579-07:00",
     "last_started_at": "2026-04-24T06:19:02.950-07:00",
-    "runtime_hours_current": 54.5029,
+    "runtime_hours_current": 54.7947,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 46.3275,
+    "estimated_current_run_usd": 46.5755,
     "labels": {}
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
     "count": 123,
     "latest_step": 1000000,
-    "latest_age_hours": 13.735,
-    "total_gb": 48.8906
+    "latest_age_hours": 14.026,
+    "total_gb": 49.0407
   },
   "costs": {
-    "compute_current_run": 46.3275,
-    "nat_since_active": 8.34,
-    "storage_current": 0.8297,
-    "live_estimate_total": 55.5,
+    "compute_current_run": 46.5755,
+    "nat_since_active": 8.35,
+    "storage_current": 0.8326,
+    "live_estimate_total": 55.76,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -33,16 +33,16 @@
   "training": {
     "experiment_name": "exp_tune_eta_0.55",
     "seed": 0,
-    "step": 850000,
+    "step": 870000,
     "total_steps": 1000000,
-    "progress_frac": 0.85,
-    "sps": 26.622,
-    "eta_hours": 1.57,
+    "progress_frac": 0.87,
+    "sps": 26.55,
+    "eta_hours": 1.36,
     "population": {
       "prey": 450,
       "pred": 0,
-      "food": 415,
-      "mean_energy": 83.09449768066406
+      "food": 408,
+      "mean_energy": 99.92997741699219
     },
     "reward_weights": {
       "prey": {
@@ -82,7 +82,7 @@
         ]
       }
     },
-    "progress_file_age_hours": 0.016,
+    "progress_file_age_hours": 0.055,
     "evolution_detected": true
   },
   "errors": []
