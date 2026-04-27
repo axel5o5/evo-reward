@@ -219,11 +219,27 @@ After step 2 (dispatch in jax_sim) and step 3 (genome mutation):
 - The 2×2 architecture comparison (independent vs shared policy, continuous
   vs generational) from [experimental-plan.md §Phase 1b](../experimental-plan.md)
   — that is its own track.
-- Axis 4 (LSTM policy) — already wired through `lstm_hidden` in SimState
-  (see [jax_state.py:72-73](../../src/jax_state.py#L72-L73)) and currently
-  the only axis whose genome data is real. No changes needed for this task.
-- Fixing the Phase 1a substrate (mouth_smol et al.) — that's
+- Phase 1a substrate work (mouth_smol et al.) — that's
   [findings.md §10-§11](../findings.md) territory.
+
+## Correction (2026-04-27): Axis 4 has the same bug
+
+The earlier draft of this doc placed Axis 4 (LSTM policy) out of scope,
+claiming it was "already wired through `lstm_hidden` in SimState." That
+was wrong. Confirmed via grep:
+
+- `policy_type` has zero references anywhere in `scripts/` or `src/`
+- `build_ppo_update_fn_lstm` (defined in [jax_ppo.py:181](../../src/jax_ppo.py#L181))
+  is never imported by the runner — `scripts/run_experiment_jax.py:41`
+  imports only `build_ppo_update_fn` (the MLP path), and `jax_sim.py:78`
+  calls only that
+- `lstm_hidden` field exists in SimState but `grep "lstm_hidden" src/jax_sim.py`
+  returns zero matches — the field is allocated but never read
+
+So Axis 4 has the same shape of bug as Axis 1 and Axis 3: configs flag
+the variant, but the dispatch code is missing. Plumbing scope below
+should include `policy_type` dispatch in the runner alongside
+`reward_type` / temporal-buffer wiring.
 
 ## Files this touches (estimated)
 

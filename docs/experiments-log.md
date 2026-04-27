@@ -35,11 +35,12 @@ For cross-cutting analysis and what we've learned, see:
 | `tune_eta_0.55/seed0` | 2026-04-25 | same | 0 | 150K | Survived | Pred=17 at 150K, single-cycle view |
 | `tune_eta_0.50/seed0/1M` | 2026-04-26 | same | 0 | 1M | Extinct @ ~670K | 3 cycles damped (peaks 24→25→18). No fear |
 | `tune_eta_0.55/seed0/1M` | 2026-04-26 | same | 0 | 870K (killed) | Extinct @ ~720K | 4 cycles, runaway peak to cap=50. **Fear evolved to -16** |
-| `axis1_smoke` | 2026-04-26 | `779d465` (eta=0.50) | 0 | 20K | OK | MLP reward, prey=343 pred=24 — clean |
-| `axis2_smoke` | 2026-04-26 | same | 0 | 20K | OK | Social obs, prey=330 pred=26 — clean |
-| `axis3_smoke` | 2026-04-26 | same | 0 | 20K | OK | Temporal reward, prey=241 pred=30 — slightly more aggressive |
-| `axis4_smoke` | 2026-04-26 | same | 0 | 20K | OK | LSTM policy, prey=311 pred=26 — clean |
-| `axis2_real_500k/seed0` | 2026-04-26 | same | 0 | 310K (killed) | Extinct @ ~100K | Pred died early; system frozen in prey-saturated steady state |
+| `axis1_smoke` | 2026-04-26 | `779d465` (eta=0.50) | 0 | 20K | OK | **No-op** — `reward_type: mlp` flag silently ignored. Linear-genome baseline run mislabeled. See `docs/todo/wire-mlp-temporal-through-jax-sim.md` |
+| `axis2_smoke` | 2026-04-26 | same | 0 | 20K | OK | Social obs (genuinely wired). prey=330 pred=26 — clean |
+| `axis3_smoke` | 2026-04-26 | same | 0 | 20K | OK | **No-op** — `obs_buffer` allocated but never updated; `compute_temporal_reward` never called. Baseline-equivalent |
+| `axis4_smoke` | 2026-04-26 | same | 0 | 20K | OK | **No-op** — runner imports only `build_ppo_update_fn` (MLP); LSTM PPO never called. Baseline-equivalent |
+| `axis2_real_500k/seed0` | 2026-04-26 | same | 0 | 310K (killed) | Extinct @ ~100K | **REAL test** of social_obs (the only wired axis). Extinct on eta=0.50 substrate. |
+| `axis1_real_1M/seed0` | 2026-04-27 | `1c0723e` (mouth_smol substrate) | 0 | 80K (killed) | Killed | **No-op** — same axis1 flag bug; killed once realized. Was tracking baseline-equivalent. |
 | `sweep_mouth_smol_1M/seed0` | 2026-04-27 | `c35bfab` (+sweep configs) | 0 | 1M | **SURVIVED** | First 1M completion. eta=0.50 + mouth=`[0]`. Fear evolved to -1.97 sustained |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = `|prey_w_pred|` > 0.3 sustained.
