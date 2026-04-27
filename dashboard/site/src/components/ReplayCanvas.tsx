@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
 import { ReplayData, frameView } from "../lib/replayLoader";
+import {
+  ColorByKey,
+  WEIGHT_AXIS_INDEX,
+  WeightAxisKey,
+  weightColor,
+} from "../lib/weightColor";
 
 interface Props {
   data: ReplayData;
@@ -7,6 +13,12 @@ interface Props {
   // Visual toggles
   showHeading?: boolean;
   energyAlpha?: boolean;
+  // Color-by mode. "species" = green/red split; weight keys (w_eat, w_act,
+  // w_prey, w_pred) tint each agent by their evolved weight value via a
+  // diverging colormap. Falls back to species coloring when rewardWeights
+  // is null (v1 replays).
+  colorBy?: ColorByKey;
+  colorAxis?: number; // saturate the colormap at ±this value (default 2.0)
   // Pinned agent — when set, draws a trail of the last TRAIL_FRAMES positions
   // and a highlight ring on the current frame. -1 / undefined = no pin.
   pinnedSlot?: number | null;
@@ -33,6 +45,8 @@ export default function ReplayCanvas({
   frameIdx,
   showHeading = true,
   energyAlpha = true,
+  colorBy = "species",
+  colorAxis = 2.0,
   pinnedSlot = null,
   onAgentPick,
   className,
@@ -74,7 +88,7 @@ export default function ReplayCanvas({
   useEffect(() => {
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, frameIdx, showHeading, energyAlpha, pinnedSlot]);
+  }, [data, frameIdx, showHeading, energyAlpha, pinnedSlot, colorBy, colorAxis]);
 
   // Click → nearest alive agent whose disc contains the click point.
   // Uses CSS-pixel rect math (not the backing store) so DPR doesn't matter.
@@ -148,8 +162,21 @@ export default function ReplayCanvas({
     }
 
     // --- agents ---
-    // Single loop, color-branched by species. Energy modulates alpha so that
-    // near-death agents fade — a cheap visual cue for population health.
+    // Single loop, color-branched by species OR by evolved reward weight when
+    // the user picks a weight axis. Energy modulates alpha so that near-death
+    // agents fade — a cheap visual cue for population health. When colorBy is
+    // a weight axis but rewardWeights wasn't recorded, we silently fall back
+    // to species coloring (UI surfaces the mismatch in the sidebar legend).
+    const tintByWeight =
+      colorBy !== "species" && data.rewardWeights !== null;
+    const weightIdx = tintByWeight
+      ? WEIGHT_AXIS_INDEX[colorBy as WeightAxisKey]
+      : -1;
+    const N = data.meta.max_agents;
+    // When weight-tinted we still want species visible — wrap each disc in a
+    // 1px species-colored ring so green/red at the edge keeps prey vs pred
+    // distinguishable even when both fall in the colormap's neutral band.
+    const drawSpeciesRing = tintByWeight;
     for (let i = 0; i < data.meta.max_agents; i++) {
       if (!fv.alive[i]) continue;
       const x = fv.pos[i * 2];
@@ -166,10 +193,20 @@ export default function ReplayCanvas({
         ctx.globalAlpha = 1;
       }
 
-      ctx.fillStyle = species === 1 ? COLOR_PREDATOR : COLOR_PREY;
+      if (tintByWeight) {
+        const w = data.rewardWeights![(frameIdx * N + i) * 4 + weightIdx];
+        ctx.fillStyle = weightColor(w, colorAxis, isDark);
+      } else {
+        ctx.fillStyle = species === 1 ? COLOR_PREDATOR : COLOR_PREY;
+      }
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
+      if (drawSpeciesRing) {
+        ctx.strokeStyle = species === 1 ? COLOR_PREDATOR : COLOR_PREY;
+        ctx.lineWidth = 1.2 / scale;
+        ctx.stroke();
+      }
 
       if (showHeading) {
         const a = fv.angle[i];

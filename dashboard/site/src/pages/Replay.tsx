@@ -5,6 +5,8 @@ import PopulationStrip from "../components/PopulationStrip";
 import AgentInspector from "../components/AgentInspector";
 import EventChips from "../components/EventChips";
 import WeightHistogram from "../components/WeightHistogram";
+import WeightTrajectoryStrip from "../components/WeightTrajectoryStrip";
+import RewardLandscape from "../components/RewardLandscape";
 import {
   ReplayData,
   ReplayIndex,
@@ -15,6 +17,12 @@ import {
 } from "../lib/replayLoader";
 import { computeReplayStats } from "../lib/replayStats";
 import { displayRunTag } from "../lib/replayNaming";
+import {
+  ColorByKey,
+  WEIGHT_AXIS_LABELS,
+  WeightAxisKey,
+  weightColor,
+} from "../lib/weightColor";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -74,6 +82,18 @@ export default function Replay() {
   const [speed, setSpeed] = useState(1);
   const [showHeading, setShowHeading] = useState(true);
   const [energyAlpha, setEnergyAlpha] = useState(true);
+  // Color mode for agent discs. "species" is the historical default; the
+  // weight-axis modes tint each agent by their evolved reward-weight value
+  // — letting fear (w_pred) or social drive (w_prey) be read off the canvas
+  // at a glance instead of having to click into AgentInspector.
+  const [colorBy, setColorBy] = useState<ColorByKey>("species");
+  const COLOR_AXIS = 2.0;
+  // Gated on ?lab=mlp — surfaces the synthetic-fixture RewardLandscape spike.
+  // Kept opt-in so the main UX stays clean while the MLP runner wiring is
+  // still pending; remove the gate once real MLP genomes land in v3 replays.
+  const labMlp =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("lab") === "mlp";
 
   // Agent inspector. `selectedSlot` is the agent whose panel is open;
   // `pinnedSlot` is the one whose trail/ring persist across frames. They can
@@ -403,6 +423,13 @@ export default function Replay() {
               </label>
             </div>
 
+            <ColorModePicker
+              colorBy={colorBy}
+              onChange={setColorBy}
+              axis={COLOR_AXIS}
+              hasWeights={!!data?.rewardWeights}
+            />
+
             <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800 pt-3 space-y-1">
               <div>
                 Prey <span className="inline-block w-2 h-2 rounded-full bg-green-400 align-middle" />{" "}
@@ -437,6 +464,8 @@ export default function Replay() {
                   frameIdx={frameIdx}
                   showHeading={showHeading}
                   energyAlpha={energyAlpha}
+                  colorBy={colorBy}
+                  colorAxis={COLOR_AXIS}
                   pinnedSlot={pinnedSlot}
                   onAgentPick={(slot) => {
                     // Click on empty space clears the panel but keeps any
@@ -508,13 +537,123 @@ export default function Replay() {
                   <span>sim step {data.stepNums[frameIdx].toLocaleString()}</span>
                 </div>
                 {data.rewardWeights && (
+                  <WeightTrajectoryStrip
+                    data={data}
+                    frameIdx={frameIdx}
+                    onFrameChange={(f) => {
+                      setPlaying(false);
+                      setFrameIdx(f);
+                    }}
+                  />
+                )}
+                {data.rewardWeights && (
                   <WeightHistogram data={data} frameIdx={frameIdx} />
                 )}
+                {labMlp && <RewardLandscape />}
               </div>
             )}
           </section>
         </div>
       )}
     </div>
+  );
+}
+
+// Sidebar control: pick a color mode and render a small legend so the
+// gradient is decoded next to the canvas, not in the user's head.
+function ColorModePicker({
+  colorBy,
+  onChange,
+  axis,
+  hasWeights,
+}: {
+  colorBy: ColorByKey;
+  onChange: (key: ColorByKey) => void;
+  axis: number;
+  hasWeights: boolean;
+}) {
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark");
+  const weightKeys: WeightAxisKey[] = ["w_eat", "w_act", "w_prey", "w_pred"];
+  const stops = 32;
+  const swatches = Array.from({ length: stops }, (_, i) => {
+    const v = -axis + (2 * axis * i) / (stops - 1);
+    return weightColor(v, axis, isDark);
+  });
+  const usingWeight = colorBy !== "species";
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-800 pt-3">
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
+        Color by
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <ModePill
+          active={colorBy === "species"}
+          onClick={() => onChange("species")}
+          label="species"
+        />
+        {weightKeys.map((k) => (
+          <ModePill
+            key={k}
+            active={colorBy === k}
+            onClick={() => onChange(k)}
+            label={k}
+            disabled={!hasWeights}
+          />
+        ))}
+      </div>
+      {usingWeight && hasWeights && (
+        <>
+          <div className="flex h-3 rounded overflow-hidden">
+            {swatches.map((c, i) => (
+              <div key={i} style={{ background: c, width: `${100 / stops}%` }} />
+            ))}
+          </div>
+          <div className="flex justify-between text-[10px] font-mono text-gray-500 mt-0.5">
+            <span>−{axis.toFixed(1)}</span>
+            <span>0</span>
+            <span>+{axis.toFixed(1)}</span>
+          </div>
+          <div className="text-[10px] text-gray-500 mt-1">
+            <span className="font-medium">{colorBy}</span> ·{" "}
+            {WEIGHT_AXIS_LABELS[colorBy as WeightAxisKey]}. Negative = red,
+            positive = blue. Species ring on disc edge.
+          </div>
+        </>
+      )}
+      {usingWeight && !hasWeights && (
+        <div className="text-[10px] text-amber-700 dark:text-amber-400">
+          Phenotype not recorded — re-record with the v2 recorder to enable
+          weight tinting.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModePill({
+  active,
+  onClick,
+  label,
+  disabled = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-2 py-0.5 text-xs font-mono rounded border transition disabled:opacity-40 disabled:cursor-not-allowed ${
+        active
+          ? "bg-blue-600 border-blue-600 text-white"
+          : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-blue-400"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
