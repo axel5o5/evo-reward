@@ -238,6 +238,71 @@ def test_linear_recorder_keeps_v2_shape_under_v3(tmp_path: Path, mlp_config):
     assert "reward_genomes_idmap" not in meta["sections"]
 
 
+def test_recorder_captures_birth_during_window(tmp_path: Path, mlp_config):
+    """A birth that fires mid-window must produce a fresh genome row keyed
+    by the child's new agent_id — distinct from the parent's row, since
+    spawn_offspring_jax mutates the genome before the child is written
+    into the slot. This is the case keying-by-id was designed for: slot
+    reuse over an agent's lifetime would silently drop the child's
+    genome under a slot-keyed scheme."""
+    from src.jax_evolution import spawn_offspring_jax
+
+    state = init_simstate(mlp_config, jax.random.PRNGKey(0))
+    recorder = ReplayRecorder(
+        mlp_config, "test_v3_birth", seed=0, local_out_root=tmp_path / "replays",
+    )
+
+    # Frame 1: capture initial pop (8 prey + 2 pred = 10 alive).
+    recorder.step(state, 1)
+    initial_ids = set(recorder.seen_genomes.keys())
+    assert len(initial_ids) == 10
+
+    # Force a birth into the first inactive prey slot. parent_slot=0 is
+    # an alive prey at init; new_slot picks the first inactive slot in
+    # the prey range so the species invariant holds.
+    parent_slot = 0
+    parent_id = int(state.agent_ids[parent_slot])
+    inactive = ~np.asarray(state.is_active)
+    prey_cap = mlp_config["prey_cap"]
+    candidates = [s for s in range(prey_cap) if inactive[s]]
+    assert candidates, "expected at least one free prey slot"
+    new_slot = candidates[0]
+    expected_child_id = int(state.next_agent_id)
+
+    state = spawn_offspring_jax(
+        state, parent_slot, new_slot, jax.random.PRNGKey(42), mlp_config,
+    )
+
+    # Frames 2..5: window keeps capturing; the child appears starting f2.
+    for step in range(2, 6):
+        recorder.step(state, step)
+
+    # Decode the genome sections from the flushed window.
+    out_dir = sorted((tmp_path / "replays").iterdir())[0]
+    meta = json.loads((out_dir / "meta.json").read_text())
+    bin_buf = (out_dir / "frames.bin").read_bytes()
+    rows = _read_section(bin_buf, meta["sections"]["reward_genomes_byid"])
+    idmap = _read_section(bin_buf, meta["sections"]["reward_genomes_idmap"])
+
+    # Child's id must be present alongside the original 10.
+    assert expected_child_id in idmap.tolist(), (
+        f"child id {expected_child_id} missing from idmap {idmap.tolist()}"
+    )
+    assert rows.shape[0] == 11, f"expected 11 unique genomes, got {rows.shape[0]}"
+
+    # Parent and child rows must differ — spawn_offspring_jax mutated the
+    # MLP via Student's-t noise. With mlp_mutation_scale=0.01 and 121
+    # parameters, the L2 difference is comfortably above any float-noise
+    # threshold but well below the per-weight clip.
+    parent_row = rows[idmap.tolist().index(parent_id)]
+    child_row = rows[idmap.tolist().index(expected_child_id)]
+    diff = float(np.linalg.norm(parent_row - child_row))
+    assert diff > 1e-4, (
+        f"child genome appears identical to parent (L2 diff={diff:.2e}); "
+        "mutation may not have run, or recorder captured the wrong slot"
+    )
+
+
 def test_recorder_resets_seen_genomes_after_flush(tmp_path: Path, mlp_config):
     """seen_genomes must clear on flush so the next window doesn't keep
     stale rows for agents that died between windows."""
