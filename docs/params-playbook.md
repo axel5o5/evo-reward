@@ -2,7 +2,7 @@
 
 Reference for each tunable simulation parameter — paper value, our value, role, and observed sensitivity from Phase 1a runs. Read alongside [`findings.md`](findings.md) for the cross-cutting story.
 
-Last updated: 2026-04-26.
+Last updated: 2026-04-27.
 
 ---
 
@@ -114,12 +114,12 @@ Parameters with strong evidence for adjustment are marked ⭐. Parameters we hav
 
 ## Catch mechanics
 
-### `predator_mouth_range` ⭐
+### `predator_mouth_range` ⭐⭐ (best lever found so far)
 - **Paper:** `[0, 1, 17]` (medium mouth, 60° arc — three 20° tactile bins)
-- **Our current:** `[0, 1, 17]`
+- **Our recommended:** `[0]` (small mouth, single 20° bin) — see [findings.md §10](findings.md)
 - **Role:** Which tactile bins constitute the predator's "mouth." Catches require contact via these bins.
-- **Observed sensitivity:** Paper has explicit small/medium/large variants. Paper reports 1/6 large-mouth survival vs 5/5 medium-default — large mouth is more extinction-prone (faster catches → bigger overshoots).
-- **Tuning notes:** Tightening to `[0]` (single bin, 20° arc) is a paper-explicit variant ("small mouth"). Each catch is harder, dampens overshoots. Worth testing as a paper-aligned alternative to eta tuning.
+- **Observed sensitivity:** **Massive — single highest-value lever found.** sweep_mouth_smol (`[0]` + eta=0.50) is the first 1M run that didn't extinct. Fear evolved to -1.97 sustained. Mechanism: smaller arc → fewer catches per encounter → lower per-cycle predator energy windfall → smaller breeding spike → no runaway. Paper reports 1/6 large-mouth survival vs 5/5 medium-default; our 1/1 small-mouth survival is consistent.
+- **Tuning notes:** Use `[0]` as the new substrate for axis comparisons. Multi-seed (n=3+) needed to confirm robustness.
 
 ### `predator_eat_interval`
 - **Paper:** 10
@@ -215,15 +215,25 @@ These all match paper (Section 4.1). We have not tuned any of these and have low
 
 ---
 
-## Recommended tuning ranking (2026-04-26)
+## Recommended tuning ranking (2026-04-27)
+
+The mouth_smol breakthrough rewrites priorities. Old ranking preserved at the bottom for reference.
 
 If you have one experiment slot:
 
-1. **Multi-seed on `predator_eta=0.50`**, seeds 1-3 — cheapest information, paper-aligned methodology.
-2. **`predator_mouth_range = [0]`** — paper variant, lowers catch rate, dampens overshoot.
-3. **`zeta_b_pred = 150`** — direct attack on runaway breeding. Major deviation but targeted.
-4. **`reward_weights_init_mean[prey_w_pred] = -0.5`** — skip the slow fear-evolution phase. Strong intervention.
-5. **`n_max_predators = 30`** — cap the runaway peak. Less paper-aligned, less surgical than #3.
+1. **Multi-seed `sweep_mouth_smol`** (seeds 1, 2, 3) — confirm §10 generalizes beyond seed 0.
+2. **Re-run all 4 axes on mouth_smol substrate** — replaces eta=0.50 baseline that extincted before axes could express their effect.
+3. **`sweep_mouth_smol` to 5M** — does the LV oscillation stay stable beyond 1M?
+4. **`zeta_b_pred = 150`** on mouth_smol — orthogonal validation; may be unnecessary if mouth_smol holds across seeds.
+5. **`reward_weights_init_mean[prey_w_pred] = -0.5`** — skip slow fear-evolution. Strong intervention, untested.
+
+### Old ranking (2026-04-26, pre-mouth_smol)
+
+1. Multi-seed on `predator_eta=0.50`, seeds 1-3
+2. `predator_mouth_range = [0]` ← turned out to be the win
+3. `zeta_b_pred = 150`
+4. `reward_weights_init_mean[prey_w_pred] = -0.5`
+5. `n_max_predators = 30`
 
 Untested levers worth eventually trying:
 - `predator_basic_ec`, `predator_force_ec` (energy bleed)

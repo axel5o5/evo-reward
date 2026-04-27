@@ -39,7 +39,8 @@ For cross-cutting analysis and what we've learned, see:
 | `axis2_smoke` | 2026-04-26 | same | 0 | 20K | OK | Social obs, prey=330 pred=26 — clean |
 | `axis3_smoke` | 2026-04-26 | same | 0 | 20K | OK | Temporal reward, prey=241 pred=30 — slightly more aggressive |
 | `axis4_smoke` | 2026-04-26 | same | 0 | 20K | OK | LSTM policy, prey=311 pred=26 — clean |
-| `axis2_real_500k/seed0` | 2026-04-26 | same | 0 | 500K | Running | First full axis run. Compare to 0.50 baseline |
+| `axis2_real_500k/seed0` | 2026-04-26 | same | 0 | 310K (killed) | Extinct @ ~100K | Pred died early; system frozen in prey-saturated steady state |
+| `sweep_mouth_smol_1M/seed0` | 2026-04-27 | `c35bfab` (+sweep configs) | 0 | 1M | **SURVIVED** | First 1M completion. eta=0.50 + mouth=`[0]`. Fear evolved to -1.97 sustained |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = `|prey_w_pred|` > 0.3 sustained.
 
@@ -72,11 +73,11 @@ Full deviation catalog with code-level details: [emevo-diff.md](emevo-diff.md).
 
 ## Open questions (current)
 
-See [`findings.md` §9](findings.md) for the full list. Top priorities:
+See [`findings.md` §10](findings.md) for the full list. Top priorities (post-mouth_smol):
 
-1. **Multi-seed at eta=0.50** — does any seed survive past 670K?
-2. **Small mouth (paper variant)** — `predator_mouth_range = [0]` instead of `[0,1,17]`?
-3. **`zeta_b_pred` 100→150** — direct attack on runaway breeding?
+1. **Multi-seed at mouth_smol** — does seed 1, 2, 3 also survive 1M? Confirms mouth_smol generalizes.
+2. **Re-run all 4 axes on mouth_smol substrate** — replaces eta=0.50 baseline that extincts before axes can express their effect.
+3. **mouth_smol past 1M** — does the LV oscillation stay stable or eventually drift? 5M run tells us.
 
 ---
 

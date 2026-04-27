@@ -5,7 +5,7 @@ Cross-cutting insights from Phase 1a parameter exploration. Pairs with:
 - [`params-playbook.md`](params-playbook.md) — parameter tuning reference
 - [`emevo-diff.md`](emevo-diff.md) — code-level deviations from upstream
 
-Last updated: 2026-04-26.
+Last updated: 2026-04-27.
 
 ---
 
@@ -79,18 +79,19 @@ Hypothesis: when predator pressure is below a threshold, fearful and fearless pr
 
 Implication: getting *both* stable populations and meaningful fear evolution may require a parameter regime we haven't found yet. Or the timescale needed is much longer than 1M steps. Or the paper's reported fear comes from a phase of pre-extinction selection followed by survival on a different seed where the lineage retained the fear weights.
 
-## 7. eta=0.50 is the cleanest baseline for axis experiments
+## 7. eta=0.50 is the cleanest baseline for axis experiments — superseded by §10
 
-For Phase 2 axis comparisons (MLP reward, social obs, temporal reward, LSTM policy), we need a baseline that survives long enough to express the variant's effect. Choices:
+[Original recommendation from 2026-04-26 — preserved for context. Superseded by `mouth_smol` finding in §10 below.]
+
+For Phase 2 axis comparisons we need a baseline that survives long enough to express the variant's effect. Choices were:
 - 0.45: too fragile for cross-cycle comparisons
 - 0.50: survives ~670K — long enough for 2 cycles
-- 0.55: also dies, but at slightly larger overshoots
+- 0.55: also dies, at slightly larger overshoots
 - 0.60 (paper): dies in cycle 1
 
-Use **eta=0.50** for axis runs, accepting that:
-- It's a known deviation from paper's eta=0.6
-- It will still extinct beyond ~670K
-- Cross-axis comparisons should target 500K runs (well within survival window)
+Use eta=0.50 for axis runs accepting it will still extinct beyond ~670K, targeting 500K runs.
+
+**This recommendation is now stale** — see §10. `mouth_smol` survives 1M with fear evolution, making it the better axis substrate.
 
 ## 8. All four axis configs are mechanically working
 
@@ -102,10 +103,38 @@ Smoke-tested at 20K steps each (2026-04-26):
 
 All compile clean, run at ~30 sps, populations behave normally. Slight per-axis differences at step 20K (axis3 had pred=30 vs ~24 elsewhere — possibly the temporal reward giving predators an advantage at chaining catches, but could be noise within one seed).
 
-## 9. Open questions worth follow-up
+## 9. axis2 social_obs alone doesn't fix extinction
 
-1. **Multi-seed at eta=0.50** — does any seed survive past 670K? Direct test of whether seed 0 is just unlucky.
-2. **Small mouth (paper variant)** — `predator_mouth_range = [0]` instead of `[0,1,17]`. Paper-explicit condition. Smaller catch arc → harder hunting → less overshoot.
-3. **`zeta_b_pred` 100→150** — direct attack on the runaway breeding mechanism. Major deviation from paper but targeted at the specific failure mode.
-4. **Initial fear bias** — non-zero mean for `prey_w_pred` in initial reward weights. Skips the slow fear-evolution phase. Strong intervention.
-5. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
+Real run at eta=0.50 + `social_obs: position_heading_velocity` (axis2_real_500k, seed 0). Predator extincted at step ~100K — same overshoot-then-crash shape as the linear baseline. Killed at 310K with prey saturated to cap=450 in steady-state predator-extinct mode.
+
+Conclusion: switching prey-side observation to include neighbor heading/velocity does not, by itself, change the extinction dynamics on this substrate. The bottleneck is the substrate, not the observation. Confirms that *all* axis comparisons need a stable substrate first.
+
+## 10. ⭐ `predator_mouth_range = [0]` solves the substrate problem
+
+**The breakthrough run.** `sweep_mouth_smol_1M`, seed 0 (2026-04-27): eta=0.50 + mouth=`[0]` (single 20° tactile bin instead of 60° three-bin arc). Other parameters identical to baseline.
+
+| Run | End step | Outcome | Fear (`prey_w_pred`) |
+|---|---|---|---|
+| eta=0.50 baseline | ~670K | extinct | drift to +1.5 (no fear) |
+| eta=0.55 | ~720K | extinct | -16 sustained (post-extinction) |
+| **mouth_smol** | **1M** | **alive** | **-1.97 ± 9.75 sustained** |
+
+Final state at step 1M: prey=371, pred=16, both species alive and oscillating in stable LV cycles (prey 345-450, pred 16-27 across the last 100K steps). Fear evolved to a sustained moderate value, not the runaway -16 we saw post-extinction in 0.55.
+
+**Mechanism (proposed):** Smaller mouth arc → fewer catches per encounter (peak catch counts ~10% lower throughout). Lower per-cycle predator energy windfall → fewer predators cross the E>240 breeding threshold → smaller next-cycle peak. The runaway-breeding loop is broken without zeroing out predation pressure. Predation stays moderate and *sustained*, which is exactly the regime where fear can co-evolve gradually rather than in a desperate post-cap crash like 0.55.
+
+This matches the paper's explicit small-mouth condition (paper Sec. 3.3: small/medium/large mouth variants). Paper reports 1/6 large-mouth survival vs 5/5 medium-default; we now have 1/1 small-mouth survival on the eta=0.50 substrate (n=1 — multi-seed needed).
+
+**Implications:**
+- All four axis comparisons should run on `sweep_mouth_smol` substrate, not eta=0.50 plain.
+- The hard part was building enough infrastructure to recognize this — the parameter itself is one line of YAML.
+- Open: does this hold across seeds? Does the oscillation stay stable past 1M (5M run)?
+
+## 11. Open questions worth follow-up
+
+1. **Multi-seed at mouth_smol** (highest priority) — seeds 1, 2, 3 to 1M each. Confirms §10 generalizes.
+2. **Re-run all 4 axes on mouth_smol substrate** — replaces eta=0.50 baseline that extincts before axes can express their effect.
+3. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
+4. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
+5. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
+6. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.

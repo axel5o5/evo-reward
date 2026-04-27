@@ -1,0 +1,116 @@
+# EXPERIMENT sweep_zeta150 — raise predator breeding threshold from 100 to 150
+#
+# Hypothesis (from findings.md §5 + params-playbook.md ranking #3):
+# Predator overshoot grows because evolved hunting skill pushes more predators
+# past the E>240 effective breeding threshold each cycle. Raising zeta_b_pred
+# from 100 to 150 raises the threshold to ~E>375, directly attacking the
+# runaway breeding mechanism. Significant deviation from paper but targeted at
+# the specific failure mode. Paired with eta=0.50 (our best baseline).
+#
+# Diff vs configs/experiments/tune_eta_0.50.yaml:
+#   * zeta_b_pred: 100.0 -> 150.0
+
+experiment_name: "exp_sweep_zeta150"
+policy_mode: "independent"
+lifecycle_mode: "continuous"
+reward_type: "linear"
+social_obs: "position_only"
+policy_type: "mlp"
+coevolution_mode: "concurrent"
+
+world_size: 960
+total_steps: 10_240_000
+
+obs_dim: 205
+
+prey_initial: 150
+predator_initial: 10
+prey_cap: 450
+predator_cap: 50
+prey_e_initial: 100.0
+predator_e_initial: 100.0
+
+prey_radius: 10.0
+predator_radius: 14.0
+food_radius: 4.0
+max_motor_norm: 114.0
+
+n_proximity_sensors: 32
+n_proximity_channels: 4
+proximity_fov_deg: 120.0
+proximity_max_range: 120.0
+n_tactile_sensors: 18
+n_tactile_channels: 4
+tactile_spacing_deg: 20.0
+sensor_agg_type: "mean"
+reward_obs_timing: "post_step"
+
+food_max: 600
+food_initial: 40
+food_growth_rate: 0.5
+food_max_regen_per_step: 10
+
+energy_capacity: 1000.0
+prey_e_food: 1.0
+prey_c_b: 1.0e-4
+prey_c_a: 2.5e-6
+predator_d_b: 4.0e-3
+predator_d_a: 5.0e-5
+predator_eta: 0.50
+
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval: 10
+
+kappa_h: 0.01
+alpha_e: 0.02
+beta_h: 0.2
+alpha_t_prey: 4.0e-7
+alpha_t_pred: 2.0e-7
+beta_t_prey: 2.0e-6
+beta_t_pred: 4.0e-6
+
+kappa_b: 1.0e-3
+beta_b: 0.4
+zeta_b_prey: 10.0
+zeta_b_pred: 150.0   # CHANGED from 100.0 — raise predator breeding threshold
+
+energy_share_ratio: 0.4
+spawn_spread: 100.0
+
+reward_weights_init_std: 0.1
+mutation_df: 2
+mutation_scale: 0.4
+weight_clip: 100.0
+
+policy_hidden_size: 64
+policy_n_hidden_layers: 2
+
+gamma: 0.999
+rollout_steps: 1024
+minibatch_size: 256
+ppo_epochs: 10
+clip_epsilon: 0.2
+entropy_coef: 0.001
+gae_lambda: 0.95
+lr: 3.0e-4
+adam_eps: 1.0e-7
+vf_clip: true
+vf_coef: 0.5
+
+action_clip_low: -20.0
+action_clip_high: 80.0
+action_mapping: "sigmoid"
+
+replay_record_interval_steps: 20_000
+replay_record_length_steps: 10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+seed: 0
