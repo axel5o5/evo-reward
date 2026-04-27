@@ -23,7 +23,16 @@
 //   ages           int32                                — birth_step = step - age
 //   reward_weights int8    (scale = meta.scales.reward_weights)
 //   action         int8    (scale = meta.scales.action)
+// v3 tags genome architecture in meta and, for non-linear runs, ships
+// per-genome rows instead of the per-frame reward_weights field:
+//   reward_genomes_byid   float32 (n_unique, genome_dim)   — MLP / temporal
+//   reward_genomes_idmap  int32   (n_unique,)              — agent_id per row
+// Linear v3 replays keep the v2 reward_weights pipeline. The loader exposes
+// `genomesById: Map<number, MlpGenome>` for v3-MLP replays; consumers fall
+// back to `null` for v1/v2/linear.
 // Sizes at defaults (length=1000, max_agents=500): v2 ≈ 14 MB vs v1 ≈ 8 MB.
+// v3 MLP adds ~240 KB (h=8) on top of the v2 baseline, after dropping the
+// 4-vector reward_weights section.
 // Consumers always see Float32Array / Int32Array — dequantization happens
 // here, eagerly. v1 replays still load; the v2 fields are null.
 
@@ -60,6 +69,15 @@ interface SectionMeta {
   shape: number[];
 }
 
+export interface GenomeLayoutEntry {
+  // Path into the nested genome dict from the dashboard's perspective —
+  // recorder strips Flax's leading "params" wrapper so consumers see a
+  // bare {Dense_0: {...}, Dense_1: {...}, ...} shape.
+  path: string[];
+  shape: number[];
+  offset: number;
+}
+
 export interface ReplayMeta {
   version: number;
   start_step: number;
@@ -77,7 +95,20 @@ export interface ReplayMeta {
   // v2 only: additive offset for agent_ids / parent_ids when stored as
   // uint16. Absolute id = (stored - 1) + id_base; stored 0 → -1 sentinel.
   id_base?: number;
+  // v3 only: genome-architecture metadata. genome_arch is "linear" |
+  // "mlp" | "temporal". For non-linear runs, genome_layout describes how
+  // to re-nest a flat row from `reward_genomes_byid` into the per-layer
+  // kernel/bias structure used by the dashboard's forward pass.
+  genome_arch?: "linear" | "mlp" | "temporal";
+  genome_shape?: Record<string, number>;
+  genome_layout?: GenomeLayoutEntry[];
+  genome_dim?: number;
 }
+
+// MlpGenome is shared with rewardMlp.ts (the forward-pass + landscape
+// sampler) — keep one source of truth so the loader output drops directly
+// into the existing TS code path.
+import type { MlpGenome } from "./rewardMlp";
 
 export interface ReplayData {
   meta: ReplayMeta;
@@ -97,6 +128,12 @@ export interface ReplayData {
   ages: Int32Array | null;            // length = n_frames * max_agents
   rewardWeights: Float32Array | null; // length = n_frames * max_agents * 4
   action: Float32Array | null;        // length = n_frames * max_agents * 2
+  // v3 — populated only for MLP genomes. One MLP per agent_id seen during
+  // the recording window. Null on v1/v2 and on linear v3 replays. The
+  // recorder snapshots the genome the first frame an agent is observed,
+  // which is exact (not a sample) because genomes are mutated only at
+  // birth and frozen for the agent's lifetime.
+  genomesById: Map<number, MlpGenome> | null;
 }
 
 export function replaysBaseUrl(): string {
@@ -221,6 +258,60 @@ function optionalRaw<T>(
   return rawView(buf, s, ctor);
 }
 
+function decodeGenomes(buf: ArrayBuffer, meta: ReplayMeta): Map<number, MlpGenome> | null {
+  if (meta.genome_arch !== "mlp") return null;
+  const rowsSec = meta.sections["reward_genomes_byid"];
+  const idsSec = meta.sections["reward_genomes_idmap"];
+  const layout = meta.genome_layout;
+  if (!rowsSec || !idsSec || !layout || layout.length === 0) return null;
+
+  const rows = rawView(buf, rowsSec, Float32Array);
+  const ids = rawView(buf, idsSec, Int32Array);
+  const dim = meta.genome_dim ?? rowsSec.shape[1];
+  const out = new Map<number, MlpGenome>();
+  for (let r = 0; r < ids.length; r++) {
+    const flat = rows.subarray(r * dim, (r + 1) * dim);
+    out.set(ids[r], unflattenMlp(flat, layout));
+  }
+  return out;
+}
+
+// Re-nest a flat genome row into the per-layer kernel/bias structure the
+// dashboard's forward pass and landscape sampler expect. Order matches the
+// recorder's `genome_layout` exactly — that table was built from
+// `tree_flatten_with_path` on the template params, with the leading "params"
+// key stripped, so consumer code never sees Flax's wrapper.
+function unflattenMlp(flat: Float32Array, layout: GenomeLayoutEntry[]): MlpGenome {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const root: any = {};
+  for (const entry of layout) {
+    const size = entry.shape.reduce((a, b) => a * b, 1);
+    const slice = flat.subarray(entry.offset, entry.offset + size);
+    let cur = root;
+    for (let i = 0; i < entry.path.length - 1; i++) {
+      const key = entry.path[i];
+      if (!cur[key]) cur[key] = {};
+      cur = cur[key];
+    }
+    const last = entry.path[entry.path.length - 1];
+    if (entry.shape.length === 2) {
+      const [rows, cols] = entry.shape;
+      const matrix: number[][] = [];
+      for (let r = 0; r < rows; r++) {
+        const row: number[] = new Array(cols);
+        for (let c = 0; c < cols; c++) row[c] = slice[r * cols + c];
+        matrix.push(row);
+      }
+      cur[last] = matrix;
+    } else if (entry.shape.length === 1) {
+      cur[last] = Array.from(slice);
+    } else {
+      throw new Error(`unsupported genome layout shape: ${entry.shape}`);
+    }
+  }
+  return root as MlpGenome;
+}
+
 function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
   return {
     meta,
@@ -240,6 +331,7 @@ function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
       ? loadFloat32(buf, meta, "reward_weights")
       : null,
     action: meta.sections["action"] ? loadFloat32(buf, meta, "action") : null,
+    genomesById: decodeGenomes(buf, meta),
   };
 }
 

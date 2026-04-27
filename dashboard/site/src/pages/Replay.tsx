@@ -6,7 +6,6 @@ import AgentInspector from "../components/AgentInspector";
 import EventChips from "../components/EventChips";
 import WeightHistogram from "../components/WeightHistogram";
 import WeightTrajectoryStrip from "../components/WeightTrajectoryStrip";
-import RewardLandscape from "../components/RewardLandscape";
 import {
   ReplayData,
   ReplayIndex,
@@ -88,12 +87,6 @@ export default function Replay() {
   // at a glance instead of having to click into AgentInspector.
   const [colorBy, setColorBy] = useState<ColorByKey>("species");
   const COLOR_AXIS = 2.0;
-  // Gated on ?lab=mlp — surfaces the synthetic-fixture RewardLandscape spike.
-  // Kept opt-in so the main UX stays clean while the MLP runner wiring is
-  // still pending; remove the gate once real MLP genomes land in v3 replays.
-  const labMlp =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("lab") === "mlp";
 
   // Agent inspector. `selectedSlot` is the agent whose panel is open;
   // `pinnedSlot` is the one whose trail/ring persist across frames. They can
@@ -549,7 +542,6 @@ export default function Replay() {
                 {data.rewardWeights && (
                   <WeightHistogram data={data} frameIdx={frameIdx} />
                 )}
-                {labMlp && <RewardLandscape />}
               </div>
             )}
           </section>

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { ReplayData } from "../lib/replayLoader";
+import RewardLandscape from "./RewardLandscape";
 
 interface Props {
   data: ReplayData;
@@ -303,6 +304,19 @@ export default function AgentInspector({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {data.meta.genome_arch === "mlp" && (
+        <div className="mb-2">
+          <RewardLandscape
+            genome={
+              agentId !== null && agentId >= 0
+                ? data.genomesById?.get(agentId) ?? null
+                : null
+            }
+            sourceLabel={agentId !== null && agentId >= 0 ? `id ${agentId}` : undefined}
+          />
         </div>
       )}
 

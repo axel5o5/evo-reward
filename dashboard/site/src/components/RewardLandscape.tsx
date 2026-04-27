@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  MlpFixture,
-  MlpFixtureFile,
-  fetchMlpFixtures,
+  MlpGenome,
   fitLinearEquivalent,
   sampleRewardGrid,
 } from "../lib/rewardMlp";
 import { weightColorRgb } from "../lib/weightColor";
 
 // 2D heatmap of an MLP reward genome's response over a chosen pair of stimulus
-// axes. Built against the synthetic fixtures in
-// public/fixtures/mlp_reward_examples.json so we can prove the visualization
-// is worth investing in before plumbing real MLP genomes through the JAX
-// runner. Once jax_sim grows MLP support and the recorder captures genomes,
-// this component drops in unchanged — the only swap is the fixture loader.
+// axes. The genome comes in via the `genome` prop — typically the agent
+// pinned in AgentInspector, decoded from a v3 replay's `genomesById`. The
+// synthetic fixtures in public/fixtures/mlp_reward_examples.json are now a
+// debug-only path (see scripts/bake_mlp_reward_fixture.py); production
+// renders use real evolved networks.
 
 const GRID_SIZE = 64;
 // Stimulus ranges roughly cover the values reward.py applies coefs to
@@ -26,45 +24,40 @@ const AXIS_RANGES: [number, number][] = [
   [0, 1], // s_pred
 ];
 
+const INPUT_LABELS = ["n_eaten", "motor_norm", "s_prey", "s_pred"];
+
 interface Props {
-  // Optional override: if a parent (e.g. AgentInspector) wants to lock the
-  // user to a specific axis pair, pass it here.
+  // The MLP genome to inspect. Null/undefined = render an empty placeholder
+  // (e.g. on linear replays, or when no agent is pinned).
+  genome: MlpGenome | null;
+  // Caller-supplied label for the source — e.g. "agent 47" — shown in the
+  // header so the user knows whose landscape they're looking at.
+  sourceLabel?: string;
+  // Optional override: if a parent wants to lock the user to a specific
+  // axis pair, pass it here.
   defaultAxisX?: number;
   defaultAxisY?: number;
 }
 
 export default function RewardLandscape({
+  genome,
+  sourceLabel,
   defaultAxisX = 3, // s_pred (fear)
   defaultAxisY = 2, // s_prey (social)
 }: Props) {
-  const [fixtures, setFixtures] = useState<MlpFixtureFile | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedIdx, setSelectedIdx] = useState(0);
   const [axisX, setAxisX] = useState(defaultAxisX);
   const [axisY, setAxisY] = useState(defaultAxisY);
   // Held values for the two non-displayed axes. Defaults to mid-range; the
   // user can dial them up to inspect e.g. "what if motor cost is high?"
   const [heldValues, setHeldValues] = useState<number[]>([1.0, 0.5, 0.5, 0.5]);
 
-  useEffect(() => {
-    fetchMlpFixtures()
-      .then((f) => setFixtures(f))
-      .catch((e) => setLoadError(String(e)));
-  }, []);
-
-  const fixture: MlpFixture | null = fixtures?.fixtures[selectedIdx] ?? null;
-  const labels = fixtures?.input_labels ?? [
-    "n_eaten",
-    "motor_norm",
-    "s_prey",
-    "s_pred",
-  ];
+  const labels = INPUT_LABELS;
 
   const { values, min, max, absMax } = useMemo(() => {
-    if (!fixture) return { values: null, min: 0, max: 0, absMax: 0 };
+    if (!genome) return { values: null, min: 0, max: 0, absMax: 0 };
     const held = new Float32Array(heldValues);
     const grid = sampleRewardGrid(
-      fixture.params,
+      genome,
       axisX,
       axisY,
       AXIS_RANGES[axisX],
@@ -78,12 +71,12 @@ export default function RewardLandscape({
       max: grid.max,
       absMax: Math.max(Math.abs(grid.min), Math.abs(grid.max), 1e-6),
     };
-  }, [fixture, axisX, axisY, heldValues]);
+  }, [genome, axisX, axisY, heldValues]);
 
   const linFit = useMemo(() => {
-    if (!fixture) return null;
-    return fitLinearEquivalent(fixture.params, AXIS_RANGES, 5);
-  }, [fixture]);
+    if (!genome) return null;
+    return fitLinearEquivalent(genome, AXIS_RANGES, 5);
+  }, [genome]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
@@ -114,19 +107,10 @@ export default function RewardLandscape({
     ctx.putImageData(img, 0, 0);
   }, [values, absMax]);
 
-  if (loadError) {
-    return (
-      <div className="border border-amber-300 dark:border-amber-700 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-400">
-        Could not load MLP fixtures: {loadError}. Run{" "}
-        <code className="font-mono">python scripts/bake_mlp_reward_fixture.py</code>{" "}
-        to generate them.
-      </div>
-    );
-  }
-  if (!fixtures || !fixture) {
+  if (!genome) {
     return (
       <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 text-xs text-gray-500">
-        Loading reward landscape…
+        Reward landscape unavailable — no MLP genome for the selected agent.
       </div>
     );
   }
@@ -137,25 +121,14 @@ export default function RewardLandscape({
     <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-          Reward landscape{" "}
-          <span className="text-[10px] font-normal text-amber-600 dark:text-amber-400">
-            synthetic fixture
-          </span>
+          Reward landscape
+          {sourceLabel && (
+            <span className="text-[10px] font-normal text-gray-500 ml-1">
+              · {sourceLabel}
+            </span>
+          )}
         </div>
-        <select
-          className="text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 px-2 py-0.5"
-          value={selectedIdx}
-          onChange={(e) => setSelectedIdx(Number(e.target.value))}
-        >
-          {fixtures.fixtures.map((f, i) => (
-            <option key={i} value={i}>
-              {f.name}
-            </option>
-          ))}
-        </select>
       </div>
-
-      <div className="text-[10px] text-gray-500 mb-2">{fixture.description}</div>
 
       <div className="flex gap-3 items-start">
         <div className="flex-shrink-0">

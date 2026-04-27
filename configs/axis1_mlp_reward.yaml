@@ -136,5 +136,12 @@ action_mapping:     "sigmoid"
 
 # Logging cadence lives in configs/runtime/*.yaml.
 
+# ─── Replay recording (recorder v3) ──────────────────────────────────────────
+# Same cadence as the linear sweeps. v3 captures one MLP genome per unique
+# agent_id seen during each window — drives AgentInspector's reward landscape
+# on real evolved networks.
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 seed:               0

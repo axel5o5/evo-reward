@@ -20,8 +20,23 @@ Key properties:
     go to uint16 (scale = world_size/65535, ~0.015 unit precision) and energy
     goes to uint8 (scale = energy_capacity/255). ~2–3× smaller on disk.
 
-Binary format is versioned via meta.json.version. v2 (current) adds per-frame
-identity/lineage/phenotype tracks on top of v1. Dtypes below assume quantize=True:
+Binary format is versioned via meta.json.version.
+  v1 — geometry only.
+  v2 — adds per-frame identity/lineage/phenotype tracks (agent_ids, parent_ids,
+       ages, reward_weights, action).
+  v3 — adds per-genome reward storage for MLP/temporal runs and tags the
+       genome architecture in meta. Linear runs are unchanged (still write
+       per-frame `reward_weights`); MLP/temporal runs drop that 4-vector
+       section (it's frozen at init for non-linear genomes and uninformative)
+       and write `reward_genomes_byid` + `reward_genomes_idmap` instead —
+       one flat genome row per unique agent_id seen during the window.
+       meta gains `genome_arch` ("linear" | "mlp" | "temporal"),
+       `genome_shape` (architecture-specific dims), and `genome_layout`
+       (offset/shape table the loader uses to re-nest the flat row into
+       per-layer kernels/biases). Storage at defaults: ~240 KB extra for
+       hidden_size=8 MLP, ~1.9 MB for k=10/h=16 temporal.
+
+Dtypes below assume quantize=True:
   agent_ids      uint16  (n_frames, max_agents)     stored = (id - id_base + 1),
                                                     0 = sentinel (-1). id_base
                                                     lives in meta.id_base.
@@ -31,12 +46,16 @@ identity/lineage/phenotype tracks on top of v1. Dtypes below assume quantize=Tru
   parent_ids     uint16  (n_frames, max_agents)     same encoding as agent_ids
   ages           int32   (n_frames, max_agents)     birth_step = step - age
   reward_weights int8    (n_frames, max_agents, 4)  scale = 4/127 (covers ±4)
+                                                    — linear genome only (v3)
   action         int8    (n_frames, max_agents, 2)  scale = 1/127 (covers ±1)
+  reward_genomes_byid    float32 (n_unique, genome_dim)  — v3, MLP/temporal
+  reward_genomes_idmap   int32   (n_unique,)             — v3, MLP/temporal
 Per-frame (not static) because slot reuse after death replaces the occupant
 mid-window — a static section would misattribute to the previous tenant.
 Unquantized replays keep everything as float32 / int32.
 
 v2 storage at defaults (length=1000, max_agents=500): ~14 MB (vs ~8 MB v1).
+v3 linear: same size as v2. v3 MLP (h=8): ~14 MB + ~240 KB.
 """
 from __future__ import annotations
 
@@ -75,12 +94,77 @@ class ReplayRecorder:
         self.retention_policy = str(config.get("replay_retention_policy", "last_n"))
         self.retention_config = dict(config.get("replay_retention_config", {"keep_last_n": 10}))
 
+        # v3 genome capture. For linear runs we keep the v2 per-frame
+        # reward_weights pipeline. For MLP/temporal runs we ditch that
+        # (the 4-vector field is frozen at init for those genomes and
+        # uninformative) and snapshot the flat genome the first frame
+        # we see each agent_id during a recording window. seen_genomes
+        # is reset on each flush.
+        self.genome_arch = str(config.get("reward_type", "linear"))
+        self.genome_dim = 0
+        self.genome_shape: dict = {}
+        self.genome_layout: list[dict] = []
+        if self.genome_arch in ("mlp", "temporal"):
+            self._init_genome_layout(config)
+        self.seen_genomes: dict[int, np.ndarray] = {}
+
         # local_out_root is already `<out_dir>/<exp>/seed_<N>[/<run_tag>]/replays`
         # when called from the runner, so don't re-append exp/seed here.
         self.local_root = Path(local_out_root)
         self.local_root.mkdir(parents=True, exist_ok=True)
 
         self._alloc_buffer()
+
+    # ---------------------------- genome layout (v3) -------------------------
+
+    def _init_genome_layout(self, config: dict) -> None:
+        """Compute the flat-row layout for an MLP/temporal genome.
+
+        Builds it from a freshly initialized template so the exact leaf
+        ordering matches `jax.tree_util.tree_leaves` — which is also what
+        `ravel_pytree` uses when the runner flattens per-slot params at
+        capture time. Strips the leading 'params' key so the layout maps
+        cleanly to the dashboard's `MlpGenome` interface (which doesn't
+        carry that wrapper).
+        """
+        import jax
+        import jax.tree_util as jtu
+
+        if self.genome_arch == "mlp":
+            from src.reward import init_mlp_genome
+            template = init_mlp_genome(jax.random.PRNGKey(0), config)
+            hidden = int(config["mlp_hidden_size"])
+            self.genome_shape = {"input_dim": 4, "hidden_size": hidden, "output_dim": 1}
+        else:
+            from src.reward import init_temporal_genome
+            template = init_temporal_genome(jax.random.PRNGKey(0), config)
+            k = int(config["reward_context_window"])
+            hidden = int(config["temporal_hidden_size"])
+            self.genome_shape = {
+                "input_dim": k * 4,
+                "context_window": k,
+                "hidden_size": hidden,
+                "output_dim": 1,
+            }
+
+        leaves_with_paths, _ = jtu.tree_flatten_with_path(template)
+        offset = 0
+        for path, leaf in leaves_with_paths:
+            keys = []
+            for p in path:
+                key = getattr(p, "key", None)
+                if key is None:
+                    key = str(p)
+                keys.append(str(key))
+            # Strip the Flax 'params' wrapper so dashboard consumers see a
+            # bare {Dense_0: {...}, Dense_1: {...}, ...} structure.
+            if keys and keys[0] == "params":
+                keys = keys[1:]
+            shape = list(leaf.shape)
+            size = int(np.prod(shape)) if shape else 1
+            self.genome_layout.append({"path": keys, "shape": shape, "offset": offset})
+            offset += size
+        self.genome_dim = offset
 
     # ---------------------------- buffer -------------------------------------
 
@@ -157,7 +241,52 @@ class ReplayRecorder:
         rollout_ptrs = np.asarray(sim_state.rollout_ptrs)
         last = (rollout_ptrs - 1) % rollout_actions.shape[1]
         self._buf["action"][i] = rollout_actions[np.arange(self.max_agents), last]
+
+        # v3: snapshot per-slot MLP/temporal genome the first frame we see
+        # each agent_id during this window. Slot reuse is handled correctly
+        # because the dict is keyed by id, not slot. Genomes don't change
+        # over an agent's lifetime (mutated only at birth), so one row is
+        # exact, not a sample.
+        if self.genome_arch in ("mlp", "temporal"):
+            self._capture_genomes(sim_state, i)
+
         self._count += 1
+
+    def _capture_genomes(self, sim_state, frame_idx: int) -> None:
+        """Snapshot any newly-seen agent ids' flat genomes."""
+        import jax.tree_util as jtu
+
+        ids = self._buf["agent_ids"][frame_idx]
+        active = self._buf["alive"][frame_idx]
+        new_slots = []
+        new_ids = []
+        for slot in range(self.max_agents):
+            if not active[slot]:
+                continue
+            aid = int(ids[slot])
+            if aid < 0 or aid in self.seen_genomes:
+                continue
+            new_slots.append(slot)
+            new_ids.append(aid)
+        if not new_slots:
+            return
+
+        # Pull the whole stacked PyTree once and concat per-slot rows along
+        # the genome axis. Using tree_leaves matches ravel_pytree's leaf
+        # ordering (genome_layout was built from the same traversal at
+        # __init__), so the flat row maps onto layout offsets exactly.
+        params = (
+            sim_state.reward_mlp_params
+            if self.genome_arch == "mlp"
+            else sim_state.reward_temporal_params
+        )
+        leaves = jtu.tree_leaves(params)
+        flat_per_slot = np.concatenate(
+            [np.asarray(leaf).reshape(self.max_agents, -1) for leaf in leaves],
+            axis=1,
+        )
+        for slot, aid in zip(new_slots, new_ids):
+            self.seen_genomes[aid] = flat_per_slot[slot].astype(np.float32, copy=True)
 
     # ---------------------------- flush --------------------------------------
 
@@ -252,13 +381,31 @@ class ReplayRecorder:
             ("step_nums",   step_arr,    "int32"),
             ("species",     species,     "int32"),
             ("radii",       radii,       "float32"),
-            # v2 additions — identity, lineage, phenotype, action. See header.
+            # v2 additions — identity, lineage, action. The reward_weights
+            # section only goes in for linear runs (v3 drops it for
+            # MLP/temporal — the 4-vector is uninformative there).
             ("agent_ids",      aid_out,        "uint16" if quant_ids     else "int32"),
             ("parent_ids",     pid_out,        "uint16" if quant_ids     else "int32"),
             ("ages",           ages,           "int32"),
-            ("reward_weights", rw_out,         "int8"   if self.quantize else "float32"),
-            ("action",         act_out,        "int8"   if self.quantize else "float32"),
         ]
+        if self.genome_arch == "linear":
+            sections.append(
+                ("reward_weights", rw_out, "int8" if self.quantize else "float32")
+            )
+        sections.append(
+            ("action", act_out, "int8" if self.quantize else "float32"),
+        )
+
+        # v3 genome-by-id sections. One row per unique agent_id seen during
+        # the window, keyed by reward_genomes_idmap. Float32 for now — the
+        # storage is small (240 KB for h=8 MLP at defaults), so we don't
+        # need quantization yet.
+        if self.genome_arch in ("mlp", "temporal") and self.seen_genomes:
+            ids_sorted = sorted(self.seen_genomes.keys())
+            genomes_byid = np.stack([self.seen_genomes[i] for i in ids_sorted]).astype(np.float32)
+            genomes_idmap = np.array(ids_sorted, dtype=np.int32)
+            sections.append(("reward_genomes_byid", genomes_byid, "float32"))
+            sections.append(("reward_genomes_idmap", genomes_idmap, "int32"))
 
         bin_path = out_dir / "frames.bin"
         offsets: dict[str, dict] = {}
@@ -275,7 +422,7 @@ class ReplayRecorder:
                 f.write(buf)
 
         meta = {
-            "version": 2,
+            "version": 3,
             "start_step": start_step,
             "n_frames": int(n),
             "max_agents": int(self.max_agents),
@@ -284,18 +431,25 @@ class ReplayRecorder:
             "quantize": self.quantize,
             "scales": scales,
             "id_base": int(id_base),
+            "genome_arch": self.genome_arch,
+            "genome_shape": self.genome_shape,
+            "genome_layout": self.genome_layout,
+            "genome_dim": int(self.genome_dim),
             "sections": offsets,
             "frames_bin": "frames.bin",
             "frames_bin_size": bin_path.stat().st_size,
         }
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
         size_mb = bin_path.stat().st_size / 1e6
-        print(f"[replay] flushed {n} frames → {bin_path} ({size_mb:.1f} MB, start_step={start_step})")
+        n_genomes = len(self.seen_genomes) if self.genome_arch != "linear" else 0
+        suffix = f", {n_genomes} genome(s)" if n_genomes else ""
+        print(f"[replay] flushed {n} frames → {bin_path} ({size_mb:.1f} MB, start_step={start_step}{suffix})")
 
         if self.bucket:
             self._upload_and_prune(out_dir, start_step)
 
         self._count = 0
+        self.seen_genomes = {}
 
     # ---------------------------- upload + prune -----------------------------
 
