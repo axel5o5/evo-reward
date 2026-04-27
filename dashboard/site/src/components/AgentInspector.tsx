@@ -320,6 +320,16 @@ export default function AgentInspector({
         </div>
       )}
 
+      {data.meta.genome_arch === "temporal" && (
+        <div className="mb-2 border border-gray-200 dark:border-gray-800 rounded-lg p-3 text-xs text-gray-500">
+          Temporal reward genome captured ({data.meta.genome_dim} params,
+          k={data.meta.genome_shape?.context_window} timesteps). The 2-axis
+          landscape view assumes a 4-d input — temporal-genome visualization
+          is a follow-up. The flat genome row is available via{" "}
+          <code className="font-mono">data.genomesById</code>.
+        </div>
+      )}
+
       <div>
         <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">
           energy <span className="normal-case tracking-normal">(0–{spark.maxE.toFixed(0)})</span>

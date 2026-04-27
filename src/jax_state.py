@@ -42,6 +42,9 @@ class SimState:
     # PyTree where each leaf has shape (max_agents, ...). Same pattern as
     # policy_params.
     reward_mlp_params: dict
+    # Same shape contract as reward_mlp_params, but for the (k*4 → h → h → 1)
+    # temporal MLP genome (Axis 3). Empty {} for linear/mlp runs.
+    reward_temporal_params: dict
 
     # --- Policy params & optimizer (stacked pytrees, each leaf (max_agents, ...)) ---
     policy_params: dict
@@ -194,8 +197,10 @@ def init_simstate(config: dict, rng_key) -> SimState:
     # stack Flax-init'd params for every slot so the array shape stays
     # static — same pattern as policy_params below.
     reward_type = config.get("reward_type", "linear")
+    reward_mlp_params: dict = {}
+    reward_temporal_params: dict = {}
     if reward_type == "linear":
-        reward_mlp_params = {}
+        pass
     elif reward_type == "mlp":
         from src.reward import init_mlp_genome
         rng_key, mlp_key = jax.random.split(rng_key)
@@ -203,11 +208,15 @@ def init_simstate(config: dict, rng_key) -> SimState:
         reward_mlp_params = jax.vmap(
             lambda k: init_mlp_genome(k, config)
         )(mlp_keys)
+    elif reward_type == "temporal":
+        from src.reward import init_temporal_genome
+        rng_key, t_key = jax.random.split(rng_key)
+        t_keys = jax.random.split(t_key, max_agents)
+        reward_temporal_params = jax.vmap(
+            lambda k: init_temporal_genome(k, config)
+        )(t_keys)
     else:
-        raise ValueError(
-            f"reward_type {reward_type!r} not yet wired through jax_sim "
-            "(linear/mlp supported in Phase A; temporal lands in Phase B)"
-        )
+        raise ValueError(f"reward_type {reward_type!r} not recognized")
 
     # --- Policy params: tile a dummy, then re-init active slots ---------------
     policy_keys = jax.random.split(policy_key, n_initial)
@@ -303,6 +312,7 @@ def init_simstate(config: dict, rng_key) -> SimState:
         energies=energies,
         reward_weights=reward_weights,
         reward_mlp_params=reward_mlp_params,
+        reward_temporal_params=reward_temporal_params,
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,
@@ -454,6 +464,7 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         energies=energies,
         reward_weights=reward_weights,
         reward_mlp_params={},
+        reward_temporal_params={},
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,

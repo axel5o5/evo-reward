@@ -77,27 +77,48 @@ def build_sim_step(config, space):
     # Pre-build the PPO update function (used outside JIT by the runner)
     ppo_update_fn = build_ppo_update_fn(config)
 
-    # Reward dispatch (Axis 1). Linear keeps the K&D formula with
-    # [1.0, 0.01, 0.1, 0.1] coefs; MLP eats RAW stimuli and reads its
-    # per-agent params from sim_state.reward_mlp_params. Selected at build
+    # Reward dispatch (Axes 1 & 3). Linear keeps the K&D formula with
+    # [1.0, 0.01, 0.1, 0.1] coefs; MLP eats RAW stimuli; temporal eats a
+    # rolling (k, 4) window from sim_state.obs_buffer. Selected at build
     # time so the JIT body branches on a Python-static flag — no lax.cond
     # needed because each run uses a single reward_type.
+    #
+    # Closure signature is `(sim_state, stimuli) -> (rewards, sim_state)`
+    # so the temporal branch can update obs_buffer alongside computing the
+    # reward; linear/MLP return sim_state unchanged.
     reward_type = config.get("reward_type", "linear")
     if reward_type == "linear":
         _linear_coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
 
         def _compute_rewards(sim_state, stimuli):
-            return jnp.sum(sim_state.reward_weights * stimuli * _linear_coefs, axis=1)
+            r = jnp.sum(sim_state.reward_weights * stimuli * _linear_coefs, axis=1)
+            return r, sim_state
     elif reward_type == "mlp":
         from src.reward import compute_mlp_reward
 
         def _compute_rewards(sim_state, stimuli):
-            return jax.vmap(compute_mlp_reward)(sim_state.reward_mlp_params, stimuli)
+            r = jax.vmap(compute_mlp_reward)(sim_state.reward_mlp_params, stimuli)
+            return r, sim_state
+    elif reward_type == "temporal":
+        from src.reward import compute_temporal_reward
+
+        def _compute_rewards(sim_state, stimuli):
+            # Roll obs_buffer left by 1, append the new stimulus row at the
+            # tail. Newborn slots see (k-1) zero rows + the just-added one
+            # for their first step — the window naturally fills up over k
+            # steps as the agent ages. Resetting the buffer at birth (in
+            # spawn_offspring_jax) means slot reuse never leaks the dead
+            # predecessor's history into the newborn.
+            old = sim_state.obs_buffer  # (max_agents, k, 4)
+            new_buffer = jnp.concatenate(
+                [old[:, 1:], stimuli[:, None, :]], axis=1,
+            )
+            r = jax.vmap(compute_temporal_reward)(
+                sim_state.reward_temporal_params, new_buffer,
+            )
+            return r, sim_state.replace(obs_buffer=new_buffer)
     else:
-        raise ValueError(
-            f"reward_type {reward_type!r} not yet wired through jax_sim "
-            "(linear/mlp supported in Phase A; temporal lands in Phase B)"
-        )
+        raise ValueError(f"reward_type {reward_type!r} not recognized")
 
     # Physics stepper
     # D19 fix: also return a per-substep "did-touch" bool array, reduced via
@@ -281,7 +302,7 @@ def build_sim_step(config, space):
         )
 
         stimuli = jnp.stack([n_eaten_reward, motor_norms, s_prey, s_pred], axis=1)
-        all_rewards = _compute_rewards(sim_state, stimuli)
+        all_rewards, sim_state = _compute_rewards(sim_state, stimuli)
         all_rewards = jnp.where(sim_state.is_active, all_rewards, 0.0)
 
         new_rollout_rewards = sim_state.rollout_rewards.at[agent_idx, safe_ptrs].set(all_rewards)

@@ -22,7 +22,7 @@ import pytest
 
 from scripts.replay_recorder import ReplayRecorder
 from src.jax_state import init_simstate
-from src.reward import compute_mlp_reward, init_mlp_genome
+from src.reward import compute_mlp_reward, compute_temporal_reward
 
 
 @pytest.fixture
@@ -300,6 +300,78 @@ def test_recorder_captures_birth_during_window(tmp_path: Path, mlp_config):
     assert diff > 1e-4, (
         f"child genome appears identical to parent (L2 diff={diff:.2e}); "
         "mutation may not have run, or recorder captured the wrong slot"
+    )
+
+
+@pytest.fixture
+def temporal_config(mlp_config):
+    """Same shape as mlp_config but with temporal-axis flags."""
+    cfg = dict(mlp_config)
+    cfg["experiment_name"] = "test_recorder_v3_temporal"
+    cfg["reward_type"] = "temporal"
+    cfg["reward_context_window"] = 10
+    cfg["temporal_hidden_size"] = 16
+    cfg["temporal_mutation_scale"] = 0.005
+    cfg["temporal_weight_clip"] = 5.0
+    # mlp_* keys are unused in the temporal branch but harmless to leave.
+    return cfg
+
+
+def test_temporal_recorder_writes_v3_with_genomes(tmp_path: Path, temporal_config):
+    """Mirror of the MLP roundtrip test for temporal reward. Captures a
+    short window, decodes the genome rows, rebuilds the temporal MLP from
+    the flat layout, and verifies the forward pass over a (k, 4) window
+    matches the original PyTree."""
+    state = init_simstate(temporal_config, jax.random.PRNGKey(0))
+
+    recorder = ReplayRecorder(
+        temporal_config, "test_v3_temporal", seed=0,
+        local_out_root=tmp_path / "replays",
+    )
+    assert recorder.enabled
+    assert recorder.genome_arch == "temporal"
+    # Layout maths: (k*4=40)→16→16→1 = 16 + 640 + 16 + 256 + 1 + 16 = 945.
+    assert recorder.genome_dim == 945
+    assert recorder.genome_shape["context_window"] == 10
+    assert recorder.genome_shape["hidden_size"] == 16
+
+    for step in range(1, 6):
+        recorder.step(state, step)
+
+    out_dir = sorted((tmp_path / "replays").iterdir())[0]
+    meta = json.loads((out_dir / "meta.json").read_text())
+    assert meta["version"] == 3
+    assert meta["genome_arch"] == "temporal"
+    assert meta["genome_dim"] == 945
+    # Temporal runs drop reward_weights too (4-vector is uninformative).
+    assert "reward_weights" not in meta["sections"]
+    assert "reward_genomes_byid" in meta["sections"]
+    assert "reward_genomes_idmap" in meta["sections"]
+
+    bin_buf = (out_dir / "frames.bin").read_bytes()
+    rows = _read_section(bin_buf, meta["sections"]["reward_genomes_byid"])
+    idmap = _read_section(bin_buf, meta["sections"]["reward_genomes_idmap"])
+    assert rows.shape == (10, 945)
+    assert idmap.shape == (10,)
+
+    # Rebuild one agent's temporal MLP and verify forward-pass equivalence.
+    target_id = int(idmap[0])
+    rebuilt = _unflatten_mlp(rows[0], meta["genome_layout"])
+    rebuilt_pytree = {"params": jtu.tree_map(jnp.asarray, rebuilt)}
+
+    ids_np = np.asarray(state.agent_ids)
+    active_np = np.asarray(state.is_active)
+    slot = int(np.where((ids_np == target_id) & active_np)[0][0])
+    original_pytree = jtu.tree_map(
+        lambda leaf: leaf[slot], state.reward_temporal_params,
+    )
+
+    # Random (k, 4) window — temporal forward pass takes the whole history.
+    window = jax.random.normal(jax.random.PRNGKey(7), (10, 4))
+    expected = float(compute_temporal_reward(original_pytree, window))
+    actual = float(compute_temporal_reward(rebuilt_pytree, window))
+    assert np.isclose(expected, actual, atol=1e-6), (
+        f"rebuilt temporal genome {actual} != original {expected}"
     )
 
 

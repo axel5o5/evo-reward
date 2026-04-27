@@ -54,20 +54,37 @@ def mutate_genome_jax(parent_genome, rng_key, config):
     return child
 
 
-def mutate_mlp_genome_jax(parent_params, rng_key, config):
-    """Mutate an MLP reward genome (Flax PyTree) — JAX-native equivalent of
-    src.evolution.mutate_mlp_genome. Flatten → t-noise → clip → unflatten.
+def mutate_pytree_genome_jax(parent_params, rng_key, scale, clip_val, df=2.0):
+    """JAX-native Student's-t mutation for any flattenable PyTree genome.
 
-    Stays inside JIT so the spawn path doesn't force a host sync per birth.
+    Used by both Axis 1 (MLP, scale = mlp_mutation_scale) and Axis 3
+    (temporal, scale = temporal_mutation_scale). Stays in JIT so the spawn
+    path avoids a host sync per birth.
     """
-    df = config.get("mutation_df", 2.0)
-    scale = config["mlp_mutation_scale"]
-    clip_val = config["mlp_weight_clip"]
-
     flat, unflatten_fn = ravel_pytree(parent_params)
     delta = sample_students_t(rng_key, flat.shape, df=df, scale=scale)
     child_flat = jnp.clip(flat + delta, -clip_val, clip_val)
     return unflatten_fn(child_flat)
+
+
+def mutate_mlp_genome_jax(parent_params, rng_key, config):
+    """Mutate an MLP reward genome (Flax PyTree). See mutate_pytree_genome_jax."""
+    return mutate_pytree_genome_jax(
+        parent_params, rng_key,
+        scale=config["mlp_mutation_scale"],
+        clip_val=config["mlp_weight_clip"],
+        df=config.get("mutation_df", 2.0),
+    )
+
+
+def mutate_temporal_genome_jax(parent_params, rng_key, config):
+    """Mutate a temporal reward genome (Flax PyTree, k*4 → h → h → 1)."""
+    return mutate_pytree_genome_jax(
+        parent_params, rng_key,
+        scale=config["temporal_mutation_scale"],
+        clip_val=config["temporal_weight_clip"],
+        df=config.get("mutation_df", 2.0),
+    )
 
 
 def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
@@ -158,8 +175,11 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
     child_act_ratio = jnp.where(parent_species == 1, pred_ratio, 1.0)
 
-    # MLP genome mutation + scatter into the per-agent stacked params.
-    # Branch on the static config flag so the entire path stays in JIT.
+    # MLP / temporal genome mutation + scatter into the per-agent stacked
+    # params. Branch on the static config flag so the entire path stays
+    # in JIT. Linear runs leave both empty dicts as no-ops.
+    new_reward_mlp_params = sim_state.reward_mlp_params
+    new_reward_temporal_params = sim_state.reward_temporal_params
     if reward_type == "mlp":
         parent_mlp = jtu.tree_map(
             lambda leaf: leaf[parent_slot], sim_state.reward_mlp_params
@@ -169,8 +189,15 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
             lambda stack, single: stack.at[new_slot].set(single),
             sim_state.reward_mlp_params, child_mlp,
         )
-    else:
-        new_reward_mlp_params = sim_state.reward_mlp_params
+    elif reward_type == "temporal":
+        parent_temporal = jtu.tree_map(
+            lambda leaf: leaf[parent_slot], sim_state.reward_temporal_params
+        )
+        child_temporal = mutate_temporal_genome_jax(parent_temporal, k5, config)
+        new_reward_temporal_params = jtu.tree_map(
+            lambda stack, single: stack.at[new_slot].set(single),
+            sim_state.reward_temporal_params, child_temporal,
+        )
 
     return sim_state.replace(
         is_active=sim_state.is_active.at[new_slot].set(True),
@@ -181,6 +208,7 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
         energies=sim_state.energies.at[new_slot].set(child_energy),
         reward_weights=sim_state.reward_weights.at[new_slot].set(child_genome),
         reward_mlp_params=new_reward_mlp_params,
+        reward_temporal_params=new_reward_temporal_params,
         policy_params=new_params,
         policy_opt_states=new_opt,
         rollout_obs=sim_state.rollout_obs.at[new_slot].set(0.0),

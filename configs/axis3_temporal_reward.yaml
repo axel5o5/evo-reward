@@ -130,5 +130,11 @@ action_mapping:     "sigmoid"
 
 # Logging cadence lives in configs/runtime/*.yaml.
 
+# ─── Replay recording (recorder v3) ──────────────────────────────────────────
+# Same cadence as the linear sweeps and axis1. v3 captures one temporal
+# genome (~945 floats) per unique agent_id seen during each window.
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 seed:               0
