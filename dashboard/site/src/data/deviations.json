@@ -44,7 +44,7 @@
     },
     {
       "id": "D8",
-      "title": "Sensor range: 200 units, not 120",
+      "title": "Sensor range: 200 units, not 120 \u2014 **REVERTED** (see D27 below)",
       "resolved": false,
       "body_preview": "**Component:** `environment.py`, `configs/baseline_faithful.yaml`\n\n**emevo:** `sensor_length = 200.0` for both prey and predators. Source: `config/env/20251122-predator-square.toml:12,36`.\n\n**Paper (A..."
     },
@@ -113,6 +113,36 @@
       "title": "Paper-text vs endpoint-code contradiction \u2014 config fix, 2026-04-21",
       "resolved": false,
       "body_preview": "**Context.** After D18/D19/D20 landed, a Phase 1a run still crashed: prey\ndropped 444 \u2192 44 and predators went extinct at step 90K (K&D Table 1\nreports stable populations prey\u2248349, pred\u224823). A deep cro..."
+    },
+    {
+      "id": "D31",
+      "title": "Proximity sensor heading frame off by 90\u00b0 \u2014 FIXED 2026-04-24",
+      "resolved": false,
+      "body_preview": "**Bug.** We fixed D26 for tactile bins, but proximity sensors still used a\ndifferent heading frame. In both `src/observations.py` and\n`src/environment.py`, heading `0` treated world **+x** as forward ..."
+    },
+    {
+      "id": "D30",
+      "title": "Reward computed from post-step obs, not pre-step \u2014 FIXED 2026-04-23",
+      "resolved": false,
+      "body_preview": "**Bug.** Our `sim_step_core` sampled an action from `all_obs` at the start\nof the step, then computed reward later using that same `all_obs`. emevo's\n`cf_predator.py` computes reward from `obs_t1.sens..."
+    },
+    {
+      "id": "D29",
+      "title": "Proximity sensor reward: mean, not max \u2014 FIXED 2026-04-23",
+      "resolved": false,
+      "body_preview": "**Bug.** Our reward code hardcoded `jnp.max(...)` over the 32 proximity\nbins for the `s_prey`/`s_pred` stimulus. emevo's `cf_predator.py` defaults\nto `sensor_agg_type=\"mean\"`. A single sharp detection..."
+    },
+    {
+      "id": "D28",
+      "title": "Predator energy credit: shared, not deduplicated \u2014 FIXED 2026-04-23",
+      "resolved": false,
+      "body_preview": "**TL;DR: likely root cause of predator knife-edge extinction.**\n\n**Bug.** `check_eating_jax` took `argmin(dist)` over predators and gave\ncatch credit to exactly one predator per prey. emevo's `cf_pred..."
+    },
+    {
+      "id": "D27",
+      "title": "Sensor range 200 \u2192 120 (paper Appendix A) \u2014 FIXED 2026-04-22",
+      "resolved": false,
+      "body_preview": "**Context.** `phase1a-v5` ran the full D18-D26 fix stack, produced two\ncomplete Lotka-Volterra cycles (the first healthy oscillation in this\nproject), and then extincted at step 410K. Trace analysis\n(..."
     },
     {
       "id": "D26",

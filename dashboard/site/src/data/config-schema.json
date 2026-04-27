@@ -163,10 +163,10 @@
     },
     {
       "key": "proximity_max_range",
-      "value": 200.0,
+      "value": 120.0,
       "section": "Sensors",
       "comment": "",
-      "inline_comment": "CONFIRMED: sensor_length = 200.0 (emevo code; paper says 120)"
+      "inline_comment": "paper Appendix A: \"proximity sensors with a maximum length of 120 units\" (D27 fix; emevo TOML uses 200 but paper text takes precedence per the D22 principle)"
     },
     {
       "key": "n_tactile_sensors",
@@ -188,6 +188,20 @@
       "section": "Sensors",
       "comment": "",
       "inline_comment": "degrees between sensors (360/18 = 20)"
+    },
+    {
+      "key": "sensor_agg_type",
+      "value": "mean",
+      "section": "Sensors",
+      "comment": "",
+      "inline_comment": "emevo cf_predator.py default; aggregates the"
+    },
+    {
+      "key": "reward_obs_timing",
+      "value": "post_step",
+      "section": "Sensors",
+      "comment": "32 proximity bins into a single scalar per type for the reward stimulus (w_prey, w_pred). Our pre-D29 code was hardcoded to \"max\".",
+      "inline_comment": "emevo reward uses obs_t1.sensor (post env.step)."
     },
     {
       "key": "food_max",

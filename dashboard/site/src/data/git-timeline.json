@@ -1151,6 +1151,267 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "39f4f88c",
+      "message": "[Replay] scripts/replay.py backfill subcommand",
+      "body": "Adds 'backfill' to scripts/replay.py: re-simulate from a historic\ncheckpoint (or step 0 via init_simstate) for a fixed number of steps,\nand upload the resulting replay to the public GCS bucket in the same\nquantized format the live recorder emits.\n\nUseful for seeding the bucket with 'before' snapshots at pinned\nmilestones after the fact \u2014 e.g. when we want a step-0 replay for the\ndashboard but the original run didn't record one because\nreplay_record_interval_steps was too coarse.\n\nRe-uses the compiled sim_step across checkpoints within one invocation\nso JIT compilation is amortized. Runs in a tempdir, uploads, and\nrebuilds the remote index at the end so a dashboard refresh sees all\nbackfilled replays atomically.\n\nThis work was in-flight before the D18-D26 bug-fix series and has been\nsitting uncommitted; landing it now so the tree is clean.",
+      "date": "2026-04-22 12:27:39 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "91162293",
+      "message": "[Dashboard] Regenerate data indexes to include D19-D26 + current line counts",
+      "body": "dashboard/extract_data.py scans the repo (configs, src line counts,\ndocs deviations, git history) and writes JSON indexes consumed by the\nstatic site. The committed versions were stale \u2014 they only knew about\nD18 and had line counts from before this week's D19-D26 commits.\n\nRegenerated on main after ad5aa69 so:\n  * deviations.json lists all 24 entries (D1-D15, D18-D26)\n  * module-deps.json reflects current src/ line counts\n  * git-timeline.json includes all session commits\n  * config-schema.json picks up baseline_faithful.yaml changes\n    (beta_t_prey=2e-6, zeta_b_prey=10, food_radius=4.0 from D22)\n\nNo code change \u2014 this is purely the output of .",
+      "date": "2026-04-22 12:27:53 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0d724cbe",
+      "message": "[Docs] Phase 1a v5 analysis \u2014 first LV cycles + over-evolved-fear extinction",
+      "body": "First run to produce real Lotka-Volterra oscillations (pre-D26 runs\ncollapsed monotonically at step 80K). Extincted at step 410K after\ntwo complete cycles, via a failure mode the paper itself describes:\nprey fear over-evolves, predator density can't be sustained at low\nprey, solo predators starve.\n\nExtinction diagnosed via scripts/trace_agent.py from the step-400K\ncheckpoint:\n  * lone predator (agent 3564): 0 catches over 510 final steps,\n    mean action magnitude 41.9 (actively trying to hunt), energy\n    4.1 \u2192 0 pure starvation\n  * contemporary prey (agent 4140): w_pred evolved to -1.14 (3\u00d7\n    stronger fear than early-run -0.36), survived trivially,\n    ate 146 food in 2000 steps\n\nCaptures trajectory, replays worth watching for visual confirmation\nof evolved avoidance, and next-session action items (seed 1 run,\npredator_cap adjustment, baseline_endpoint comparison).",
+      "date": "2026-04-22 19:09:54 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4dc724f0",
+      "message": "[Dashboard] Fix replay heading tick: use phyjax2d angle convention (0=+y)",
+      "body": "The heading overlay drew (cos a, sin a), which assumes angle=0 \u2192 +x. phyjax2d\nstores angle=0 \u2192 +y, so the tick rendered 90\u00b0 off from true heading. Switch\nto forward = (-sin a, cos a) to match the sim convention.",
+      "date": "2026-04-22 19:17:08 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "73e2a75e",
+      "message": "[Dashboard] Replay v2 part 1: URL-addressable replays + chip selector",
+      "body": "- New ReplaySelector: tag/exp/seed chip rows + start_step timeline dots,\n  replaces the grouped <select> dropdown.\n- URL sync: ?tag=&exp=&seed=&step=&frame= on mount and replaceState on\n  change (frame debounced 200ms so scrubbing doesn't spam history).",
+      "date": "2026-04-22 19:26:42 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "10673199",
+      "message": "[D27] Sensor range 200 \u2192 120 \u2014 revert D8, follow paper Appendix A",
+      "body": "phase1a-v5 trace analysis: prey w_pred evolved to -1.14 by step 400K\n(3\u00d7 stronger than cycle 1's -0.36). Solo predator at cycle-2 trough\ngot 0 catches over 510 steps \u2014 starved out. Over-evolved fear blocked\npredator re-bootstrap.\n\nHypothesis: our prey receive a stronger per-step fear reward signal\nthan K&D's. Sensor signal is `1 - dist/max_range`:\n  * range=200, dist=100  \u2192 s=0.50\n  * range=120, dist=100  \u2192 s=0.17  (3\u00d7 weaker)\n  * range=200, dist=150  \u2192 s=0.25\n  * range=120, dist=150  \u2192 s=0.00  (out of range)\n\nReward has `0.1 \u00b7 w_pred \u00b7 max_s_pred`, so signal scales directly.\n\nPaper Appendix A: \"They are equipped with proximity sensors with a\nmaximum length of 120 units.\" Both emevo env TOMLs use 200 \u2014 but\nthis is the exact paper-vs-endpoint-code disagreement D22 addressed\nby choosing paper. Phase 0's D8 chose endpoint; now reverted.\n\nFix:\n  * configs/baseline_faithful.yaml: proximity_max_range 200 \u2192 120\n  * tests/test_paper_anchored.py: pin sensor range at 120 with\n    paper-section citation + phase1a-v5 rationale in docstring\n  * docs/emevo-diff.md: D8 marked REVERTED; D27 entry added\n\nDoes NOT guarantee stable predator population \u2014 predators' own\ndetection range also drops, partially offsetting the fear slowdown.\nNet effect is empirical; phase1a-v7 tests it.\n\nFull fast suite: 218 passed (was 217).",
+      "date": "2026-04-22 19:26:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3d285e7f",
+      "message": "[Dashboard] Replay v2 1.4: PopulationStrip under canvas",
+      "body": "Prey/pred counts per frame (computed once per ReplayData), two SVG\npolylines with a playhead line. Click or drag to scrub \u2014 gives\nLV-cycle context while scrubbing. Also adds REPLAY_V2_PLAN.md so\nfuture work can track against the plan.",
+      "date": "2026-04-22 19:30:12 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "70fe1d05",
+      "message": "[Dashboard] Replay v2 1.6 + 1.7: click-agent inspector + canvas trail",
+      "body": "Click an agent on the canvas to open AgentInspector: slot, species,\nradius, energy, heading, distance travelled, and an energy sparkline\nover the full replay (grey where dead). Pin toggle draws a 50-frame\nfading trail + amber ring on the canvas and persists via ?agent= so\nURLs can deep-link a specific agent. Closing the panel clears both\nselection and pin.\n\nReplayCanvas gains onAgentPick (hit-test against alive agents) and\npinnedSlot (draws trail/ring). Switching replays now clears slot/pin\nso stale indices from one replay don't bleed into another.",
+      "date": "2026-04-22 19:33:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4fc20194",
+      "message": "[Dashboard] Replay v2 1.5: interesting-frames chips",
+      "body": "EventChips above scrubber: jump to next birth/death, peak prey/pred,\nfirst dominance crossover. Shared replayStats.ts walks data.alive\nonce per replay and feeds both PopulationStrip and the chip row.",
+      "date": "2026-04-22 19:36:59 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3fb3be16",
+      "message": "[Dashboard] Replay v2 1.3: per-replay sparkline thumbnails",
+      "body": "New scripts/gen_replay_thumbnails.py walks each replay's frames.bin,\ndecodes alive + species, and writes downsampled prey/pred counts back\ninto index.json (inlined, not a separate file \u2014 the selector already\nfetches index.json, so this saves an HTTP round-trip per visible\nreplay). ReplaySelector now renders a 60\u00d718 inline SVG sparkline in\nplace of each timeline dot when the data is present, falling back to\na plain dot otherwise.",
+      "date": "2026-04-22 19:39:52 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b7ae35c1",
+      "message": "[Replay v2 schema] Per-frame identity/lineage/phenotype/action tracks",
+      "body": "Bumps replay meta.version to 2 and adds five per-frame sections:\nagent_ids, parent_ids, ages, reward_weights, action. Per-frame (not\nstatic) because slot reuse after death would otherwise misattribute\nparent/phenotype to the previous tenant.\n\nAction is pulled from rollout_actions at (rollout_ptrs-1) % rollout_steps\n\u2014 the action that drove this step. Frame immediately after a PPO ptr\nreset reads the stale tail of the rollout buffer; documented.\n\nLoader gates new fields as optional (null for v1 replays) so existing\nreplays still render. FrameView gains matching per-frame slices.",
+      "date": "2026-04-22 20:27:26 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5ad18462",
+      "message": "[Replay] Full inspector \u2014 phenotype bars, action trace, parent jump",
+      "body": "When the replay is v2, AgentInspector now surfaces the research payload:\n  - Reward-weight bars (w_eat, w_act, w_prey, w_pred) on \u00b12 axis, read\n    from the per-frame rewardWeights array so slot-reuse after birth\n    reflects the new occupant's genome.\n  - Action trace sparklines (forward, turn) aligned with energy.\n  - Parent lineage: clickable parent id jumps to the parent's last-alive\n    frame and pins them. Silent no-op if the parent's lifetime falls\n    outside the captured window.\n  - agent_id, birth_step (derived from age + stepNum) in the stat grid.\n\nv1 replays still render cleanly \u2014 the phenotype/action sections drop out\nwhen the corresponding arrays are null, lineage shows \"not recorded\".",
+      "date": "2026-04-22 20:29:33 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "54de0623",
+      "message": "[Replay] WeightHistogram \u2014 per-species reward-weight distribution",
+      "body": "New component renders prey (filled) + predator (outlined) histograms of\nthe selected reward-weight axis (w_eat / w_act / w_prey / w_pred) over\ncurrently-alive agents at the scrubber frame. Mean markers overlay.\n\nUpdates live as you scrub \u2014 watching the predator w_prey mode shift\nacross steps is the fear-evolution result this page was built for.\n\nHidden for v1 replays (rewardWeights null).",
+      "date": "2026-04-22 20:30:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a41f66a8",
+      "message": "[Replay] Compare mode \u2014 /replay/compare?a=...&b=...",
+      "body": "Two ReplayCanvas panels side-by-side on a shared scrubber and play\nbutton. Each side gets its own PopulationStrip so LV phases read\nindependently. URL keys are tag:exp:seed:step (empty tag = untagged\nrun, keep the leading colon), human-editable.\n\nShared scrubber runs against min(n_frames_a, n_frames_b); per-side\nlabels show each replay's own sim step. Banner warns when the two\nentries come from different seeds \u2014 without a matched seed the\ndifference conflates policy + initial-condition noise.",
+      "date": "2026-04-22 20:31:54 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cbd81818",
+      "message": "[Docs] Replay v2 plan \u2014 Phase 2 shipped, deviations noted",
+      "body": null,
+      "date": "2026-04-22 20:32:20 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "369c0af8",
+      "message": "[Replay v2] Quantize new sections \u2014 ~46% smaller v2 replays",
+      "body": "Compressions applied when quantize=True (the default):\n  reward_weights  float32 \u2192 int8   (scale = 4/127, \u00b14 range, ~0.03 prec)\n  action          float32 \u2192 int8   (scale = 1/127, \u00b11 range, ~0.008 prec)\n  agent_ids       int32   \u2192 uint16 (stored = id - id_base + 1, 0 = -1)\n  parent_ids      int32   \u2192 uint16 (same encoding as agent_ids)\n\nid_base lives in meta.json; falls back to int32 if the replay window's\nid range exceeds 65534 (safety for long-running sims with high turnover,\nthough at max_agents=500 this is essentially never hit in 1000 frames).\n\nAt defaults (length=1000, max_agents=500): v2 drops from ~26 MB to\n~14 MB per replay. Shipped before any v2 replays hit GCS so bucket\ncost stays tight from day one.\n\nLoader gains int8 support and an id decoder that handles the uint16\nshift. v1 replays unaffected.",
+      "date": "2026-04-22 20:40:00 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b9188c86",
+      "message": "[Experiments] v8/v9 configs + email draft + STOP-vs-DELETE guardrails",
+      "body": "Three pieces of groundwork for the next round of debugging K&D\nreplication after v5 (sensor=200) extincted at step 410K via over-\nevolved prey fear, and v7 (sensor=120) extincted at step 110K\nbecause fear couldn't evolve at all.\n\n1. docs/drafts/email_to_kanagawa_doya.md \u2014 draft email to paper\n   authors asking 3 specific paper-vs-emevo discrepancy questions\n   that would save days of blind parameter sweeps:\n     * sensor_length 120 (paper) vs 200 (emevo TOMLs)\n     * predator_eat_interval in emevo code but not paper text\n     * weight clip \u00b1100 (paper) vs \u00b110 (emevo gops TOML)\n\n2. configs/experiments/v8_no_cooldown.yaml \u2014 tests the hypothesis\n   that emevo's 10-step predator catch cooldown (unmentioned in\n   paper) is what prevents our predators from establishing a stable\n   population. Sets predator_eat_interval=1, reverts D27 to match\n   v5's sensor=200 baseline.\n\n3. configs/experiments/v9_slow_evolution.yaml \u2014 tests the hypothesis\n   that v5's cycle-2 extinction was driven by runaway fear evolution\n   (prey w_pred reached -1.14). Sets weight_clip=10 per emevo gops\n   TOML, also reverts sensor=200.\n\n4. docs/monitoring.md gets a prominent STOP-vs-DELETE section at\n   the top. The existing teardown section explained 'delete' with no\n   warning that you lose unsynced checkpoints forever, and without\n   a 'stop' alternative for just pausing to save money. Lost the\n   v6+v7 seed_1 checkpoints overnight this way \u2014 won't happen again.\n\nFull fast suite: 218 still passing (no code changes, just config\nfiles and docs).",
+      "date": "2026-04-23 11:20:04 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5c7383aa",
+      "message": "[Docs] Add --scopes=cloud-platform to VM create + fix-in-place recipe",
+      "body": "Default GCE service account scope is devstorage.read_only, which silently\nbreaks BOTH replay uploads (GCS replays bucket) AND gcs-sync checkpoint\nbackups. Training keeps running, but every upload 403s, so a VM crash or\ndelete loses everything.\n\nHit this creating a fresh VM today: v8 ran for 100K steps with zero\nsuccessful uploads before we caught the 403 stream in phase1a.log. Fixed\nin-place via 'gcloud compute instances set-service-account --scopes=cloud-platform'\non a stopped VM, verified writes worked, then resumed training from the\nlocal step-00100000 checkpoint.\n\nAlso added the vm_startup.sh + gcs-bucket metadata to the canonical\ncreate command \u2014 the previous docs example was a bare-bones version\nthat omitted what the spot orchestrator normally sets.",
+      "date": "2026-04-23 13:17:08 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "09735b7e",
+      "message": "[Replay] Include run_tag in upload log path",
+      "body": "The printed \"[replay] uploaded to gs://...\" line hardcoded an untagged\npath, which was misleading during the recent scope-auth debugging because\nthe real GCS path included the run_tag segment. Display string now\nmatches the actual bucket layout.",
+      "date": "2026-04-23 14:13:11 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6445d3ce",
+      "message": "[D28/D29/D30] Three emevo-alignment fixes: shared credit, mean agg, post-step reward obs",
+      "body": "Three separate discrepancies between our code and emevo's cf_predator.py\nidentified from a fresh source-audit pass, all fixed together because each\nalone is insufficient to produce the paper's reported predator-prey\ndynamics.\n\nD28 \u2014 Predator energy credit, shared not deduplicated (largest lever).\nOur code took argmin(dist) across predators and credited exactly one\npredator per prey; emevo credits every predator whose tactile+contact+\ncooldown gates fire. Compresses upper tail of predator energy\ndistribution \u2014 the very region that crosses zeta_b_pred=100's breeding\nsaturation. Swarm catches now give 2-3\u00d7 more energy as intended.\n`check_eating_jax` returns `pred_caught_energy` (per-predator sum) in\nplace of `pred_catch_slots`; `update_energies_jax` applies eta.\n\nD29 \u2014 Proximity sensor reward uses mean, not max. emevo's\nsensor_agg_type defaults to \"mean\"; we were hardcoded to max. Gave a\n2-4\u00d7 stronger fear/chase gradient than the paper produces. New config\nkey `sensor_agg_type` in `baseline_faithful.yaml` (default \"mean\").\n\nD30 \u2014 Reward computed from post-physics, post-catch observation.\nemevo's reward uses `obs_t1.sensor` (consequence), our code used\npre-step `all_obs` (motivation). Temporal shift of the fear/chase\ngradient by one step. `sim_step_core` now calls `obs_fn` a second\ntime on post-step sim_state for reward computation only \u2014 pre-step\n`all_obs` still feeds policy sampling and the rollout buffer (action\nwas conditioned on it).\n\nTest impact: 218 passing, 3 skipped, all existing tests green. Updated\n`test_predator_eating.py` and `scripts/profile_sim_step.py` for the\nrenamed return field.\n\nNext: relaunch baseline_faithful seed 0 on GCP to verify predator\nsustainability under shared-credit + mean-agg + post-step reward.",
+      "date": "2026-04-23 20:37:30 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1aa8114d",
+      "message": "[Ablation] 2x2 D29/D30 isolation infra + emevo_src verification",
+      "body": "Verifies D29 (sensor agg) and D30 (reward obs timing) against\nemevo_src locally (both gecco2026 and predator branches):\n\n  - Reward is computed from post-step obs (timestep.obs) \u2192 D30 correct\n  - sensor_agg_type default is \"mean\"; max is opt-in \u2192 D29 correct\n\nAdds toggles in src/jax_sim.py so both can be flipped without code\nedits:\n  - sensor_agg_type: \"mean\" | \"max\"  (already existed from D29 work)\n  - reward_obs_timing: \"pre_step\" | \"post_step\"  (new)\n\nFour ablation configs in configs/experiments/ form a 2x2 grid with\nD28 fixed on (D28 independently verified vs emevo):\n\n  d28a = max  + pre_step   (D28 only \u2014 revert D29 and D30)\n  d28b = mean + pre_step   (D28 + D29)\n  d28c = max  + post_step  (D28 + D30)\n  d28d = mean + post_step  (full stack = yesterday's d30 run)\n\nTests:\n  tests/test_params_match_emevo.py \u2014 defaults pinned (mean, post_step)\n    + source-level contract that jax_sim.py retains both timing paths\n  tests/test_predator_eating.py \u2014 3 semantic pins:\n    * two predators same prey \u2192 both credited (D28)\n    * max > mean in sparse scene (D29 switch is real)\n    * pre_step > post_step when prey leaves range (D30 switch is real)\n\n224 passed, 3 skipped locally.",
+      "date": "2026-04-24 09:18:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "94fc91c2",
+      "message": "[D31] Proximity sensor forward convention off by 90\u00b0 \u2014 same class as D26",
+      "body": "Bug: proximity sensors (agent-type, food, wall channels) were computed\nwith heading=0 meaning forward=+x. phyjax2d/emevo convention is\nheading=0 \u2192 forward=+y. Prey could not see predators approaching from\ntheir front; predators could not see prey directly in front.\n\nSame class as D26 (tactile mouth bins had the same error, fixed on\n2026-04-22). We had D26 tests but no convention-pinning for proximity,\nso this one slipped through.\n\nFix:\n  - src/observations.py _single_proximity_agents / _food: subtract \u03c0/2\n    from world angle when mapping to agent frame\n  - src/observations.py _compute_wall_distances: add \u03c0/2 to ray\n    directions before per-sensor offsets\n  - src/environment.py compute_proximity_sensors: add \u03c0/2 to sensor\n    centers\n\nTests:\n  - tests/test_paper_anchored.py \u2014 two new convention pins (reference +\n    vectorized paths): target at +y \u2192 detected, target at +x \u2192 not\n  - tests/test_phase0.py and test_predator_eating.py \u2014 placements\n    updated from +x-forward to +y-forward for affected scenes\n\n226 passed, 3 skipped locally. Invalidates yesterday's d30 run and\ntoday's in-progress 2x2 ablation (d28a done, d28b mid-run) since all\nthose trained under mis-framed proximity stimuli.\n\nRelaunch under run-tags d31a/b/c/d.",
+      "date": "2026-04-24 11:09:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8279f238",
+      "message": "[Docs] Experiments log \u2014 single-source run history + D-fix index",
+      "body": "Captures every Phase 1a run (v2-v5, v7, v8, d19, d30, d28a-b, d31a-d)\nwith code state, seed, outcome, and one-line diagnosis. Links to\nphase1a-v5-analysis.md for the one run with a deep-dive so far.\n\nD-fix table from commit messages: D18-D31 with impact assessment\n(massive/large/medium/small) on dynamics. Paper-anchored comparison\npulls in paper Table 1 (avg pred 23, prey 349) and Figure 6 period\n(200-400K steps) as targets.\n\nDocuments the emerging \"overshoot hypothesis\": our pred peaks 30-42\nvs paper's 23; once above the zeta_b_pred=100 knife-edge, recovery\nfrom first crash is structurally impossible.\n\nAlso surfaces seed variance in the paper itself \u2014 5/13 survival in\nn=0.6 condition, 1/6 extinct in large-mouth \u2014 which reframes the\n\"are we missing a bug\" question as \"are we in the extinction regime\nthat paper silently dropped seeds for.\"",
+      "date": "2026-04-24 14:24:38 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "641d73ec",
+      "message": "[Repro] Add emevo smoke tooling and clearer replay labels",
+      "body": "Add VM/setup/launch/compare scripts for end-to-end emevo smoke reproduction, and update replay pages with human-friendly run/experiment naming to make archived-run comparisons easier to interpret.",
+      "date": "2026-04-24 14:52:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6fd07e79",
+      "message": "[Tuning] Parameter pivot: eta sweep + fear/extinction tension",
+      "body": "After confirming emevo's own code reproduces our seed-0 extinction on both\nrect and square paper-default configs, pivoted from chasing exact paper match\nto parameter tuning. Added three eta variants of baseline_faithful:\n\n- tune_eta_0.45: stable but fragile; 1 cycle, no fear evolution\n- tune_eta_0.50: 3 LV cycles to step ~670K, then damped-oscillation extinction\n- tune_eta_0.55: 4 cycles + runaway peak to predator cap, extinction ~720K\n                 BUT fear (prey_w_pred) evolved -0.04 \u2192 -5 by cycle 3 \u2192 -16\n\nHeadline finding: the regime that drives fear evolution (overshoots) is\nthe same regime that eventually extinguishes predators. Stable runs don't\nevolve fear. Documented in experiments-log.md.\n\nAlso queues emevo smoke tooling under scripts/emevo_repro/ and gitignores\nthe external emevo_src/ clone (separate upstream repo).",
+      "date": "2026-04-26 16:11:06 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "779d4652",
+      "message": "[Axes] Set predator_eta to 0.50 across all four axis configs",
+      "body": "Smoke-tested all four axes (axis1 MLP reward, axis2 social_obs, axis3\ntemporal_reward, axis4 LSTM policy) at 20K steps with eta=0.50 \u2014 the\nonly eta we have that survives multi-cycle (0.45 fragile, 0.55 evolves\nfear but extincts at ~720K, 0.60=paper extincts at ~80K).\n\nAll four axes pass the smoke (clean compile, normal population\ntrajectory, no NaN, ~30 sps). Ready for full-length axis runs.\n\nSmoke results at step 20K (all comparable to baseline 0.50):\n- axis1: prey=343 pred=24 pred_E_max=236\n- axis2: prey=330 pred=26 pred_E_max=208\n- axis3: prey=241 pred=30 pred_E_max=221  (slightly more aggressive)\n- axis4: prey=311 pred=26 pred_E_max=229",
+      "date": "2026-04-26 19:36:12 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c35bfab4",
+      "message": "[Docs] Reorganize Phase 1a knowledge into findings + playbook",
+      "body": "The experiments-log.md grew into a tangled mix of run table + cross-cutting\nanalysis + scattered hypotheses. Split into three docs:\n\n- experiments-log.md: now a thin chronological run table only, with\n  cross-links to the others. Added missing entries for axis smokes,\n  axis2 real run, eta sweep extensions.\n\n- findings.md (new): cross-cutting insights \u2014 what we now believe is\n  true. Covers: code reproduces emevo's dynamics on seed 0; paper uses\n  square geometry not rectangle; paper avg pred=23 is survivor-biased;\n  fear-vs-extinction tension across the eta sweep; runaway mechanism\n  driven by co-evolved hunting skills hitting breeding threshold;\n  eta=0.50 as cleanest baseline for axis runs; all four axes\n  mechanically working. Lists open questions worth follow-up.\n\n- params-playbook.md (new): per-parameter reference. For each tunable:\n  paper value, our value, role, observed sensitivity, tuning notes.\n  Ranks the most promising next levers (multi-seed, small mouth,\n  zeta_b_pred=150, initial fear bias, n_max_predators).",
+      "date": "2026-04-26 19:52:59 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "58cf7ab6",
+      "message": "[Phase 1a] sweep_mouth_smol: first 1M survival with sustained fear evolution",
+      "body": "The breakthrough run. eta=0.50 + predator_mouth_tactile_bins=[0] (single\n20\u00b0 tactile bin instead of 60\u00b0 three-bin arc) survived all 1M steps with\nboth species alive and prey_w_pred = -1.97 \u00b1 9.75 sustained \u2014 the first\nnon-extinct full run in this project, and the first with real fear\nevolution mid-run rather than post-extinction.\n\nMechanism (proposed): smaller mouth arc \u2192 fewer catches per encounter \u2192\nlower per-cycle predator energy windfall \u2192 fewer predators cross E>240\nbreeding threshold \u2192 smaller next-cycle peak. The runaway-breeding loop\nbreaks without zeroing predation pressure, leaving a moderate sustained\npredation regime where fear can co-evolve gradually.\n\nImplications:\n- Axis comparisons should run on the mouth_smol substrate going forward\n  (eta=0.50 plain extincts before axes can express their effect)\n- Multi-seed needed to confirm robustness across seeds\n- 5M run will tell us whether oscillation stays stable past 1M\n\nDocs:\n- findings.md: new \u00a79 (axis2_real result), \u00a710 (mouth_smol breakthrough),\n  \u00a711 (open questions). \u00a77 (eta=0.50 baseline) marked superseded.\n- params-playbook.md: predator_mouth_range upgraded to \u2b50\u2b50 \"best lever\n  found.\" Recommended tuning ranking rewritten around mouth_smol.\n- experiments-log.md: added sweep_mouth_smol_1M and corrected\n  axis2_real_500k to its actual outcome (extinct ~100K, killed at 310K).\n\nConfigs:\n- sweep_mouth_smol.yaml \u2014 eta=0.50 + mouth=[0]\n- sweep_zeta150.yaml \u2014 eta=0.50 + zeta_b_pred=150 (untested, queued)\n\nTooling:\n- scripts/launch_sweep_vm.sh \u2014 fire-and-forget on-demand L4 launcher,\n  per-VM independent (no preemption recovery, vs spot_orchestrator.py).\n  Each invocation creates one VM in a specified zone running one config.",
+      "date": "2026-04-27 10:26:15 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1c0723ed",
+      "message": "[Phase 2] Switch axis configs to mouth_smol substrate",
+      "body": "After sweep_mouth_smol_1M validated mouth=[0] as the first stable\nsubstrate (findings.md \u00a710), axis comparisons should run on it rather\nthan the medium-mouth eta=0.50 substrate that extincts before axis\neffects can express. Single-line change per axis: mouth bins [0,1,17] -> [0].\n\nThe control for these axis runs is sweep_mouth_smol_1M (linear reward,\nposition_only obs, MLP policy, mouth_smol substrate).",
+      "date": "2026-04-27 11:05:56 -0400",
+      "author": "Axel Browne",
+      "phase": "2",
+      "session": null
     }
   ]
 }
