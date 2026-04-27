@@ -14,6 +14,8 @@ paper's mutation specification.
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
+from jax.flatten_util import ravel_pytree
 
 from src.policy import init_policy
 
@@ -52,13 +54,29 @@ def mutate_genome_jax(parent_genome, rng_key, config):
     return child
 
 
+def mutate_mlp_genome_jax(parent_params, rng_key, config):
+    """Mutate an MLP reward genome (Flax PyTree) — JAX-native equivalent of
+    src.evolution.mutate_mlp_genome. Flatten → t-noise → clip → unflatten.
+
+    Stays inside JIT so the spawn path doesn't force a host sync per birth.
+    """
+    df = config.get("mutation_df", 2.0)
+    scale = config["mlp_mutation_scale"]
+    clip_val = config["mlp_weight_clip"]
+
+    flat, unflatten_fn = ravel_pytree(parent_params)
+    delta = sample_students_t(rng_key, flat.shape, df=df, scale=scale)
+    child_flat = jnp.clip(flat + delta, -clip_val, clip_val)
+    return unflatten_fn(child_flat)
+
+
 def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     """Spawn one offspring into new_slot from parent_slot. Operates on SimState arrays.
 
     Returns updated SimState with the new agent activated at new_slot.
     Caller is responsible for updating parent energy (energy share).
     """
-    k1, k2, k3, k4 = jax.random.split(rng_key, 4)
+    k1, k2, k3, k4, k5 = jax.random.split(rng_key, 5)
 
     from src.environment import world_bounds
     world_x, world_y = world_bounds(config)
@@ -66,6 +84,7 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     prey_radius = config["prey_radius"]
     pred_radius = config["predator_radius"]
     energy_share_ratio = config["energy_share_ratio"]
+    reward_type = config.get("reward_type", "linear")
 
     parent_species = sim_state.species[parent_slot]
     parent_energy = sim_state.energies[parent_slot]
@@ -86,8 +105,15 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     # Child angle: uniform
     child_angle = jax.random.uniform(k2, minval=-jnp.pi, maxval=jnp.pi)
 
-    # Child genome: mutated from parent
-    child_genome = mutate_genome_jax(parent_genome, k3, config)
+    # Child genome: linear weights only mutate when reward_type=="linear".
+    # For MLP runs the 4-vector field is never read by the reward dispatch,
+    # so leaving it equal to the parent's value keeps logged linear stats
+    # quiet instead of showing a drifting "ghost evolution" the simulator
+    # is ignoring.
+    if reward_type == "linear":
+        child_genome = mutate_genome_jax(parent_genome, k3, config)
+    else:
+        child_genome = parent_genome
 
     # Child energy: parent shares
     child_energy = parent_energy * energy_share_ratio
@@ -132,6 +158,20 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
     child_act_ratio = jnp.where(parent_species == 1, pred_ratio, 1.0)
 
+    # MLP genome mutation + scatter into the per-agent stacked params.
+    # Branch on the static config flag so the entire path stays in JIT.
+    if reward_type == "mlp":
+        parent_mlp = jtu.tree_map(
+            lambda leaf: leaf[parent_slot], sim_state.reward_mlp_params
+        )
+        child_mlp = mutate_mlp_genome_jax(parent_mlp, k5, config)
+        new_reward_mlp_params = jtu.tree_map(
+            lambda stack, single: stack.at[new_slot].set(single),
+            sim_state.reward_mlp_params, child_mlp,
+        )
+    else:
+        new_reward_mlp_params = sim_state.reward_mlp_params
+
     return sim_state.replace(
         is_active=sim_state.is_active.at[new_slot].set(True),
         species=sim_state.species.at[new_slot].set(parent_species),
@@ -140,6 +180,7 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
         ages=sim_state.ages.at[new_slot].set(0),
         energies=sim_state.energies.at[new_slot].set(child_energy),
         reward_weights=sim_state.reward_weights.at[new_slot].set(child_genome),
+        reward_mlp_params=new_reward_mlp_params,
         policy_params=new_params,
         policy_opt_states=new_opt,
         rollout_obs=sim_state.rollout_obs.at[new_slot].set(0.0),

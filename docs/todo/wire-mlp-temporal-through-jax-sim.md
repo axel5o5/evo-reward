@@ -1,8 +1,21 @@
 # TODO: Plumb MLP and temporal reward through the JAX runner
 
-**Status:** Not started. Identified 2026-04-27 while building the
-`RewardLandscape` heatmap spike — discovered `reward_type` is read by no
-runtime code.
+**Status (2026-04-27):**
+- **Phase A — MLP wiring (steps 1–3): DONE.** `reward_type: "mlp"` now
+  dispatches a real per-agent MLP through `build_sim_step`; spawns mutate
+  the 121-param genome via JAX-native Student's-t inside JIT. Smoke
+  (500-step axis1 with bumped birth rates): 75 births, genomes diverge
+  L2 5.4 across newborns, no NaNs, rewards in [-0.5, 0.25]. Linear
+  baseline regression-clean. Pytest 156 / 156.
+- **Phase B — temporal (Axis 3):** not started. Needs `obs_buffer` roll
+  + temporal dispatch + temporal mutation; same shape as Phase A.
+- **Phase C — recorder v3 + dashboard (steps 4–5):** not started. While
+  this is unfinished, MLP runs log meaningless flat `reward_weights`
+  stats in `progress.json` (linear-mutation path is skipped) and the
+  dashboard's `RewardLandscape` still loads synthetic fixtures.
+- **20K validation:** still owed. Local Mac smoke-validation only;
+  Phase A merits a real ~340/24-population gate before Phase 2 sweeps
+  start (see §Validation gates below).
 
 ## Why this matters
 

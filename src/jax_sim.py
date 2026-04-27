@@ -77,6 +77,28 @@ def build_sim_step(config, space):
     # Pre-build the PPO update function (used outside JIT by the runner)
     ppo_update_fn = build_ppo_update_fn(config)
 
+    # Reward dispatch (Axis 1). Linear keeps the K&D formula with
+    # [1.0, 0.01, 0.1, 0.1] coefs; MLP eats RAW stimuli and reads its
+    # per-agent params from sim_state.reward_mlp_params. Selected at build
+    # time so the JIT body branches on a Python-static flag — no lax.cond
+    # needed because each run uses a single reward_type.
+    reward_type = config.get("reward_type", "linear")
+    if reward_type == "linear":
+        _linear_coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
+
+        def _compute_rewards(sim_state, stimuli):
+            return jnp.sum(sim_state.reward_weights * stimuli * _linear_coefs, axis=1)
+    elif reward_type == "mlp":
+        from src.reward import compute_mlp_reward
+
+        def _compute_rewards(sim_state, stimuli):
+            return jax.vmap(compute_mlp_reward)(sim_state.reward_mlp_params, stimuli)
+    else:
+        raise ValueError(
+            f"reward_type {reward_type!r} not yet wired through jax_sim "
+            "(linear/mlp supported in Phase A; temporal lands in Phase B)"
+        )
+
     # Physics stepper
     # D19 fix: also return a per-substep "did-touch" bool array, reduced via
     # max across substeps. emevo's circle_foraging.py::nstep uses the same
@@ -258,9 +280,8 @@ def build_sim_step(config, space):
             pred_n_catches.astype(jnp.float32),
         )
 
-        coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
         stimuli = jnp.stack([n_eaten_reward, motor_norms, s_prey, s_pred], axis=1)
-        all_rewards = jnp.sum(sim_state.reward_weights * stimuli * coefs, axis=1)
+        all_rewards = _compute_rewards(sim_state, stimuli)
         all_rewards = jnp.where(sim_state.is_active, all_rewards, 0.0)
 
         new_rollout_rewards = sim_state.rollout_rewards.at[agent_idx, safe_ptrs].set(all_rewards)

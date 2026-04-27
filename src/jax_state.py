@@ -36,6 +36,12 @@ class SimState:
     ages: jnp.ndarray               # int32: steps alive
     energies: jnp.ndarray           # float32
     reward_weights: jnp.ndarray     # (max_agents, 4) float32: [w_eat, w_act, w_prey, w_pred]
+    # Axis 1 / Axis 3: MLP/temporal reward genome stacked per-agent.
+    # Empty dict {} when reward_type == "linear" (no pytree leaves, so tree
+    # ops over SimState skip it). For reward_type == "mlp", a Flax params
+    # PyTree where each leaf has shape (max_agents, ...). Same pattern as
+    # policy_params.
+    reward_mlp_params: dict
 
     # --- Policy params & optimizer (stacked pytrees, each leaf (max_agents, ...)) ---
     policy_params: dict
@@ -183,6 +189,26 @@ def init_simstate(config: dict, rng_key) -> SimState:
     )(genome_keys)
     reward_weights = jnp.zeros((max_agents, 4)).at[active_slots_arr].set(active_reward_weights)
 
+    # --- Reward-MLP genome (Axis 1) -----------------------------------------
+    # Linear runs leave this as {} (no leaves; tree ops no-op). MLP runs
+    # stack Flax-init'd params for every slot so the array shape stays
+    # static — same pattern as policy_params below.
+    reward_type = config.get("reward_type", "linear")
+    if reward_type == "linear":
+        reward_mlp_params = {}
+    elif reward_type == "mlp":
+        from src.reward import init_mlp_genome
+        rng_key, mlp_key = jax.random.split(rng_key)
+        mlp_keys = jax.random.split(mlp_key, max_agents)
+        reward_mlp_params = jax.vmap(
+            lambda k: init_mlp_genome(k, config)
+        )(mlp_keys)
+    else:
+        raise ValueError(
+            f"reward_type {reward_type!r} not yet wired through jax_sim "
+            "(linear/mlp supported in Phase A; temporal lands in Phase B)"
+        )
+
     # --- Policy params: tile a dummy, then re-init active slots ---------------
     policy_keys = jax.random.split(policy_key, n_initial)
     dummy_params, dummy_opt = init_policy(jax.random.PRNGKey(0), config)
@@ -276,6 +302,7 @@ def init_simstate(config: dict, rng_key) -> SimState:
         ages=ages,
         energies=energies,
         reward_weights=reward_weights,
+        reward_mlp_params=reward_mlp_params,
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,
@@ -426,6 +453,7 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         ages=ages,
         energies=energies,
         reward_weights=reward_weights,
+        reward_mlp_params={},
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,
