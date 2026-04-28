@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-28T11:17:03+00:00",
+  "updated_at": "2026-04-28T12:01:35+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,23 +9,23 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-23T08:54:36.579-07:00",
     "last_started_at": "2026-04-24T06:19:02.950-07:00",
-    "runtime_hours_current": 93.9661,
+    "runtime_hours_current": 94.7086,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 79.8712,
+    "estimated_current_run_usd": 80.5023,
     "labels": {}
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 180,
+    "count": 183,
     "latest_step": 1000000,
-    "latest_age_hours": 21.2,
-    "total_gb": 76.3277
+    "latest_age_hours": 21.942,
+    "total_gb": 77.1542
   },
   "costs": {
-    "compute_current_run": 79.8712,
-    "nat_since_active": 10.08,
-    "storage_current": 1.3777,
-    "live_estimate_total": 91.33,
+    "compute_current_run": 80.5023,
+    "nat_since_active": 10.11,
+    "storage_current": 1.3942,
+    "live_estimate_total": 92.01,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -33,34 +33,34 @@
   "training": {
     "experiment_name": "axis1_mlp_reward",
     "seed": 0,
-    "step": 820000,
+    "step": 880000,
     "total_steps": 1000000,
-    "progress_frac": 0.82,
-    "sps": 23.324,
-    "eta_hours": 2.14,
+    "progress_frac": 0.88,
+    "sps": 23.296,
+    "eta_hours": 1.43,
     "population": {
       "prey": 450,
       "pred": 0,
-      "food": 600,
-      "mean_energy": 276.05877685546875
+      "food": 598,
+      "mean_energy": 307.9193115234375
     },
     "reward_weights": {
       "prey": {
         "eat": [
-          0.012275053188204765,
-          0.12732088565826416
+          0.012612491846084595,
+          0.1273520141839981
         ],
         "act": [
-          -0.0068442546762526035,
-          0.0767991840839386
+          -0.0068825590424239635,
+          0.07680189609527588
         ],
         "prey": [
-          0.012245227582752705,
-          0.09952159225940704
+          0.012077090330421925,
+          0.09955326467752457
         ],
         "pred": [
-          0.017909420654177666,
-          0.1089065819978714
+          0.017598390579223633,
+          0.10881654918193817
         ]
       },
       "pred": {
@@ -82,7 +82,7 @@
         ]
       }
     },
-    "progress_file_age_hours": 0.037,
+    "progress_file_age_hours": 0.103,
     "evolution_detected": false
   },
   "errors": []
