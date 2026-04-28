@@ -44,6 +44,7 @@ For cross-cutting analysis and what we've learned, see:
 | `sweep_mouth_smol_1M/seed0` | 2026-04-27 | `c35bfab` (+sweep configs) | 0 | 1M | **SURVIVED** | First 1M completion. eta=0.50 + mouth=`[0]`. Fear evolved to -1.97 sustained |
 | `sweep_mouth_smol_1M_seed1` | 2026-04-27 | same | 1 | 730K (paused) | alive at pause | Step 730K, prey 449 / pred 21, fear `prey_w_pred = -3.16 ± 7.88`. Paused to free VM for axis1 |
 | `axis1_mouth_smol_1M/seed0` | 2026-04-28 | `dc67fc6` (`reward_type: mlp` wired, mouth_smol substrate) | 0 | 1M | Extinct @ ~380K | Pred crashed to 1 @ 140K, recovered to 30, second bottleneck @ 360K extincts. `mlp_mutation_scale=0.01` → diversity-recovery too slow vs linear's 0.4. See findings.md §11 |
+| `axis1_mouth_smol_1M_mut08/seed0` | 2026-04-28 | `d93d664` (mut_scale 0.01→0.08) | 0 | 370K (killed) | Extinct @ ~300K | Diversity *did* appear (`pred_w` ±0.06-0.11), but pred peak only ~15 — too many non-viable offspring → smaller stable pop → first downturn extincts. Counter-arg from §11 confirmed |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = `|prey_w_pred|` > 0.3 sustained.
 

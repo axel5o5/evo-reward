@@ -151,13 +151,39 @@ Linear baseline survives the same bottleneck because its kick produces actually-
 
 **Counter-argument we accept:** the original 0.01 was conservative on purpose — 121-param MLPs encode more complex stimulus→reward maps, and per-param noise can flip an inflection point catastrophically. So you can't *just* match linear's kick without risking that every offspring's reward function is structurally different from parent's. The right answer balances diversity-recovery against structural stability.
 
-**Test:** rerun axis1 at `mlp_mutation_scale = 0.08` (yields aggregate kick √121 · 0.08 = 0.88, ≈ linear's 0.80). Single seed first; if survives, we have a clean A/B vs the linear baseline at matched mutation pressure, isolating the architecture difference.
+**Test #1 result (mut=0.08, 2026-04-28):** the bigger kick **didn't rescue the run — it made it worse, in a different way.**
 
-**Same concern applies to axis 3 (temporal).** `temporal_mutation_scale = 0.005` on 945 params → kick = 0.15, even weaker than current MLP. If MLP needs more mutation, temporal will too.
+| Step | v1 (mut=0.01) | v2 (mut=0.08) |
+|---|---|---|
+| 120K | pred=7 | pred=8 (steady) |
+| 140K | pred=**1** (1st bottleneck) | pred=8 (no bottleneck) |
+| 250K | pred=24 (recovered) | pred=9 (steady, lower peak) |
+| 270K | — | pred=3 (collapsing) |
+| 290K | — | pred=1 |
+| **300K** | pred=30 | **pred=0 (extinct)** |
+| 380K | pred=0 (extinct) | extinct |
+
+v2 *did* maintain real genetic diversity — `pred_w eat = -0.19±0.06` until 260K (vs v1's perpetual ±0.00 post-bottleneck). Per-capita catch rate matched v1. But the predator population peaked at ~15 (vs v1's 30) and **crashed at the first downturn instead of recovering**.
+
+**Revised reading:** higher mutation produces more diverse predators, but each predator's reward function differs noticeably from its parent. Many offspring inherit *bad* reward functions (e.g., reward going away from prey) and starve. Net effect: smaller stable population → less buffer against the LV trough → first downturn = extinction.
+
+The original counter-argument *was* the dominant effect, not the diversity-recovery argument we bet on. **Both 0.01 and 0.08 are wrong, in opposite directions:**
+- **0.01:** too clonal → diversity-recovery starvation post-bottleneck
+- **0.08:** too noisy → many non-viable offspring, smaller stable pop, dies pre-bottleneck
+
+**Possible next moves (not yet tested):**
+1. Try **0.03** — split the difference. If still extincts, the failure isn't a single-knob mutation problem.
+2. Try **smaller MLP** (hidden=4 → ~49 params instead of 121) — fewer DOF means each per-param kick rotates the function less.
+3. Inspect v2 replays in the AgentInspector to see what kinds of reward landscapes the surviving predators evolved — may reveal *why* viability is so low.
+4. Accept that MLP genome is hard to bootstrap on this substrate and move to other axes (axis 2, axis 4) using the proven linear genome.
+
+For now, paused. The mut=0.03 test is queued as future work.
+
+**Same concern still applies to axis 3 (temporal).** `temporal_mutation_scale = 0.005` on 945 params → aggregate kick 0.15. If we revisit axis 3, expect similar instability.
 
 ## 12. Open questions worth follow-up
 
-1. **Axis 1 at `mlp_mutation_scale = 0.08`** (highest priority post-§11) — does matching linear's aggregate mutation kick rescue the run?
+1. **Axis 2 (social_obs) on mouth_smol** (in flight) — uses linear genome on the 1M-survival substrate. Cleanest A/B for "does richer social obs help fear evolution?"
 2. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
 3. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
 4. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
