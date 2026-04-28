@@ -127,5 +127,18 @@ action_mapping:     "sigmoid"
 
 # Logging cadence lives in configs/runtime/*.yaml.
 
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
 # ─── Reproducibility ─────────────────────────────────────────────────────────
 seed:               0
