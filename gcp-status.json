@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-28T21:43:37+00:00",
+  "updated_at": "2026-04-28T22:11:59+00:00",
   "project_id": "evo-reward",
   "vm": {
     "name": "evo-reward-gpu",
@@ -9,23 +9,23 @@
     "provisioning": "STANDARD",
     "created_at": "2026-04-23T08:54:36.579-07:00",
     "last_started_at": "2026-04-24T06:19:02.950-07:00",
-    "runtime_hours_current": 104.4091,
+    "runtime_hours_current": 104.8819,
     "hourly_rate_usd": 0.85,
-    "estimated_current_run_usd": 88.7477,
+    "estimated_current_run_usd": 89.1496,
     "labels": {}
   },
   "checkpoints": {
     "bucket": "evo-reward-ckpts",
-    "count": 218,
+    "count": 220,
     "latest_step": 1000000,
-    "latest_age_hours": 8.284,
-    "total_gb": 88.1
+    "latest_age_hours": 8.756,
+    "total_gb": 88.7631
   },
   "costs": {
-    "compute_current_run": 88.7477,
-    "nat_since_active": 10.54,
-    "storage_current": 1.6154,
-    "live_estimate_total": 100.9,
+    "compute_current_run": 89.1496,
+    "nat_since_active": 10.56,
+    "storage_current": 1.6287,
+    "live_estimate_total": 101.34,
     "billing_actual_usd": null,
     "billing_as_of": null,
     "month_to_date_usd": null
@@ -33,56 +33,56 @@
   "training": {
     "experiment_name": "axis2_social_obs",
     "seed": 0,
-    "step": 230000,
+    "step": 260000,
     "total_steps": 1000000,
-    "progress_frac": 0.23,
-    "sps": 23.325,
-    "eta_hours": 9.17,
+    "progress_frac": 0.26,
+    "sps": 23.059,
+    "eta_hours": 8.91,
     "population": {
-      "prey": 450,
-      "pred": 16,
+      "prey": 286,
+      "pred": 22,
       "food": 600,
-      "mean_energy": 33.460113525390625
+      "mean_energy": 28.599349975585938
     },
     "reward_weights": {
       "prey": {
         "eat": [
-          0.15531891584396362,
-          1.5648480653762817
+          0.304144948720932,
+          1.965067744255066
         ],
         "act": [
-          0.6370912790298462,
-          2.1445095539093018
+          0.6631137132644653,
+          2.176644802093506
         ],
         "prey": [
-          0.8735550045967102,
-          4.033604621887207
+          0.8080064654350281,
+          4.325718879699707
         ],
         "pred": [
-          -0.18894197046756744,
-          4.3100714683532715
+          -0.2768276333808899,
+          5.35403299331665
         ]
       },
       "pred": {
         "eat": [
-          0.02148464322090149,
-          0.7057662010192871
+          -0.026348348706960678,
+          0.8000611066818237
         ],
         "act": [
-          0.3060845136642456,
-          2.204138994216919
+          0.33199506998062134,
+          2.4222710132598877
         ],
         "prey": [
-          0.793720006942749,
-          1.187623143196106
+          0.7139893770217896,
+          1.181563138961792
         ],
         "pred": [
-          1.4604103565216064,
-          1.4836915731430054
+          1.7321832180023193,
+          1.8202625513076782
         ]
       }
     },
-    "progress_file_age_hours": 0.014,
+    "progress_file_age_hours": 0.065,
     "evolution_detected": true
   },
   "errors": []
