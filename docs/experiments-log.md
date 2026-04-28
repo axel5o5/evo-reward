@@ -42,6 +42,8 @@ For cross-cutting analysis and what we've learned, see:
 | `axis2_real_500k/seed0` | 2026-04-26 | same | 0 | 310K (killed) | Extinct @ ~100K | **REAL test** of social_obs (the only wired axis). Extinct on eta=0.50 substrate. |
 | `axis1_real_1M/seed0` | 2026-04-27 | `1c0723e` (mouth_smol substrate) | 0 | 80K (killed) | Killed | **No-op** — same axis1 flag bug; killed once realized. Was tracking baseline-equivalent. |
 | `sweep_mouth_smol_1M/seed0` | 2026-04-27 | `c35bfab` (+sweep configs) | 0 | 1M | **SURVIVED** | First 1M completion. eta=0.50 + mouth=`[0]`. Fear evolved to -1.97 sustained |
+| `sweep_mouth_smol_1M_seed1` | 2026-04-27 | same | 1 | 730K (paused) | alive at pause | Step 730K, prey 449 / pred 21, fear `prey_w_pred = -3.16 ± 7.88`. Paused to free VM for axis1 |
+| `axis1_mouth_smol_1M/seed0` | 2026-04-28 | `dc67fc6` (`reward_type: mlp` wired, mouth_smol substrate) | 0 | 1M | Extinct @ ~380K | Pred crashed to 1 @ 140K, recovered to 30, second bottleneck @ 360K extincts. `mlp_mutation_scale=0.01` → diversity-recovery too slow vs linear's 0.4. See findings.md §11 |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = `|prey_w_pred|` > 0.3 sustained.
 

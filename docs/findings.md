@@ -130,10 +130,35 @@ This matches the paper's explicit small-mouth condition (paper Sec. 3.3: small/m
 - The hard part was building enough infrastructure to recognize this — the parameter itself is one line of YAML.
 - Open: does this hold across seeds? Does the oscillation stay stable past 1M (5M run)?
 
-## 11. Open questions worth follow-up
+## 11. Axis 1 (MLP reward) extincts at step 380K on the substrate where linear survives
 
-1. **Multi-seed at mouth_smol** (highest priority) — seeds 1, 2, 3 to 1M each. Confirms §10 generalizes.
-2. **Re-run all 4 axes on mouth_smol substrate** — replaces eta=0.50 baseline that extincts before axes can express their effect.
+**Run:** `axis1_mlp_reward` seed 0, 1M steps, mouth_smol substrate (2026-04-28). The genome architecture changes from 4-weight linear to 121-param MLP (input(4)→hidden(8)→hidden(8)→1). All other parameters match `sweep_mouth_smol_1M`, which survives 1M with fear -1.97.
+
+**Trajectory:**
+
+| Step | Prey | Pred | Note |
+|---|---|---|---|
+| 140K | 364 | 1 | First bottleneck — one survivor with E=276 |
+| 250K | 450 | 24 | Survivor's clones rebound |
+| 300K | 281 | 30 | Predators actively hunting (LV downturn) |
+| 360K | 250 | 5 | Second bottleneck |
+| **380K** | 343 | **0** | **Extinction** |
+| 1M | 450 | 0 | Prey-only ecosystem rest of run |
+
+**Hypothesis — mutation kick is too weak.** With `mlp_mutation_scale = 0.01` on 121 params, expected per-generation L2 perturbation is √121 · 0.01 = **0.11**. Linear genome's equivalent is √4 · 0.4 = **0.80** — **7× larger**. At population bottlenecks (1–3 predators), the only path back to genetic diversity is mutation noise creating offspring divergence. With MLP's kick 7× weaker, sibling offspring are essentially identical to the founder, selection has zero variance to climb, and any environmental shift kills the lineage uniformly. That's exactly what happened at 380K.
+
+Linear baseline survives the same bottleneck because its kick produces actually-different siblings within a few generations.
+
+**Counter-argument we accept:** the original 0.01 was conservative on purpose — 121-param MLPs encode more complex stimulus→reward maps, and per-param noise can flip an inflection point catastrophically. So you can't *just* match linear's kick without risking that every offspring's reward function is structurally different from parent's. The right answer balances diversity-recovery against structural stability.
+
+**Test:** rerun axis1 at `mlp_mutation_scale = 0.08` (yields aggregate kick √121 · 0.08 = 0.88, ≈ linear's 0.80). Single seed first; if survives, we have a clean A/B vs the linear baseline at matched mutation pressure, isolating the architecture difference.
+
+**Same concern applies to axis 3 (temporal).** `temporal_mutation_scale = 0.005` on 945 params → kick = 0.15, even weaker than current MLP. If MLP needs more mutation, temporal will too.
+
+## 12. Open questions worth follow-up
+
+1. **Axis 1 at `mlp_mutation_scale = 0.08`** (highest priority post-§11) — does matching linear's aggregate mutation kick rescue the run?
+2. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
 3. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
 4. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
 5. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
