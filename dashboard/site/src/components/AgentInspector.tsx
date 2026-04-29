@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ReplayData } from "../lib/replayLoader";
 import RewardLandscape from "./RewardLandscape";
+import RewardMlpDiagram from "./RewardMlpDiagram";
 
 interface Props {
   data: ReplayData;
@@ -307,18 +308,17 @@ export default function AgentInspector({
         </div>
       )}
 
-      {data.meta.genome_arch === "mlp" && (
-        <div className="mb-2">
-          <RewardLandscape
-            genome={
-              agentId !== null && agentId >= 0
-                ? data.genomesById?.get(agentId) ?? null
-                : null
-            }
-            sourceLabel={agentId !== null && agentId >= 0 ? `id ${agentId}` : undefined}
-          />
-        </div>
-      )}
+      {data.meta.genome_arch === "mlp" && (() => {
+        const genome =
+          agentId !== null && agentId >= 0
+            ? data.genomesById?.get(agentId) ?? null
+            : null;
+        return (
+          <div className="mb-2 flex flex-col gap-2">
+            <MlpStimuliPanel genome={genome} sourceLabel={agentId !== null && agentId >= 0 ? `id ${agentId}` : undefined} />
+          </div>
+        );
+      })()}
 
       {data.meta.genome_arch === "temporal" && (
         <div className="mb-2 border border-gray-200 dark:border-gray-800 rounded-lg p-3 text-xs text-gray-500">
@@ -475,6 +475,76 @@ function ActionTrack({
           className="text-gray-400 dark:text-gray-500"
         />
       </svg>
+    </div>
+  );
+}
+
+// Wraps RewardLandscape + RewardMlpDiagram and owns the shared 4-d stimulus
+// state. Lifted out so dragging a slider feeds both views in lockstep —
+// the heatmap re-samples its slice, the network diagram re-runs the
+// forward pass, and the user sees how a single stimulus change ripples
+// through the evolved reward function.
+const MLP_STIMULUS_LABELS = ["n_eaten", "motor_norm", "s_prey", "s_pred"] as const;
+const MLP_STIMULUS_RANGES: [number, number][] = [
+  [0, 3],
+  [0, 1],
+  [0, 1],
+  [0, 1],
+];
+
+function MlpStimuliPanel({
+  genome,
+  sourceLabel,
+}: {
+  genome: import("../lib/rewardMlp").MlpGenome | null;
+  sourceLabel?: string;
+}) {
+  const [stimuli, setStimuli] = useState<Float32Array>(
+    () => new Float32Array([1.0, 0.5, 0.5, 0.5]),
+  );
+
+  const updateStimulus = (i: number, v: number) => {
+    setStimuli((prev) => {
+      const out = new Float32Array(prev);
+      out[i] = v;
+      return out;
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+          stimuli (drives both views)
+        </div>
+        <div className="flex flex-col gap-1">
+          {MLP_STIMULUS_LABELS.map((label, i) => (
+            <div key={label} className="flex items-center gap-2 text-[10px] font-mono">
+              <span className="w-20 text-gray-600 dark:text-gray-400">{label}</span>
+              <input
+                type="range"
+                min={MLP_STIMULUS_RANGES[i][0]}
+                max={MLP_STIMULUS_RANGES[i][1]}
+                step={(MLP_STIMULUS_RANGES[i][1] - MLP_STIMULUS_RANGES[i][0]) / 100}
+                value={stimuli[i]}
+                onChange={(e) => updateStimulus(i, Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="w-10 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                {stimuli[i].toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {genome && <RewardMlpDiagram genome={genome} heldValues={stimuli} />}
+
+      <RewardLandscape
+        genome={genome}
+        sourceLabel={sourceLabel}
+        heldValues={stimuli}
+      />
     </div>
   );
 }

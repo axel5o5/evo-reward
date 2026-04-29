@@ -33,6 +33,12 @@ interface Props {
   // Caller-supplied label for the source — e.g. "agent 47" — shown in the
   // header so the user knows whose landscape they're looking at.
   sourceLabel?: string;
+  // Length-4 stimulus state owned by the parent (AgentInspector). The two
+  // non-axis dimensions read from this; the two axis dimensions are swept
+  // across their full ranges by the heatmap and ignore the held values.
+  // Lifted out of this component so RewardMlpDiagram can share the same
+  // forward-pass inputs.
+  heldValues: Float32Array;
   // Optional override: if a parent wants to lock the user to a specific
   // axis pair, pass it here.
   defaultAxisX?: number;
@@ -42,20 +48,17 @@ interface Props {
 export default function RewardLandscape({
   genome,
   sourceLabel,
+  heldValues,
   defaultAxisX = 3, // s_pred (fear)
   defaultAxisY = 2, // s_prey (social)
 }: Props) {
   const [axisX, setAxisX] = useState(defaultAxisX);
   const [axisY, setAxisY] = useState(defaultAxisY);
-  // Held values for the two non-displayed axes. Defaults to mid-range; the
-  // user can dial them up to inspect e.g. "what if motor cost is high?"
-  const [heldValues, setHeldValues] = useState<number[]>([1.0, 0.5, 0.5, 0.5]);
 
   const labels = INPUT_LABELS;
 
   const { values, min, max, absMax } = useMemo(() => {
     if (!genome) return { values: null, min: 0, max: 0, absMax: 0 };
-    const held = new Float32Array(heldValues);
     const grid = sampleRewardGrid(
       genome,
       axisX,
@@ -63,7 +66,7 @@ export default function RewardLandscape({
       AXIS_RANGES[axisX],
       AXIS_RANGES[axisY],
       GRID_SIZE,
-      held,
+      heldValues,
     );
     return {
       values: grid.values,
@@ -114,8 +117,6 @@ export default function RewardLandscape({
       </div>
     );
   }
-
-  const heldAxes = [0, 1, 2, 3].filter((i) => i !== axisX && i !== axisY);
 
   return (
     <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
@@ -174,36 +175,10 @@ export default function RewardLandscape({
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="text-[10px] uppercase tracking-wider text-gray-500">
-              held inputs
-            </div>
-            {heldAxes.map((i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px] font-mono">
-                <span className="w-20 text-gray-600 dark:text-gray-400">
-                  {labels[i]}
-                </span>
-                <input
-                  type="range"
-                  min={AXIS_RANGES[i][0]}
-                  max={AXIS_RANGES[i][1]}
-                  step={(AXIS_RANGES[i][1] - AXIS_RANGES[i][0]) / 100}
-                  value={heldValues[i]}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setHeldValues((h) => {
-                      const out = [...h];
-                      out[i] = v;
-                      return out;
-                    });
-                  }}
-                  className="flex-1"
-                />
-                <span className="w-10 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                  {heldValues[i].toFixed(2)}
-                </span>
-              </div>
-            ))}
+          <div className="text-[10px] text-gray-500 leading-tight">
+            X / Y axes sweep their full range across the heatmap. Other two
+            inputs are held at the values set by the sliders above (shared
+            with the network diagram).
           </div>
 
           {linFit && (
