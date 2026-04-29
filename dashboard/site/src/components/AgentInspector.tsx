@@ -308,27 +308,25 @@ export default function AgentInspector({
         </div>
       )}
 
-      {data.meta.genome_arch === "mlp" && (() => {
+      {(data.meta.genome_arch === "mlp" ||
+        data.meta.genome_arch === "temporal") && (() => {
         const genome =
           agentId !== null && agentId >= 0
             ? data.genomesById?.get(agentId) ?? null
             : null;
+        const sourceLabel =
+          agentId !== null && agentId >= 0 ? `id ${agentId}` : undefined;
         return (
           <div className="mb-2 flex flex-col gap-2">
-            <MlpStimuliPanel genome={genome} sourceLabel={agentId !== null && agentId >= 0 ? `id ${agentId}` : undefined} />
+            <MlpStimuliPanel
+              genome={genome}
+              sourceLabel={sourceLabel}
+              arch={data.meta.genome_arch}
+              contextWindow={data.meta.genome_shape?.context_window ?? 1}
+            />
           </div>
         );
       })()}
-
-      {data.meta.genome_arch === "temporal" && (
-        <div className="mb-2 border border-gray-200 dark:border-gray-800 rounded-lg p-3 text-xs text-gray-500">
-          Temporal reward genome captured ({data.meta.genome_dim} params,
-          k={data.meta.genome_shape?.context_window} timesteps). The 2-axis
-          landscape view assumes a 4-d input — temporal-genome visualization
-          is a follow-up. The flat genome row is available via{" "}
-          <code className="font-mono">data.genomesById</code>.
-        </div>
-      )}
 
       <div>
         <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-0.5">
@@ -479,11 +477,18 @@ function ActionTrack({
   );
 }
 
-// Wraps RewardLandscape + RewardMlpDiagram and owns the shared 4-d stimulus
+// Wraps RewardLandscape + RewardMlpDiagram and owns a shared 4-d stimulus
 // state. Lifted out so dragging a slider feeds both views in lockstep —
 // the heatmap re-samples its slice, the network diagram re-runs the
 // forward pass, and the user sees how a single stimulus change ripples
 // through the evolved reward function.
+//
+// For MLP genomes (Axis 1, 4-d input) the stimulus vector is fed directly.
+// For temporal genomes (Axis 3, k*4-d input) we tile the same 4-d vector
+// across all k time steps — interpretable as "the agent has been seeing
+// this stimulus pattern for the last k steps." This is a one-axis-of-many
+// projection of the temporal reward surface but it's the only one users
+// can drive with 4 sliders; richer temporal viz is a follow-up.
 const MLP_STIMULUS_LABELS = ["n_eaten", "motor_norm", "s_prey", "s_pred"] as const;
 const MLP_STIMULUS_RANGES: [number, number][] = [
   [0, 3],
@@ -495,9 +500,13 @@ const MLP_STIMULUS_RANGES: [number, number][] = [
 function MlpStimuliPanel({
   genome,
   sourceLabel,
+  arch,
+  contextWindow,
 }: {
   genome: import("../lib/rewardMlp").MlpGenome | null;
   sourceLabel?: string;
+  arch: "mlp" | "temporal";
+  contextWindow: number;
 }) {
   const [stimuli, setStimuli] = useState<Float32Array>(
     () => new Float32Array([1.0, 0.5, 0.5, 0.5]),
@@ -511,11 +520,32 @@ function MlpStimuliPanel({
     });
   };
 
+  // Build the input vector the network actually consumes. MLP: 4-d as-is.
+  // Temporal: tile to length k*4 by repeating the 4-d slider state across
+  // all k time windows.
+  const networkInput = useMemo(() => {
+    if (arch === "mlp") return stimuli;
+    const k = Math.max(1, contextWindow);
+    const out = new Float32Array(k * 4);
+    for (let t = 0; t < k; t++) {
+      out[t * 4 + 0] = stimuli[0];
+      out[t * 4 + 1] = stimuli[1];
+      out[t * 4 + 2] = stimuli[2];
+      out[t * 4 + 3] = stimuli[3];
+    }
+    return out;
+  }, [arch, contextWindow, stimuli]);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
         <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
-          stimuli (drives both views)
+          stimuli{" "}
+          <span className="normal-case tracking-normal">
+            {arch === "temporal"
+              ? `(tiled across ${contextWindow}-step window)`
+              : "(drives both views)"}
+          </span>
         </div>
         <div className="flex flex-col gap-1">
           {MLP_STIMULUS_LABELS.map((label, i) => (
@@ -538,13 +568,23 @@ function MlpStimuliPanel({
         </div>
       </div>
 
-      {genome && <RewardMlpDiagram genome={genome} heldValues={stimuli} />}
+      {genome && (
+        <RewardMlpDiagram
+          genome={genome}
+          heldValues={networkInput}
+          inputLabels={arch === "mlp" ? MLP_STIMULUS_LABELS : undefined}
+        />
+      )}
 
-      <RewardLandscape
-        genome={genome}
-        sourceLabel={sourceLabel}
-        heldValues={stimuli}
-      />
+      {/* Landscape only renders for the 4-d MLP input — its 2-axis slice
+          assumes 4 inputs so it doesn't generalize to the temporal MLP. */}
+      {arch === "mlp" && (
+        <RewardLandscape
+          genome={genome}
+          sourceLabel={sourceLabel}
+          heldValues={stimuli}
+        />
+      )}
     </div>
   );
 }

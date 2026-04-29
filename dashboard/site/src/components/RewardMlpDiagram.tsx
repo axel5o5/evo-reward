@@ -2,37 +2,41 @@ import { useMemo } from "react";
 import { MlpGenome, MlpLayer } from "../lib/rewardMlp";
 import { weightColorRgb } from "../lib/weightColor";
 
-// Live network diagram for an MLP reward genome — 4 → 8 → 8 → 1 with edge
-// color/opacity encoding evolved weights and node fill encoding activation
-// for the current stimulus state. Driven by the same heldValues array that
-// feeds RewardLandscape, so the two views share a forward pass and a user
-// dragging a slider sees both update together.
+// Live network diagram for any-depth MLP genome (Axis 1: 4 → 8 → 8 → 1,
+// Axis 3 temporal: 40 → 16 → 16 → 1, future variants of arbitrary depth).
+// Edges are colored by weight sign (blue +, red -) with opacity + width
+// scaling by |w| / maxWeight, so dominant pathways stand out and small
+// weights fade. Nodes fill with the same diverging palette to show layer
+// activations from a live forward pass through the genome.
 //
-// Edges: blue = positive weight, red = negative (matches weightColor's
-// reward-weight scale). Opacity + width scale with |w|/maxWeight, so the
-// dominant pathways stand out and small near-zero weights fade. With 104
-// edges packed into a 360-px SVG this is what keeps the picture readable.
-//
-// Nodes: input nodes always reflect the current heldValues. Hidden and
-// output nodes show post-activation values from the forward pass. The
-// diverging weightColor scale is reused for activation fill so positive
-// (blue) / negative (red) read consistently across the dashboard.
+// All structural parameters — column count, column positions, per-column
+// node spacing — derive from genome.layers, so swapping architectures
+// (re-running with a different mlp_hidden_size, or moving to temporal)
+// requires no change here. The synthetic-fixture path is gone; the only
+// caller is AgentInspector, which gets genomes from the v3 replay loader.
 
 interface Props {
   genome: MlpGenome;
-  // Length 4: [n_eaten, motor_norm, s_prey, s_pred]. Same array used by
-  // RewardLandscape to fill held axes — owned by the parent.
+  // Per-input stimulus values, length = genome.layers[0].kernel.length.
+  // Owned by the parent (AgentInspector) so dragging a slider updates
+  // both this component and the reward-landscape heatmap in lockstep.
   heldValues: Float32Array;
+  // Optional labels for input axes — falls back to "x_<i>" if absent.
+  inputLabels?: readonly string[];
   isDark?: boolean;
 }
 
-const NODE_R = 8;
 const SVG_W = 360;
 const SVG_H = 240;
-const PAD_Y = 24;
-const LAYER_X = [40, 140, 240, SVG_W - 30] as const;
-const LAYER_LABELS = ["input", "hidden 1", "hidden 2", "reward"] as const;
-const INPUT_LABELS = ["n_eaten", "motor", "s_prey", "s_pred"] as const;
+const PAD_X_LEFT = 40;
+const PAD_X_RIGHT = 30;
+const PAD_Y_TOP = 24;
+const PAD_Y_BOTTOM = 12;
+
+// Input axis used to color the input-layer nodes (separate from the per-run
+// activation scale because n_eaten ranges 0..3 while sensors are 0..1 — a
+// shared scale would wash the smaller inputs grey).
+const INPUT_COLOR_AXIS = 2.0;
 
 function denseTanh(x: Float32Array, layer: MlpLayer): Float32Array {
   const inDim = layer.kernel.length;
@@ -58,20 +62,56 @@ function denseLinear(x: Float32Array, layer: MlpLayer): Float32Array {
   return out;
 }
 
+// Vertical position of the i-th node in a layer of `layerSize` nodes.
+// Centers the column when the layer is small, fills available height
+// when it's wide. Caps node radius for very wide layers so they don't
+// overlap (Axis 3 temporal has 40 input nodes).
 function nodeY(layerSize: number, idx: number): number {
   if (layerSize <= 1) return SVG_H / 2;
-  const usableH = SVG_H - 2 * PAD_Y;
-  return PAD_Y + (idx / (layerSize - 1)) * usableH;
+  const usableH = SVG_H - PAD_Y_TOP - PAD_Y_BOTTOM;
+  return PAD_Y_TOP + (idx / (layerSize - 1)) * usableH;
 }
 
-export default function RewardMlpDiagram({ genome, heldValues, isDark = false }: Props) {
-  const { activations, weightAbsMax, actAbsMax, layers } = useMemo(() => {
-    const a0 = heldValues;
-    const a1 = denseTanh(a0, genome.Dense_0);
-    const a2 = denseTanh(a1, genome.Dense_1);
-    const a3 = denseLinear(a2, genome.Dense_2);
+function nodeRadius(maxLayerSize: number): number {
+  // Pack with a bit of breathing room. At 8 nodes → radius 8, at 40 → ~3.
+  const usableH = SVG_H - PAD_Y_TOP - PAD_Y_BOTTOM;
+  const spacing = usableH / Math.max(1, maxLayerSize - 1);
+  return Math.max(2.5, Math.min(8, spacing * 0.45));
+}
 
-    const ls = [genome.Dense_0, genome.Dense_1, genome.Dense_2];
+export default function RewardMlpDiagram({
+  genome,
+  heldValues,
+  inputLabels,
+  isDark = false,
+}: Props) {
+  const {
+    activations,
+    layers,
+    columnX,
+    nodeR,
+    weightAbsMax,
+    actAbsMax,
+  } = useMemo(() => {
+    // Forward pass — collect activations at every column. Column 0 is the
+    // raw input; columns 1..L are the post-activation outputs of each layer.
+    const ls = genome.layers;
+    if (ls.length === 0) {
+      return {
+        activations: [heldValues],
+        layers: [] as MlpLayer[],
+        columnX: [PAD_X_LEFT],
+        nodeR: 6,
+        weightAbsMax: 1,
+        actAbsMax: 1,
+      };
+    }
+    const acts: Float32Array[] = [heldValues];
+    for (let i = 0; i < ls.length - 1; i++) {
+      acts.push(denseTanh(acts[acts.length - 1], ls[i]));
+    }
+    acts.push(denseLinear(acts[acts.length - 1], ls[ls.length - 1]));
+
     let wMax = 1e-6;
     for (const layer of ls) {
       for (const row of layer.kernel) {
@@ -81,20 +121,43 @@ export default function RewardMlpDiagram({ genome, heldValues, isDark = false }:
         }
       }
     }
-    // Activation scale: max over hidden+output. Inputs get their own scale
-    // because n_eaten ranges 0–3 and the rest 0–1 — including them would
-    // wash the hidden layers grey by comparison.
+    // Activation scale spans hidden + output but skips the input layer
+    // (its values can be on a different scale than the post-tanh outputs).
     let aMax = 1e-6;
-    for (const arr of [a1, a2, a3]) {
-      for (const v of arr) {
+    for (let i = 1; i < acts.length; i++) {
+      for (const v of acts[i]) {
         const a = Math.abs(v);
         if (a > aMax) aMax = a;
       }
     }
-    return { activations: [a0, a1, a2, a3], weightAbsMax: wMax, actAbsMax: aMax, layers: ls };
+
+    // Equally space columns across the SVG width.
+    const nCols = acts.length;
+    const usableW = SVG_W - PAD_X_LEFT - PAD_X_RIGHT;
+    const cols: number[] = [];
+    for (let i = 0; i < nCols; i++) {
+      cols.push(
+        nCols === 1
+          ? PAD_X_LEFT + usableW / 2
+          : PAD_X_LEFT + (i / (nCols - 1)) * usableW,
+      );
+    }
+
+    let widest = 0;
+    for (const a of acts) if (a.length > widest) widest = a.length;
+    const r = nodeRadius(widest);
+
+    return {
+      activations: acts,
+      layers: ls,
+      columnX: cols,
+      nodeR: r,
+      weightAbsMax: wMax,
+      actAbsMax: aMax,
+    };
   }, [genome, heldValues]);
 
-  // Sort edges by |weight| ascending so dominant ones render on top.
+  // Edge geometry, sorted by |w| ascending so dominant ones render on top.
   const edges = useMemo(() => {
     type Edge = { x1: number; y1: number; x2: number; y2: number; w: number; key: string };
     const out: Edge[] = [];
@@ -105,9 +168,9 @@ export default function RewardMlpDiagram({ genome, heldValues, isDark = false }:
       for (let i = 0; i < inDim; i++) {
         for (let j = 0; j < outDim; j++) {
           out.push({
-            x1: LAYER_X[li],
+            x1: columnX[li],
             y1: nodeY(inDim, i),
-            x2: LAYER_X[li + 1],
+            x2: columnX[li + 1],
             y2: nodeY(outDim, j),
             w: layer.kernel[i][j],
             key: `${li}-${i}-${j}`,
@@ -117,17 +180,34 @@ export default function RewardMlpDiagram({ genome, heldValues, isDark = false }:
     }
     out.sort((a, b) => Math.abs(a.w) - Math.abs(b.w));
     return out;
-  }, [layers]);
+  }, [layers, columnX]);
 
-  const reward = activations[3][0];
-  // Input node activation scale (covers 0..3 for n_eaten, 0..1 for others).
-  const INPUT_AXIS = 2.0;
+  const reward = activations[activations.length - 1][0];
+
+  // Column labels: input, hidden 1, hidden 2, ..., hidden N-1, reward.
+  const columnLabels: string[] = [];
+  if (activations.length > 0) {
+    columnLabels.push("input");
+    for (let i = 1; i < activations.length - 1; i++) {
+      columnLabels.push(`hidden ${i}`);
+    }
+    if (activations.length > 1) columnLabels.push("reward");
+  }
+
+  const inputDim = activations[0]?.length ?? 0;
+  // Only show input labels when they're meaningful and the layer is small
+  // enough to not overlap (40-d temporal input would be too dense).
+  const showInputLabels = inputLabels && inputDim <= 8;
 
   return (
     <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-white dark:bg-gray-950">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-          Network <span className="text-[10px] font-normal text-gray-500">live activations · weights</span>
+          Network{" "}
+          <span className="text-[10px] font-normal text-gray-500">
+            live activations · weights · {layers.length} layer
+            {layers.length === 1 ? "" : "s"}
+          </span>
         </div>
         <div className="text-[10px] font-mono text-gray-500">
           reward ={" "}
@@ -145,11 +225,11 @@ export default function RewardMlpDiagram({ genome, heldValues, isDark = false }:
         preserveAspectRatio="xMidYMid meet"
         className="block"
       >
-        {/* Layer labels */}
-        {LAYER_LABELS.map((label, i) => (
+        {/* Column labels (top of each layer column) */}
+        {columnLabels.map((label, i) => (
           <text
-            key={`lbl-${i}`}
-            x={LAYER_X[i]}
+            key={`col-${i}`}
+            x={columnX[i]}
             y={12}
             textAnchor="middle"
             className="fill-gray-500 text-[9px] font-mono"
@@ -171,59 +251,60 @@ export default function RewardMlpDiagram({ genome, heldValues, isDark = false }:
               y2={y2}
               stroke={`rgb(${r},${g},${b})`}
               strokeOpacity={Math.max(0.05, norm)}
-              strokeWidth={Math.max(0.5, Math.min(2.5, norm * 2.5))}
+              strokeWidth={Math.max(0.3, Math.min(2.5, norm * 2.5))}
             >
               <title>{`weight ${w >= 0 ? "+" : ""}${w.toFixed(3)}`}</title>
             </line>
           );
         })}
 
-        {/* Nodes */}
+        {/* Nodes — input layer uses a fixed colormap axis so 1.0 reads as
+            moderately blue; other layers use the per-forward-pass max so
+            structure is visible even when the network outputs small
+            magnitudes. */}
         {activations.map((arr, layerIdx) =>
           Array.from(arr).map((v, i) => {
-            const cx = LAYER_X[layerIdx];
+            const cx = columnX[layerIdx];
             const cy = nodeY(arr.length, i);
-            // Input layer: fixed scale so 1.0 reads as moderately blue.
-            // Other layers: relative to actAbsMax so structure is visible
-            // even when the network outputs small magnitudes.
-            const axis = layerIdx === 0 ? INPUT_AXIS : actAbsMax;
+            const axis = layerIdx === 0 ? INPUT_COLOR_AXIS : actAbsMax;
             const [r, g, b] = weightColorRgb(v, axis, isDark);
-            const labelText =
+            const tipName =
               layerIdx === 0
-                ? `${INPUT_LABELS[i]} = ${v.toFixed(2)}`
-                : layerIdx === 3
-                  ? `reward = ${v.toFixed(3)}`
-                  : `${LAYER_LABELS[layerIdx]}[${i}] = ${v.toFixed(3)}`;
+                ? inputLabels?.[i] ?? `x_${i}`
+                : layerIdx === activations.length - 1
+                  ? "reward"
+                  : `${columnLabels[layerIdx]}[${i}]`;
             return (
               <circle
                 key={`n-${layerIdx}-${i}`}
                 cx={cx}
                 cy={cy}
-                r={NODE_R}
+                r={nodeR}
                 fill={`rgb(${r},${g},${b})`}
                 stroke="currentColor"
                 strokeWidth={1}
                 className="text-gray-400 dark:text-gray-600"
               >
-                <title>{labelText}</title>
+                <title>{`${tipName} = ${v.toFixed(3)}`}</title>
               </circle>
             );
           })
         )}
 
-        {/* Input labels (left of column 0) */}
-        {INPUT_LABELS.map((label, i) => (
-          <text
-            key={`il-${i}`}
-            x={LAYER_X[0] - NODE_R - 4}
-            y={nodeY(4, i)}
-            textAnchor="end"
-            dominantBaseline="middle"
-            className="fill-gray-600 dark:fill-gray-400 text-[9px] font-mono"
-          >
-            {label}
-          </text>
-        ))}
+        {/* Input labels — only when meaningful (named) and layer fits */}
+        {showInputLabels &&
+          inputLabels.slice(0, inputDim).map((label, i) => (
+            <text
+              key={`il-${i}`}
+              x={columnX[0] - nodeR - 4}
+              y={nodeY(inputDim, i)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              className="fill-gray-600 dark:fill-gray-400 text-[9px] font-mono"
+            >
+              {label}
+            </text>
+          ))}
       </svg>
     </div>
   );

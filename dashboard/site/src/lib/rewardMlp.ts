@@ -14,7 +14,20 @@ export interface MlpLayer {
   bias: number[]; // shape (out,)
 }
 
+// Dimension-flexible genome representation. Layers are ordered input→output;
+// activation convention follows reward.py — tanh on every hidden layer,
+// linear on the output layer. The depth and per-layer widths can change
+// across architectures (Axis 1: 4→8→8→1; Axis 3 temporal: 40→16→16→1)
+// without touching this code.
 export interface MlpGenome {
+  layers: MlpLayer[];
+}
+
+// Legacy synthetic-fixture shape (only consumed by the now debug-only
+// fixture loader at scripts/bake_mlp_reward_fixture.py). Production
+// genomes come from v3 replays via replayLoader.unflattenMlp and use the
+// flexible MlpGenome shape above.
+export interface LegacyMlpFixtureParams {
   Dense_0: MlpLayer;
   Dense_1: MlpLayer;
   Dense_2: MlpLayer;
@@ -23,7 +36,13 @@ export interface MlpGenome {
 export interface MlpFixture {
   name: string;
   description: string;
-  params: MlpGenome;
+  params: LegacyMlpFixtureParams;
+}
+
+// Adapter: convert a legacy fixture's named-key params into the flexible
+// genome shape used throughout the dashboard.
+export function legacyFixtureToGenome(p: LegacyMlpFixtureParams): MlpGenome {
+  return { layers: [p.Dense_0, p.Dense_1, p.Dense_2] };
 }
 
 export interface MlpFixtureFile {
@@ -66,9 +85,14 @@ function denseLinear(x: Float32Array, layer: MlpLayer): Float32Array {
 }
 
 export function evalRewardMlp(genome: MlpGenome, stimuli: Float32Array): number {
-  const h1 = denseTanh(stimuli, genome.Dense_0);
-  const h2 = denseTanh(h1, genome.Dense_1);
-  const out = denseLinear(h2, genome.Dense_2);
+  // Forward pass for any depth. Convention (matches src/reward.py): every
+  // hidden layer uses tanh, the final layer is linear, output is scalar.
+  const n = genome.layers.length;
+  let x = stimuli;
+  for (let i = 0; i < n - 1; i++) {
+    x = denseTanh(x, genome.layers[i]);
+  }
+  const out = denseLinear(x, genome.layers[n - 1]);
   return out[0];
 }
 

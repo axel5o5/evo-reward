@@ -108,7 +108,7 @@ export interface ReplayMeta {
 // MlpGenome is shared with rewardMlp.ts (the forward-pass + landscape
 // sampler) — keep one source of truth so the loader output drops directly
 // into the existing TS code path.
-import type { MlpGenome } from "./rewardMlp";
+import type { MlpGenome, MlpLayer } from "./rewardMlp";
 
 export interface ReplayData {
   meta: ReplayMeta;
@@ -276,25 +276,37 @@ function decodeGenomes(buf: ArrayBuffer, meta: ReplayMeta): Map<number, MlpGenom
   return out;
 }
 
-// Re-nest a flat genome row into the per-layer kernel/bias structure the
-// dashboard's forward pass and landscape sampler expect. Order matches the
-// recorder's `genome_layout` exactly — that table was built from
-// `tree_flatten_with_path` on the template params, with the leading "params"
-// key stripped, so consumer code never sees Flax's wrapper.
+// Re-nest a flat genome row into an ordered list of MlpLayer objects.
+// Layer order tracks first-seen-in-layout order, which equals the
+// recorder's `tree_flatten_with_path` order — input → first hidden → ...
+// → output. Depth and per-layer widths are read from the layout itself,
+// so any architecture (4→8→8→1, 40→16→16→1, future deeper variants) works
+// with no code change.
+//
+// Each entry's `path` is `[<layer-name>, "kernel"|"bias"]` after the
+// recorder strips Flax's "params" prefix.
 function unflattenMlp(flat: Float32Array, layout: GenomeLayoutEntry[]): MlpGenome {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const root: any = {};
+  // Group entries by layer name (path[0]). Use a Map to preserve insertion
+  // order. Each layer collects its kernel + bias as they're encountered.
+  const byLayer = new Map<string, { kernel?: number[][]; bias?: number[] }>();
+
   for (const entry of layout) {
+    if (entry.path.length !== 2) {
+      throw new Error(
+        `unsupported genome layout path depth ${entry.path.length}: ` +
+          `${entry.path.join("/")}`,
+      );
+    }
+    const [layerName, leafName] = entry.path;
+    if (!byLayer.has(layerName)) byLayer.set(layerName, {});
+    const layer = byLayer.get(layerName)!;
     const size = entry.shape.reduce((a, b) => a * b, 1);
     const slice = flat.subarray(entry.offset, entry.offset + size);
-    let cur = root;
-    for (let i = 0; i < entry.path.length - 1; i++) {
-      const key = entry.path[i];
-      if (!cur[key]) cur[key] = {};
-      cur = cur[key];
-    }
-    const last = entry.path[entry.path.length - 1];
-    if (entry.shape.length === 2) {
+
+    if (leafName === "kernel") {
+      if (entry.shape.length !== 2) {
+        throw new Error(`kernel must be 2-d, got shape ${entry.shape}`);
+      }
       const [rows, cols] = entry.shape;
       const matrix: number[][] = [];
       for (let r = 0; r < rows; r++) {
@@ -302,14 +314,25 @@ function unflattenMlp(flat: Float32Array, layout: GenomeLayoutEntry[]): MlpGenom
         for (let c = 0; c < cols; c++) row[c] = slice[r * cols + c];
         matrix.push(row);
       }
-      cur[last] = matrix;
-    } else if (entry.shape.length === 1) {
-      cur[last] = Array.from(slice);
+      layer.kernel = matrix;
+    } else if (leafName === "bias") {
+      if (entry.shape.length !== 1) {
+        throw new Error(`bias must be 1-d, got shape ${entry.shape}`);
+      }
+      layer.bias = Array.from(slice);
     } else {
-      throw new Error(`unsupported genome layout shape: ${entry.shape}`);
+      throw new Error(`unexpected genome leaf "${leafName}" in ${layerName}`);
     }
   }
-  return root as MlpGenome;
+
+  const layers: MlpLayer[] = [];
+  for (const [layerName, parts] of byLayer) {
+    if (!parts.kernel || !parts.bias) {
+      throw new Error(`layer ${layerName} missing kernel or bias`);
+    }
+    layers.push({ kernel: parts.kernel, bias: parts.bias });
+  }
+  return { layers };
 }
 
 function decodeReplay(meta: ReplayMeta, buf: ArrayBuffer): ReplayData {
