@@ -215,15 +215,57 @@ In the linear baseline (position only), reactive dodging is impoverished — pre
 
 **This isn't necessarily about "fear is required."** It's about whether prey adaptations actually *limit* predator success. In the linear baseline, fear → prey avoid → predator catch rate drops naturally → predator pop self-limits. In axis 2, the herd weight (+4.51) actually *concentrates* prey spatially, which arguably *helps* predators find them. So prey "adapted" without applying real evolutionary pressure on predators. Predators kept getting better unchecked → over-specialized → collapse.
 
-**Open: was seed 0 deterministic or unlucky?** Seed 1 is queued (target 2M) to confirm whether trophic collapse is the reproducible long-term outcome.
+**Important caveat — what the v1 social_obs actually does.** Reading the implementation ([src/observations.py:279-320](src/observations.py#L279-L320)): the upgrade adds heading + speed of the **5 nearest *conspecifics* (same-species)**, not other-species. So in axis 2 v1, neither species sees the other's kinematics directly — both species get info only about their own kind. Predator over-evolution therefore is **not a direct perceptual advantage**; it's mediated through prey behavior change.
 
-**If reproducible, the natural next test is `social_obs_prey: position_heading_velocity` + `social_obs_pred: position_only`** — gives prey the perceptual upgrade but holds predators at the baseline. Tests whether the upgrade was disproportionately useful for predators.
+The likely chain: prey gets kin kinematics → evolves flocking (`prey_w_prey = +4.51`) → flocking concentrates prey spatially → predators (still seeing prey via baseline proximity sensors) find dense clusters easier → predators *also* upgraded see other-predators → evolve anti-herd (`pred_w_pred = −0.67`) → spread out → cover more ground. Net effect: clustered prey + spread predators = predators always have prey nearby.
 
-## 13. Open questions worth follow-up
+**This reframes what axis 2 actually tests.** v1 tested "kin-only social obs" — does seeing flockmates' motion change behavior? Answer: yes, strongly (huge herd weight, trophic collapse). But it didn't test the more interesting questions: what does *cross-species* perception do, and what's the role of perceptual asymmetry?
 
-1. **Axis 2 seed 1** (highest priority) — does seed 1 also evolve herd-not-fear? Confirms §12 generalizes.
-2. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
-3. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
-4. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
-5. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
-6. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
+## 13. Axis 2 redesign — `n_kin` / `n_other` as separate dials
+
+**The old `social_obs: "position_only" | "position_heading_velocity"` flag is being replaced** with two integers that decompose social information by *target type*:
+
+```yaml
+n_social_kin:   0   # number of nearest conspecifics to track [heading, speed]
+n_social_other: 0   # number of nearest other-species to track [heading, speed]
+```
+
+Each tracked agent contributes 2 dims, so `obs_dim = 205 + 2*(n_kin + n_other)`. Backward compatible:
+
+| Old flag | Equivalent new | obs_dim |
+|---|---|---|
+| `position_only` | `n_kin=0, n_other=0` | 205 |
+| `position_heading_velocity` (axis 2 v1) | `n_kin=5, n_other=0` | 215 |
+
+**The redesigned axis 2 program — three single-seed runs on mouth_smol (linear genome, 2M each):**
+
+| Run | `n_kin` | `n_other` | obs_dim | What it isolates |
+|---|---|---|---|---|
+| `axis2-cross-1` | 0 | 1 | 207 | Cross-species perception alone (no flocking pathway). Tests: does seeing one threat's kinematics let prey preempt predator surges? |
+| `axis2-both-1` | 3 | 1 | 213 | Flocking + cross-species. Tests: does kin info enable flocking to actually *limit* predator success when paired with cross-species awareness? |
+| `axis2-cross-1-asym` | 0/0 (pred) / 0/1 (prey) | — | mixed | Asymmetric: prey gets cross-species, predator at baseline. Tests: is the surge-prevention effect prey-specific? |
+
+**Design choices:**
+- **N_kin = 3 (not 1) when active.** Flocking is an averaging dynamic; a single-nearest signal isn't enough for it to emerge. Real flock alignment requires summary statistics over multiple neighbors.
+- **N_other = 1.** A single nearest threat/prey is already informationally rich (distance + bearing from proximity sensors, heading + speed from social slot). Higher N adds noise without obvious benefit.
+- **Cross-species filter.** Implementation flips the species mask in `_single_social_obs` from `same_species` to `same_species != obs_species` based on the `n_other` pathway.
+
+**What the experiment program tells us:**
+
+| If `cross-1` survives 2M cleanly | Cross-species perception alone is the lever — prey can preempt predators when given direct kinematic visibility. |
+| If `cross-1` also trophic-collapses | The collapse isn't about perceptual access; either it's about flocking concentrating prey, or about predator over-success unrelated to either species' obs. |
+| If `cross-1` survives but `both-1` collapses | Flocking *interacts badly* with cross-species perception — the kin-driven concentration overrides the cross-species-driven avoidance. |
+| If both survive but `cross-1-asym` collapses | The predator's upgrade is the active ingredient — predators benefit asymmetrically from social info. |
+
+**Out of scope but worth flagging:** the v1 social obs has additional design quirks beyond same-species filtering — heading is absolute world-frame (not relative to observer), speed drops direction, top-N picks closest with no aggregation. These are reasonable choices but other designs exist (relative bearing, mean-of-N, distance-weighted). For now, holding everything else constant and varying only the species filter / N gives the cleanest experimental signal.
+
+## 14. Open questions worth follow-up
+
+1. **`axis2-cross-1` on mouth_smol** (highest priority once n_kin/n_other ships) — does cross-species perception alone prevent trophic collapse?
+2. **`axis2-both-1` on mouth_smol** — does flocking + cross-species coexist, or does flocking still drive concentration?
+3. **Axis 1 retry** — try mut=0.03 (intermediate) or smaller MLP (hidden=4) to see if the bottleneck-vs-noise tradeoff has a stable middle ground.
+4. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
+5. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
+6. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
+7. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
+8. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
