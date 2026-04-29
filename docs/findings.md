@@ -181,9 +181,30 @@ For now, paused. The mut=0.03 test is queued as future work.
 
 **Same concern still applies to axis 3 (temporal).** `temporal_mutation_scale = 0.005` on 945 params → aggregate kick 0.15. If we revisit axis 3, expect similar instability.
 
-## 12. Open questions worth follow-up
+## 12. ⭐ Axis 2 (richer social obs) substitutes herd-seeking for fear
 
-1. **Axis 2 (social_obs) on mouth_smol** (in flight) — uses linear genome on the 1M-survival substrate. Cleanest A/B for "does richer social obs help fear evolution?"
+**Run:** `axis2_mouth_smol_1M` seed 0, 1M steps (2026-04-29). Identical to `sweep_mouth_smol_1M` except `social_obs: "position_heading_velocity"` (prey/pred see neighbor heading and velocity, not just position). Linear genome — no mutation-tuning concern.
+
+**Both species survived 1M with multiple LV cycles. Final state: prey=450, pred=10.**
+
+| Weight | Linear baseline (pos only) | Axis 2 (pos+heading+velocity) |
+|---|---|---|
+| `prey_w_prey` (herd) | ≈ 0 | **+4.51 ± 5.23** |
+| `prey_w_pred` (fear) | **−1.97 ± 9.75** | +0.17 ± 3.85 |
+| `pred_w_prey` (chase) | +1.5-ish | +1.84 ± 0.72 |
+
+**Both runs are 1M survivors but they're qualitatively different solutions to the same problem.** The hypothesis going in was "richer social info should make fear easier to learn" — that turned out backwards. Richer perceptual channels meant prey could *behaviorally* navigate around predators using their policy network's read of motion cues, so they didn't need a reward signal that says "predators are bad." They got safety-in-numbers from the herd weight (+4.51, the strongest weight that evolved on either side).
+
+The herd weight ramped up monotonically: +0.27 (100K) → +1.43 (500K) → +3.40 (800K) → +4.51 (1M). The fear weight oscillated near zero throughout (−0.16 to +0.37, std ~3.8) — it never crossed our 0.3-magnitude "fear evolved" threshold sustainably.
+
+**Implications:**
+- **The result *and its mechanism* are interesting.** Two very different reward-shape solutions can produce 1M-stable LV oscillations on the same substrate. Fear isn't the only path.
+- **Need confirmation:** seed 1 of axis-2 is still untouched. n=1 herd-seeking-replaces-fear is suggestive, not conclusive.
+- **The dashboard's AgentInspector should clearly show this** — prey reward landscapes here will look very different from the linear baseline (peak in high-prey-density regions vs trough in high-pred-density regions).
+
+## 13. Open questions worth follow-up
+
+1. **Axis 2 seed 1** (highest priority) — does seed 1 also evolve herd-not-fear? Confirms §12 generalizes.
 2. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
 3. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
 4. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
