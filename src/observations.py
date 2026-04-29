@@ -197,6 +197,105 @@ def _winner_take_all(closest_prey, closest_pred, closest_food, closest_wall,
 
 
 # ---------------------------------------------------------------------------
+# Bin-aligned proximity sensors (proximity_encoding = "distance_and_heading")
+# ---------------------------------------------------------------------------
+# This is the alternative to winner-take-all. Per bin, each agent species
+# channel reports [distance, sin(rel_heading), cos(rel_heading)] of the
+# closest agent of that species in that bin. Food and wall keep distance only.
+# Total per-bin = 8 channels. No binding problem — kinematics are co-located
+# with the position info they pertain to.
+
+def _single_proximity_agents_with_heading(
+    obs_pos, obs_angle, obs_radius, obs_idx,
+    all_pos, all_active, all_species, all_radii, all_angles,
+    half_fov, bin_width, max_range, n_sensors,
+):
+    """Per-bin closest agent distance + heading (sin, cos) per species.
+
+    Returns six (n_sensors,) arrays:
+        prey_dist, prey_sin_rel, prey_cos_rel,
+        pred_dist, pred_sin_rel, pred_cos_rel.
+    Distances are inf for bins with no agent of that species.
+    Heading sin/cos are 0.0 for bins with no agent of that species.
+
+    The trick for "look up the closest agent's angle per bin": after
+    scatter-min on distances, mark each agent as a "winner in its bin" iff
+    its dist equals the bin's min, then scatter-min on agent indices among
+    winners (sentinel = A for none). Look up the winner's angle and compute
+    relative heading. Ties resolve by lowest agent index — deterministic.
+    """
+    A = all_pos.shape[0]
+
+    delta = all_pos - obs_pos
+    dist = jnp.linalg.norm(delta, axis=1)
+    edge_dist = jnp.maximum(dist - obs_radius - all_radii, 0.0)
+    angle_to = jnp.arctan2(delta[:, 1], delta[:, 0])
+
+    # Same heading convention as _single_proximity_agents.
+    rel_angle_to = _wrap(angle_to - obs_angle - jnp.pi / 2.0)
+    bin_idx = jnp.floor((rel_angle_to + half_fov) / bin_width).astype(jnp.int32)
+
+    self_mask = jnp.arange(A) != obs_idx
+    in_fov = (bin_idx >= 0) & (bin_idx < n_sensors)
+    in_range = edge_dist <= max_range
+    valid = all_active & self_mask & in_fov & in_range
+    clamped_bin = jnp.clip(bin_idx, 0, n_sensors - 1)
+
+    def per_species(species_id):
+        species_mask = (all_species == species_id) & valid
+        species_dist = jnp.where(species_mask, edge_dist, jnp.inf)
+        closest_dist = jnp.full(n_sensors, jnp.inf).at[clamped_bin].min(species_dist)
+
+        # Each agent is a "winner" iff its dist matches the bin min for its species.
+        # Equality on float32 is safe here because both sides are the same value
+        # propagated through scatter-min.
+        is_winner = species_mask & (species_dist == closest_dist[clamped_bin])
+        idx_signal = jnp.where(is_winner, jnp.arange(A), A)
+        winner_idx = jnp.full(n_sensors, A, dtype=jnp.int32).at[clamped_bin].min(idx_signal)
+
+        has_winner = winner_idx < A
+        safe_idx = jnp.where(has_winner, winner_idx, 0)
+        winner_angle = all_angles[safe_idx]
+        rel = _wrap(winner_angle - obs_angle)
+        sin_h = jnp.where(has_winner, jnp.sin(rel), 0.0)
+        cos_h = jnp.where(has_winner, jnp.cos(rel), 0.0)
+        return closest_dist, sin_h, cos_h
+
+    prey_dist, prey_sin, prey_cos = per_species(0)
+    pred_dist, pred_sin, pred_cos = per_species(1)
+    return prey_dist, prey_sin, prey_cos, pred_dist, pred_sin, pred_cos
+
+
+def _per_channel_encoding(
+    prey_dist, prey_sin, prey_cos,
+    pred_dist, pred_sin, pred_cos,
+    food_dist, wall_dist,
+    max_range, n_sensors,
+):
+    """Encode per-bin channels into (A, S, 8).
+
+    Layout per bin: [prey_dist_norm, prey_sin, prey_cos,
+                     pred_dist_norm, pred_sin, pred_cos,
+                     food_dist_norm, wall_dist_norm].
+    Distance channels are 1 - dist/max_range (clamped to [0, 1]); 0 if no
+    detection. Sin/cos already 0 when no agent of that species.
+
+    Note: this differs from _winner_take_all in that all four distance
+    channels can be active simultaneously (no winner gating). Each species'
+    presence and motion are encoded independently per bin.
+    """
+    def encode_dist(d):
+        normed = jnp.clip(1.0 - d / max_range, 0.0, 1.0)
+        return jnp.where(d <= max_range, normed, 0.0)
+
+    return jnp.stack([
+        encode_dist(prey_dist), prey_sin, prey_cos,
+        encode_dist(pred_dist), pred_sin, pred_cos,
+        encode_dist(food_dist), encode_dist(wall_dist),
+    ], axis=-1)  # (A, S, 8)
+
+
+# ---------------------------------------------------------------------------
 # Tactile sensors
 # ---------------------------------------------------------------------------
 
@@ -373,8 +472,9 @@ def compute_all_observations(obs_state: dict, config: dict) -> jnp.ndarray:
     n_sensors = config["n_proximity_sensors"]
     n_tactile_bins = config["n_tactile_sensors"]
     n_kin, n_other = _resolve_social_counts(config)
+    proximity_encoding = config.get("proximity_encoding", "distance_only")
 
-    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins, n_kin, n_other)
+    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins, n_kin, n_other, proximity_encoding)
     if cache_key not in _obs_fn_cache:
         _obs_fn_cache[cache_key] = _build_obs_fn(config, max_agents, food_max)
 
@@ -400,6 +500,15 @@ def _build_obs_fn(config, max_agents, food_max):
     include_kin = n_kin > 0
     include_other = n_other > 0
 
+    # Proximity encoding (compile-time branch)
+    proximity_encoding = config.get("proximity_encoding", "distance_only")
+    if proximity_encoding not in ("distance_only", "distance_and_heading"):
+        raise ValueError(
+            f"proximity_encoding must be 'distance_only' or 'distance_and_heading', "
+            f"got {proximity_encoding!r}"
+        )
+    include_heading = proximity_encoding == "distance_and_heading"
+
     # Build vmapped proximity functions
     _vmap_prox_agents = jax.vmap(
         lambda pos, ang, rad, idx, ap, aa, asp, ar: _single_proximity_agents(
@@ -407,6 +516,14 @@ def _build_obs_fn(config, max_agents, food_max):
             half_fov, bin_width, max_range, n_sensors
         ),
         in_axes=(0, 0, 0, 0, None, None, None, None),
+    )
+
+    _vmap_prox_agents_with_heading = jax.vmap(
+        lambda pos, ang, rad, idx, ap, aa, asp, ar, alla: _single_proximity_agents_with_heading(
+            pos, ang, rad, idx, ap, aa, asp, ar, alla,
+            half_fov, bin_width, max_range, n_sensors,
+        ),
+        in_axes=(0, 0, 0, 0, None, None, None, None, None),
     )
 
     _vmap_prox_food = jax.vmap(
@@ -460,11 +577,18 @@ def _build_obs_fn(config, max_agents, food_max):
 
         obs_indices = jnp.arange(max_agents)
 
-        # 1. Proximity — agent channels (prey, predator)
-        closest_prey, closest_pred = _vmap_prox_agents(
-            positions, angles, radii, obs_indices,
-            positions, is_active, species, radii,
-        )  # each (A, S)
+        # 1. Proximity — agent channels (prey, predator). With heading if active.
+        if include_heading:
+            (closest_prey, prey_sin, prey_cos,
+             closest_pred, pred_sin, pred_cos) = _vmap_prox_agents_with_heading(
+                positions, angles, radii, obs_indices,
+                positions, is_active, species, radii, angles,
+            )  # each (A, S)
+        else:
+            closest_prey, closest_pred = _vmap_prox_agents(
+                positions, angles, radii, obs_indices,
+                positions, is_active, species, radii,
+            )  # each (A, S)
 
         # 2. Proximity — food channel
         closest_food = _vmap_prox_food(
@@ -478,11 +602,22 @@ def _build_obs_fn(config, max_agents, food_max):
             world_x, world_y, half_fov, bin_width, max_range, n_sensors,
         )  # (A, S)
 
-        # 4. Winner-take-all encoding
-        proximity = _winner_take_all(
-            closest_prey, closest_pred, closest_food, closest_wall,
-            max_range, n_sensors,
-        )  # (A, S, 4)
+        # 4. Encode proximity. Two paths:
+        #    - distance_only (K&D-faithful): winner-take-all, 4 channels per bin
+        #    - distance_and_heading: per-channel distance + heading (sin, cos),
+        #      8 channels per bin. No binding required for the policy.
+        if include_heading:
+            proximity = _per_channel_encoding(
+                closest_prey, prey_sin, prey_cos,
+                closest_pred, pred_sin, pred_cos,
+                closest_food, closest_wall,
+                max_range, n_sensors,
+            )  # (A, S, 8)
+        else:
+            proximity = _winner_take_all(
+                closest_prey, closest_pred, closest_food, closest_wall,
+                max_range, n_sensors,
+            )  # (A, S, 4)
 
         # 5. Tactile sensors — D26: pass each observer's `angle` so bin
         # classification happens in the agent's local frame.

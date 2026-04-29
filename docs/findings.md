@@ -221,51 +221,53 @@ The likely chain: prey gets kin kinematics → evolves flocking (`prey_w_prey = 
 
 **This reframes what axis 2 actually tests.** v1 tested "kin-only social obs" — does seeing flockmates' motion change behavior? Answer: yes, strongly (huge herd weight, trophic collapse). But it didn't test the more interesting questions: what does *cross-species* perception do, and what's the role of perceptual asymmetry?
 
-## 13. Axis 2 redesign — `n_kin` / `n_other` as separate dials
+## 13. Axis 2 redesign — bin-aligned heading channels (the converged design)
 
-**The old `social_obs: "position_only" | "position_heading_velocity"` flag is being replaced** with two integers that decompose social information by *target type*:
+**The first redesign attempt (n_kin / n_other social slots) is implemented but not the actual experiment we want to run.** Reasoning through the design surfaced three problems with social-slot encoding:
 
-```yaml
-n_social_kin:   0   # number of nearest conspecifics to track [heading, speed]
-n_social_other: 0   # number of nearest other-species to track [heading, speed]
+1. **Binding problem.** The social slot tells the policy "the nearest predator is heading this way at this speed," but the proximity sensors return distances per angular bin, unlabeled. The policy has to *learn the binding* — "the kinematic info pertains to whichever proximity bin has the smallest predator-distance." That's a multiplicative interaction the 64×2 policy MLP can encode in principle, but it's real work to learn within a 1M-step budget. Adding observations that require the policy to learn complex bindings is exactly the wrong move when our problem is "evolution is too slow already."
+2. **Speed is probably not worth a dim.** Energy cost is quadratic in action norm, so agents cruise at moderate speeds most of the time. Speed encodes nuance, but heading carries the categorical signal ("predator facing me" vs "facing away").
+3. **Heading was absolute world-frame.** The policy has to subtract its own heading at runtime to get the relative angle. Doable but adds noise.
+
+**The bin-aligned design solves all three.** Instead of a separate "social slot," we extend the proximity-sensor channels themselves to include heading. Per angular bin, each species channel gets `[distance, sin(rel_heading), cos(rel_heading)]` instead of just `[distance]`. Kinematics arrive *attached to the same bin* as position info — no binding needed.
+
+**Encoding decisions:**
+
+- **Bin-aligned**, not separate slot. Eliminates the binding problem.
+- **Heading-only**, no speed. Saves dims; speed is a refinement we can add later if heading-only proves insufficient.
+- **Relative to observer** (`neighbor_heading − observer_heading`). Saves the policy from learning a transformation.
+- **sin/cos encoding** of the relative heading. Fixes an aliasing issue: a single-scalar `rel_heading=0` would collide with "no agent in this bin" because zero is a meaningful angle (facing same direction as observer). With sin/cos, `(0, 0)` is geometrically impossible for any real angle, so the policy can read magnitude `√(sin² + cos²)` as an unambiguous presence signal.
+
+**Per-bin layout (8 channels):**
 ```
+[prey_dist, prey_sin_rel, prey_cos_rel,
+ pred_dist, pred_sin_rel, pred_cos_rel,
+ food_dist, wall_dist]
+```
+32 bins × 8 channels = 256 dims for the proximity block.
+**obs_dim = 256 + 72 + 5 = 333** (vs baseline 205, +63%).
 
-Each tracked agent contributes 2 dims, so `obs_dim = 205 + 2*(n_kin + n_other)`. Backward compatible:
+For bins with no agent of a given species: `(sin, cos) = (0, 0)`. The policy can learn to ignore heading info when distance is large (or magnitude is zero) — both signals reinforce the "no agent" interpretation, so the gating is easy.
 
-| Old flag | Equivalent new | obs_dim |
-|---|---|---|
-| `position_only` | `n_kin=0, n_other=0` | 205 |
-| `position_heading_velocity` (axis 2 v1) | `n_kin=5, n_other=0` | 215 |
+**Behind a config flag** (`proximity_encoding: "distance_only" | "distance_and_heading"`) so the K&D-faithful baseline still reproduces unchanged.
 
-**The redesigned axis 2 program — three single-seed runs on mouth_smol (linear genome, 2M each):**
+**The experiment ladder (after axis-1 v3 finishes):**
 
-| Run | `n_kin` | `n_other` | obs_dim | What it isolates |
-|---|---|---|---|---|
-| `axis2-cross-1` | 0 | 1 | 207 | Cross-species perception alone (no flocking pathway). Tests: does seeing one threat's kinematics let prey preempt predator surges? |
-| `axis2-both-1` | 3 | 1 | 213 | Flocking + cross-species. Tests: does kin info enable flocking to actually *limit* predator success when paired with cross-species awareness? |
-| `axis2-cross-1-asym` | 0/0 (pred) / 0/1 (prey) | — | mixed | Asymmetric: prey gets cross-species, predator at baseline. Tests: is the surge-prevention effect prey-specific? |
+| Run | Encoding | obs_dim | What it tests |
+|---|---|---|---|
+| `axis2-aligned` (single seed, 2M) | bin-aligned, heading-only, sin/cos, relative | 333 | Does bin-aligned cross-species perception prevent trophic collapse? |
+| (if interesting) seed 1, seed 2 | same | 333 | Reproducibility |
+| (if collapse anyway) bin-aligned + speed | extended | 365 | Does speed buy us anything? |
+| (if collapse anyway) bin-aligned + initial fear bias | same | 333 | Does perception + biased reward genome stabilize? |
 
-**Design choices:**
-- **N_kin = 3 (not 1) when active.** Flocking is an averaging dynamic; a single-nearest signal isn't enough for it to emerge. Real flock alignment requires summary statistics over multiple neighbors.
-- **N_other = 1.** A single nearest threat/prey is already informationally rich (distance + bearing from proximity sensors, heading + speed from social slot). Higher N adds noise without obvious benefit.
-- **Cross-species filter.** Implementation flips the species mask in `_single_social_obs` from `same_species` to `same_species != obs_species` based on the `n_other` pathway.
-
-**What the experiment program tells us:**
-
-| If `cross-1` survives 2M cleanly | Cross-species perception alone is the lever — prey can preempt predators when given direct kinematic visibility. |
-| If `cross-1` also trophic-collapses | The collapse isn't about perceptual access; either it's about flocking concentrating prey, or about predator over-success unrelated to either species' obs. |
-| If `cross-1` survives but `both-1` collapses | Flocking *interacts badly* with cross-species perception — the kin-driven concentration overrides the cross-species-driven avoidance. |
-| If both survive but `cross-1-asym` collapses | The predator's upgrade is the active ingredient — predators benefit asymmetrically from social info. |
-
-**Out of scope but worth flagging:** the v1 social obs has additional design quirks beyond same-species filtering — heading is absolute world-frame (not relative to observer), speed drops direction, top-N picks closest with no aggregation. These are reasonable choices but other designs exist (relative bearing, mean-of-N, distance-weighted). For now, holding everything else constant and varying only the species filter / N gives the cleanest experimental signal.
+**The n_kin / n_other implementation is preserved** for backward compatibility with axis-2 v1 and as a fallback if we later want a kin-only experiment. It's no longer the planned next experiment.
 
 ## 14. Open questions worth follow-up
 
-1. **`axis2-cross-1` on mouth_smol** (highest priority once n_kin/n_other ships) — does cross-species perception alone prevent trophic collapse?
-2. **`axis2-both-1` on mouth_smol** — does flocking + cross-species coexist, or does flocking still drive concentration?
-3. **Axis 1 retry** — try mut=0.03 (intermediate) or smaller MLP (hidden=4) to see if the bottleneck-vs-noise tradeoff has a stable middle ground.
-4. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
-5. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
-6. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
-7. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
-8. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
+1. **`axis2-aligned` on mouth_smol** (highest priority once bin-aligned encoding ships) — does kinematics-co-located-with-position prevent trophic collapse?
+2. **Axis 1 retry** — try mut=0.03 (in flight as v3) or smaller MLP (hidden=4) to see if the bottleneck-vs-noise tradeoff has a stable middle ground.
+3. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
+4. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
+5. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
+6. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
+7. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
