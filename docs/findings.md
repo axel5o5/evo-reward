@@ -262,12 +262,96 @@ For bins with no agent of a given species: `(sin, cos) = (0, 0)`. The policy can
 
 **The n_kin / n_other implementation is preserved** for backward compatibility with axis-2 v1 and as a fallback if we later want a kin-only experiment. It's no longer the planned next experiment.
 
-## 14. Open questions worth follow-up
+## 14. Open questions worth follow-up (superseded by §15)
 
-1. **`axis2-aligned` on mouth_smol** (highest priority once bin-aligned encoding ships) — does kinematics-co-located-with-position prevent trophic collapse?
-2. **Axis 1 retry** — try mut=0.03 (in flight as v3) or smaller MLP (hidden=4) to see if the bottleneck-vs-noise tradeoff has a stable middle ground.
-3. **Multi-seed at mouth_smol linear** — seeds 1, 2, 3 to 1M each. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 still untouched. Confirms §10 generalizes.
-4. **mouth_smol past 1M** — does LV oscillation stay stable or drift? Need 5M run.
-5. **`zeta_b_pred = 150`** — still untested. May be redundant if mouth_smol works, but useful as orthogonal validation.
-6. **Initial fear bias** — non-zero mean for `prey_w_pred`. Skips the slow fear-evolution phase. Strong intervention.
-7. **Audit emevo's catch geometry one more time** — D28 fixed shared credit, but per-catch energy formula or contact resolution might still differ.
+These were the open questions before the 2026-04-29 strategic reset. Some are subsumed; some are deferred. See §15 for the current plan.
+
+1. ~~`axis2-aligned` on mouth_smol~~ — **subsumed by §15.** Will run as `axis2_aligned_smol` on the new baseline (small-scale + DDB).
+2. ~~Axis 1 retry (mut=0.03 or smaller MLP)~~ — **abandoned.** Both axis-1 attempts at random-init full-MLP failed (v1 too clonal at mut=0.01, v2 too noisy at mut=0.08, v3 was queued at mut=0.03 but killed before completion since results would just confirm "intermediate is also bad"). Replaced by the residual reward design in §15.
+3. **Multi-seed at mouth_smol linear** — still open as a separate validation question. Seed 1 reached step 730K with fear -3.88 before we paused; seed 2/3 untouched. Lower priority than the axis runs now.
+4. **mouth_smol past 1M** — answered for axis-2 v1: extincted at 1.10M from trophic collapse. Open for the linear baseline alone.
+5. **`zeta_b_pred = 150`** — superseded by DDB (§15), which dynamically adjusts the breeding gate. The static-zeta question is no longer the right framing.
+6. **Initial fear bias** — still open as a strong intervention. Lower priority unless DDB doesn't deliver stability.
+7. **Audit emevo's catch geometry once more** — still open, lower priority. The fact that K&D goes to 10M and we don't is suggestive of an undiagnosed difference.
+
+## 15. ⭐ Strategic reset (2026-04-29) — narrowed scope, redesigned axes, stability scaffold
+
+The plan from §13 (n_kin/n_other social slots) and §14's axis-1 mut-tuning ladder are both abandoned. After multiple long runs ending in extinction, we reset scope to two axes with redesigned mechanics + a stability scaffold, plus a scaled-down baseline to iterate faster.
+
+### 15.1 The three changes
+
+**(A) Axis-1 → residual reward genome.** Instead of replacing the K&D linear reward with a randomly-initialized 121-param MLP (which kept extincting before evolution found anything useful), the new design *augments* the linear baseline with a small zero-init MLP perturbation:
+
+```
+r(stimuli) = sum(coefs · linear_weights · stimuli)  +  MLP_residual(stimuli)
+```
+
+- Linear part: 4 weights, K&D init (N(0, 0.1)) and mutation (Student's t, scale 0.4) — proven-stable.
+- Residual MLP: input(4) → Dense(4, tanh) → Dense(1) = **25 params**, **zero-initialized**, mutation scale 0.03, weight clip 5.0.
+
+**At t=0 the residual MLP outputs zero**, so the system starts as exact K&D-faithful linear reward. Evolution adds nonlinear structure if and only if it improves fitness. No bootstrap failure mode.
+
+Two interpretations of the result are both informative:
+- Residual stays near zero → "linear is sufficient; MLP capacity isn't needed here."
+- Residual weights grow → "evolution found nonlinear structure that helps."
+
+Implementation: `reward_type: "linear_plus_mlp_residual"`, new `ResidualRewardMLP` class in [src/reward.py](src/reward.py), dispatch in [src/jax_sim.py](src/jax_sim.py), mutation in [src/jax_evolution.py](src/jax_evolution.py).
+
+**(B) Axis-2 → bin-aligned heading encoding** (already implemented in §13 — preserved).
+
+**(C) DDB stability scaffold.** When species count is below a threshold, the breeding-energy gate `zeta` scales down via squared saturation:
+
+```
+f(N) = max(floor, N² / (N² + threshold²))
+effective_zeta = zeta * f(N)
+```
+
+Predator threshold 5, prey threshold 30, floor 0.3. At N=threshold the gate is half its normal value (much easier to breed); at N=2·threshold it's 80% (mostly off); at healthy N it's negligible. Models a softer version of "competitive release" — sparse populations face less intraspecific competition for resources, breed more easily.
+
+Behind config flag `stability_mechanism: "none" | "ddb"`, default `"none"` to preserve K&D-faithful behavior. New axis configs all set `"ddb"`.
+
+**Pragmatic, not ideologically pure.** Real-world Allee effects often work the opposite way (rare animals struggle to find mates), but DDB is empirically grounded in fisheries / endangered-species recovery work. We're using it as a scaffold to enable long-run experiments and will test removing it later if stability emerges naturally. Default ON for axis runs going forward.
+
+### 15.2 Small-scale baseline
+
+To iterate faster without sacrificing the long-horizon scientific signal, the new baseline (`baseline_smol_ddb`) shrinks the world geometry:
+
+| Param | Original | Small-scale |
+|---|---|---|
+| `world_size` | 960 | **600** (~40% area) |
+| `prey_cap / predator_cap` | 450 / 50 | **200 / 25** |
+| `prey_initial / predator_initial` | 150 / 10 | **75 / 5** |
+| `food_max` | 600 | **300** |
+
+Per-agent food ratio preserved. Estimated 1.5-2× sps speedup. Run length kept at 2M (user explicit preference: prefer 1 long run over 4 short ones for scientific signal).
+
+### 15.3 Forward experiment ladder
+
+| # | Config | What it tests | Cost (estimated) |
+|---|---|---|---|
+| **0** | `baseline_smol_ddb` (linear, 2M) | Validation: does the new baseline reproduce LV oscillation + fear evolution? | ~14h, ~$12 |
+| 1 | `axis1_residual` (linear+MLP residual, 2M) | Does evolution grow useful nonlinear reward structure on top of K&D linear? | ~14h, ~$12 |
+| 2 | `axis2_aligned_smol` (bin-aligned obs, 2M) | Does kinematics-co-located-with-position let prey preempt predator surges? | ~14h, ~$12 |
+| 3 | `axis1+2_combo` (residual + bin-aligned, 2M) | Do the two axes compose, conflict, or amplify each other? | ~14h, ~$12 |
+
+Each individual run produces an interpretable result regardless of outcome. Total ~3 days, ~$50.
+
+### 15.4 What we deferred
+
+**Axis-3 (temporal reward genome over k-step window):** the 945-param MLP has the same bootstrap problem as original axis-1, and the residual approach would need to be redesigned for temporal context. Deferred to a future session.
+
+**Axis-4 (LSTM policy network):** PPO with truncated BPTT was wired in commit 5e69965 but never exercised end-to-end. Lower-priority extension. Deferred.
+
+**Combined experiments beyond axis-1+axis-2:** the original 2×2 plan (linear/temporal × position-only/social) is shelved. If the axis-1 and axis-2 results justify it, combinations can be revisited.
+
+### 15.5 What we kept from prior decisions
+
+- mouth_smol substrate (predator_mouth_tactile_bins: [0]) — §10's breakthrough finding still anchors stability.
+- bin-aligned heading encoding — §13's design is correct and is being preserved as the axis-2 mechanism.
+- 20K checkpoint cadence + replay-uploads-every-flush + 100-replay milestone retention — operationally fine.
+
+### 15.6 Status snapshot
+
+- Code committed in `dd66d92`. Tests pass (231/231). Mac smoke tests of all three new configs run end-to-end without crashes.
+- Validation run `baseline_smol_ddb` 2M launched on `evo-reward-gpu` at 2026-04-29 19:25 UTC, tmux session `baseline`.
+- Once validation confirms stable LV cycles + fear evolution, axis-1 and axis-2 launch in sequence.
