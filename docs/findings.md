@@ -181,11 +181,11 @@ For now, paused. The mut=0.03 test is queued as future work.
 
 **Same concern still applies to axis 3 (temporal).** `temporal_mutation_scale = 0.005` on 945 params → aggregate kick 0.15. If we revisit axis 3, expect similar instability.
 
-## 12. ⭐ Axis 2 (richer social obs) substitutes herd-seeking for fear
+## 12. Axis 2 (richer social obs) — herd-not-fear at 1M, then trophic collapse at 1.1M
 
-**Run:** `axis2_mouth_smol_1M` seed 0, 1M steps (2026-04-29). Identical to `sweep_mouth_smol_1M` except `social_obs: "position_heading_velocity"` (prey/pred see neighbor heading and velocity, not just position). Linear genome — no mutation-tuning concern.
+**Run:** `axis2_mouth_smol_1M` seed 0 (2026-04-29). Identical to `sweep_mouth_smol_1M` except `social_obs: "position_heading_velocity"` (prey/pred see neighbor heading and velocity, not just position). Linear genome — no mutation-tuning concern.
 
-**Both species survived 1M with multiple LV cycles. Final state: prey=450, pred=10.**
+**At step 1M, both species alive (prey=450, pred=10) and weights looked fundamentally different from the linear baseline:**
 
 | Weight | Linear baseline (pos only) | Axis 2 (pos+heading+velocity) |
 |---|---|---|
@@ -193,14 +193,31 @@ For now, paused. The mut=0.03 test is queued as future work.
 | `prey_w_pred` (fear) | **−1.97 ± 9.75** | +0.17 ± 3.85 |
 | `pred_w_prey` (chase) | +1.5-ish | +1.84 ± 0.72 |
 
-**Both runs are 1M survivors but they're qualitatively different solutions to the same problem.** The hypothesis going in was "richer social info should make fear easier to learn" — that turned out backwards. Richer perceptual channels meant prey could *behaviorally* navigate around predators using their policy network's read of motion cues, so they didn't need a reward signal that says "predators are bad." They got safety-in-numbers from the herd weight (+4.51, the strongest weight that evolved on either side).
+We initially read this as "richer obs lets prey substitute herd-seeking for fear" — a different but-equally-valid stable solution. **That reading was wrong, or at least premature.**
 
-The herd weight ramped up monotonically: +0.27 (100K) → +1.43 (500K) → +3.40 (800K) → +4.51 (1M). The fear weight oscillated near zero throughout (−0.16 to +0.37, std ~3.8) — it never crossed our 0.3-magnitude "fear evolved" threshold sustainably.
+**Extension to 2M revealed trophic collapse:**
 
-**Implications:**
-- **The result *and its mechanism* are interesting.** Two very different reward-shape solutions can produce 1M-stable LV oscillations on the same substrate. Fear isn't the only path.
-- **Need confirmation:** seed 1 of axis-2 is still untouched. n=1 herd-seeking-replaces-fear is suggestive, not conclusive.
-- **The dashboard's AgentInspector should clearly show this** — prey reward landscapes here will look very different from the linear baseline (peak in high-prey-density regions vs trough in high-pred-density regions).
+| Step | Prey | Pred | Δcatch |
+|---|---|---|---|
+| 1.00M | 450 | 10 | 63 |
+| 1.04M | 319 | **28** (peak) | **203** (peak) |
+| 1.06M | 147 | 19 | 91 |
+| 1.08M | 103 | 5 | 21 |
+| **1.10M** | 122 | **0** | 4 |
+
+Predator pop surged to 28, drove prey from 450 down to 103, then starved when prey couldn't recover fast enough. **A new failure mode** — prior extinctions in this codebase have all been "predators too weak"; this is "predators *too strong* with no brake."
+
+**Diagnosis — the local-optimum trap.** Prey have two avenues to handle predators:
+1. **Reactive (policy-level):** "I see a predator, I dodge." Handled by the policy network reading the obs vector.
+2. **Strategic (reward-level):** "Predator-dense regions are bad even when no immediate danger." Encoded in `prey_w_pred` — fear.
+
+In the linear baseline (position only), reactive dodging is impoverished — prey don't know predator heading or velocity. The only avenue available is the strategic one → fear evolves. In axis 2, richer obs makes reactive dodging much better, so evolution finds that local solution first. The herd weight reinforces it (group dodging > solo). Fear never builds up enough gradient because reactive avoidance is "good enough" *at low predator density*. When the natural LV cycle produces a predator surge that overwhelms reactive avoidance, prey have no strategic backstop — they crash, predators overshoot, both die.
+
+**This isn't necessarily about "fear is required."** It's about whether prey adaptations actually *limit* predator success. In the linear baseline, fear → prey avoid → predator catch rate drops naturally → predator pop self-limits. In axis 2, the herd weight (+4.51) actually *concentrates* prey spatially, which arguably *helps* predators find them. So prey "adapted" without applying real evolutionary pressure on predators. Predators kept getting better unchecked → over-specialized → collapse.
+
+**Open: was seed 0 deterministic or unlucky?** Seed 1 is queued (target 2M) to confirm whether trophic collapse is the reproducible long-term outcome.
+
+**If reproducible, the natural next test is `social_obs_prey: position_heading_velocity` + `social_obs_pred: position_only`** — gives prey the perceptual upgrade but holds predators at the baseline. Tests whether the upgrade was disproportionately useful for predators.
 
 ## 13. Open questions worth follow-up
 

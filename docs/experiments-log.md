@@ -45,7 +45,7 @@ For cross-cutting analysis and what we've learned, see:
 | `sweep_mouth_smol_1M_seed1` | 2026-04-27 | same | 1 | 730K (paused) | alive at pause | Step 730K, prey 449 / pred 21, fear `prey_w_pred = -3.16 ± 7.88`. Paused to free VM for axis1 |
 | `axis1_mouth_smol_1M/seed0` | 2026-04-28 | `dc67fc6` (`reward_type: mlp` wired, mouth_smol substrate) | 0 | 1M | Extinct @ ~380K | Pred crashed to 1 @ 140K, recovered to 30, second bottleneck @ 360K extincts. `mlp_mutation_scale=0.01` → diversity-recovery too slow vs linear's 0.4. See findings.md §11 |
 | `axis1_mouth_smol_1M_mut08/seed0` | 2026-04-28 | `d93d664` (mut_scale 0.01→0.08) | 0 | 370K (killed) | Extinct @ ~300K | Diversity *did* appear (`pred_w` ±0.06-0.11), but pred peak only ~15 — too many non-viable offspring → smaller stable pop → first downturn extincts. Counter-arg from §11 confirmed |
-| `axis2_mouth_smol_1M/seed0` | 2026-04-29 | `46a888f` (linear genome + `social_obs: position_heading_velocity`) | 0 | 1M | **SURVIVED** | Herd-seeking instead of fear: `prey_w_prey = +4.51 ± 5.23` (strong herd), `prey_w_pred = +0.17 ± 3.85` (no fear). Multiple LV cycles. See findings.md §12 |
+| `axis2_mouth_smol_1M/seed0` | 2026-04-29 | `46a888f` (linear genome + `social_obs: position_heading_velocity`) | 0 | 1.15M (extended) | Extinct @ ~1.10M | Looked stable at 1M (herd `+4.51`, no fear). Extension showed pred surge to 28 → prey crash 450→103 → trophic collapse. New failure mode: predators too strong, not too weak. See findings.md §12 |
 
 Weight keys: `w_eat / w_act / w_prey / w_pred`. "Fear evolved" = `|prey_w_pred|` > 0.3 sustained.
 
