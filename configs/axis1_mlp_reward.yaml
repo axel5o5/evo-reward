@@ -109,7 +109,7 @@ weight_clip:              100.0      # linear genome clip (unused when reward_ty
 
 # MLP-specific genome params:
 mlp_hidden_size:          8          # hidden units per layer in reward MLP
-mlp_mutation_scale:       0.08       # Student's t scale; raised from 0.01 so aggregate L2 (sqrt(121)*0.08 ≈ 0.88) ≈ linear's sqrt(4)*0.4 = 0.80. See findings.md §11.
+mlp_mutation_scale:       0.03       # Intermediate test (v3): 0.01 too clonal, 0.08 too noisy; 0.03 = aggregate L2 sqrt(121)*0.03 ≈ 0.33, ~halfway. See findings.md §11.
 mlp_weight_clip:          10.0       # clip MLP weights to [-10, 10] after mutation
 
 # ─── Policy Network ──────────────────────────────────────────────────────────
