@@ -77,6 +77,21 @@ def mutate_mlp_genome_jax(parent_params, rng_key, config):
     )
 
 
+def mutate_residual_genome_jax(parent_params, rng_key, config):
+    """Mutate a residual MLP reward genome (axis 1 v4).
+
+    Residual MLPs are zero-initialized and grow via mutation if useful.
+    Uses a smaller mutation scale than the full-MLP variant since residual
+    perturbations should accumulate gradually on top of the linear baseline.
+    """
+    return mutate_pytree_genome_jax(
+        parent_params, rng_key,
+        scale=config.get("residual_mutation_scale", 0.03),
+        clip_val=config.get("residual_weight_clip", 5.0),
+        df=config.get("mutation_df", 2.0),
+    )
+
+
 def mutate_temporal_genome_jax(parent_params, rng_key, config):
     """Mutate a temporal reward genome (Flax PyTree, k*4 → h → h → 1)."""
     return mutate_pytree_genome_jax(
@@ -122,12 +137,13 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     # Child angle: uniform
     child_angle = jax.random.uniform(k2, minval=-jnp.pi, maxval=jnp.pi)
 
-    # Child genome: linear weights only mutate when reward_type=="linear".
-    # For MLP runs the 4-vector field is never read by the reward dispatch,
-    # so leaving it equal to the parent's value keeps logged linear stats
-    # quiet instead of showing a drifting "ghost evolution" the simulator
-    # is ignoring.
-    if reward_type == "linear":
+    # Child genome: linear weights mutate for "linear" and the residual
+    # variant ("linear_plus_mlp_residual"), since both actually read the
+    # 4-vector. For "mlp" / "temporal" the linear field is unused by the
+    # reward dispatch, so leaving it equal to the parent's value keeps
+    # logged linear stats quiet instead of showing a drifting "ghost
+    # evolution" the simulator is ignoring.
+    if reward_type in ("linear", "linear_plus_mlp_residual"):
         child_genome = mutate_genome_jax(parent_genome, k3, config)
     else:
         child_genome = parent_genome
@@ -188,6 +204,15 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
         new_reward_mlp_params = jtu.tree_map(
             lambda stack, single: stack.at[new_slot].set(single),
             sim_state.reward_mlp_params, child_mlp,
+        )
+    elif reward_type == "linear_plus_mlp_residual":
+        parent_residual = jtu.tree_map(
+            lambda leaf: leaf[parent_slot], sim_state.reward_mlp_params
+        )
+        child_residual = mutate_residual_genome_jax(parent_residual, k5, config)
+        new_reward_mlp_params = jtu.tree_map(
+            lambda stack, single: stack.at[new_slot].set(single),
+            sim_state.reward_mlp_params, child_residual,
         )
     elif reward_type == "temporal":
         parent_temporal = jtu.tree_map(

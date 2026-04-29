@@ -1,0 +1,165 @@
+# Axis 1 v4: Residual reward genome (the converged design)
+# =========================================================
+# The reward function is the K&D linear baseline plus a small zero-init MLP
+# perturbation. The MLP is single-hidden-layer, hidden=4, ~25 params total.
+#
+#   r(stimuli) = sum(coefs * linear_weights * stimuli)  +  MLP_residual(stimuli)
+#                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^
+#                K&D linear (proven-stable, evolves normally)   zero-init, evolves freely
+#
+# Why this design: prior axis-1 attempts used a randomly-initialized 121-param
+# MLP that REPLACED the linear reward. That setup produced essentially random
+# rewards at t=0, which meant predator behavior was random until evolution
+# found something useful — but predators starved before evolution converged.
+# Both v1 (mut=0.01, too clonal) and v2 (mut=0.08, too noisy) extincted
+# around step 300-380K.
+#
+# The residual design sidesteps this: at t=0 the residual MLP outputs zero,
+# so the reward is exactly K&D linear, which the same-substrate baseline runs
+# show survives 1M+ with fear evolution. Mutations grow the residual gradually
+# if and only if it improves fitness. No bootstrap failure mode.
+#
+# Two interpretations of the result:
+#   - Residual stays near zero across 1M steps → "linear is sufficient,
+#     MLP capacity isn't useful here."
+#   - Residual weights grow → "evolution found nonlinear reward structure
+#     that improves fitness." Positive result for axis 1.
+# Either is publishable and easy to interpret.
+#
+# Inherits the new baseline (small-scale + DDB ON) from baseline_smol_ddb.
+# The only diff is reward_type and the residual mutation params.
+#
+# See findings.md §15.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis1_residual"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear_plus_mlp_residual"   # NEW: linear + zero-init MLP perturbation
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism ─────────────────────────────────────────────────────
+stability_mechanism:    "ddb"
+ddb_prey_threshold:     30.0
+ddb_pred_threshold:     5.0
+ddb_floor:              0.3
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── World (small-scale) ─────────────────────────────────────────────────────
+world_size:         600
+total_steps:        10_240_000
+
+# ─── Population (small-scale) ────────────────────────────────────────────────
+prey_initial:       75
+predator_initial:   5
+prey_cap:           200
+predator_cap:       25
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               300
+food_initial:           20
+food_growth_rate:       0.5
+food_max_regen_per_step: 5
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_tactile_bins: [0]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (linear part) ─────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Reward Genome (residual MLP part — NEW) ─────────────────────────────────
+# Architecture: input(4) → Dense(4, tanh) → Dense(1) = 25 params
+# Init: zero (network outputs 0 at t=0)
+# Mutation: Student's t with df=2, scale 0.03 (small, accumulates gradually)
+residual_hidden_size:     4
+residual_mutation_scale:  0.03
+residual_weight_clip:     5.0
+
+# ─── Policy ──────────────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO ─────────────────────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

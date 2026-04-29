@@ -208,6 +208,16 @@ def init_simstate(config: dict, rng_key) -> SimState:
         reward_mlp_params = jax.vmap(
             lambda k: init_mlp_genome(k, config)
         )(mlp_keys)
+    elif reward_type == "linear_plus_mlp_residual":
+        # Residual reward (axis 1 v4 — converged design). Linear weights
+        # already initialized above (random std=0.1). Residual MLP params
+        # are zero-initialized so the system starts as exact K&D linear.
+        from src.reward import init_residual_genome
+        rng_key, mlp_key = jax.random.split(rng_key)
+        mlp_keys = jax.random.split(mlp_key, max_agents)
+        reward_mlp_params = jax.vmap(
+            lambda k: init_residual_genome(k, config)
+        )(mlp_keys)
     elif reward_type == "temporal":
         from src.reward import init_temporal_genome
         rng_key, t_key = jax.random.split(rng_key)

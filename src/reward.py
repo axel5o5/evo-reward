@@ -97,6 +97,79 @@ def compute_mlp_reward(genome, stimuli):
     return net.apply(genome, stimuli)
 
 
+# ─── Residual reward genome (Axis 1 v4 — converged design) ─────────────────
+#
+# Combines the K&D linear baseline with a small MLP perturbation. The MLP is
+# zero-initialized so at t=0 the network output is exactly the K&D linear
+# reward. Evolution mutates both parts; the MLP can grow to express
+# nonlinear reward structure if it improves fitness, or stay near zero if
+# linear is sufficient.
+#
+# Why this design (vs the original axis-1 MLP that replaces the linear
+# reward entirely): random-init 121-param MLPs produce essentially random
+# rewards initially → predator behavior is random → predators starve before
+# anything useful evolves. With residual init at zero, the system starts in
+# the proven-stable K&D-faithful regime and can only deviate through
+# mutation pressure that improves fitness.
+#
+# Architecture: input(4) → Dense(h, tanh) → Dense(1, linear), single hidden
+# layer. With h=4 (default): 4*4+4 + 4*1+1 = 25 params. Compare to original
+# RewardMLP (h=8, two hidden) at 121 params.
+#
+# See findings.md §15.
+
+class ResidualRewardMLP(nn.Module):
+    """Single-hidden-layer MLP for the residual reward perturbation.
+
+    input(4) → Dense(h, tanh) → Dense(1, linear). Zero-initialized so the
+    network outputs 0 at t=0 (linear baseline runs unchanged).
+    """
+    hidden_size: int = 4
+
+    @nn.compact
+    def __call__(self, stimuli):
+        x = nn.Dense(self.hidden_size, kernel_init=nn.initializers.zeros)(stimuli)
+        x = nn.tanh(x)
+        x = nn.Dense(1, kernel_init=nn.initializers.zeros)(x)
+        return jnp.squeeze(x, axis=-1)
+
+
+def init_residual_genome(rng_key, config):
+    """Initialize residual MLP genome (zero-init).
+
+    Returns a Flax PyTree with all weights and biases at zero. Stimuli flow
+    through the network as 0 → tanh(0)=0 → 0, so the residual contributes
+    zero to the reward at birth. Evolution adds nonlinear structure via
+    mutation if it helps.
+    """
+    hidden = config.get("residual_hidden_size", 4)
+    net = ResidualRewardMLP(hidden_size=hidden)
+    params = net.init(rng_key, jnp.zeros(4))
+    return params
+
+
+def compute_residual_reward(linear_genome, residual_genome, stimuli):
+    """Combined linear + residual MLP reward.
+
+    Linear part uses the K&D fixed coefficients (1.0, 0.01, 0.1, 0.1).
+    Residual part adds the MLP output on top — zero at birth, evolves freely.
+
+    Args:
+        linear_genome: shape (4,) float32 — [w_eat, w_act, w_prey, w_pred].
+        residual_genome: Flax PyTree from init_residual_genome.
+        stimuli: shape (4,) float32 — [n_eaten, motor_norm, max_s_prey, max_s_pred].
+
+    Returns:
+        Scalar float32 reward.
+    """
+    coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
+    linear_part = jnp.sum(linear_genome * stimuli * coefs)
+    hidden_size = residual_genome['params']['Dense_0']['kernel'].shape[1]
+    net = ResidualRewardMLP(hidden_size=hidden_size)
+    residual_part = net.apply(residual_genome, stimuli)
+    return linear_part + residual_part
+
+
 # ─── Temporal reward genome (Axis 3) ────────────────────────────────────────
 
 class TemporalRewardMLP(nn.Module):

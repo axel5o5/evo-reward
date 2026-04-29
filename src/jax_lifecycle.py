@@ -87,12 +87,48 @@ def _batch_hazard_prob_jax(ages, energies, species, config):
     return jnp.clip(h, 0.0, 1.0)
 
 
-def _batch_birth_prob_jax(energies, species, config):
-    """Vectorized birth probability. Pure JAX."""
+def _ddb_factor(N, threshold, floor):
+    """Density-dependent breeding scaling factor (Option B: squared saturation).
+
+    f(N) = max(floor, N^2 / (N^2 + threshold^2))
+    Returns 0.5 at N=threshold, ~0.8 at N=2*threshold, ~0.94 at N=4*threshold.
+    Floor caps the minimum factor when N is at zero.
+    """
+    N = N.astype(jnp.float32)
+    smooth = (N * N) / (N * N + threshold * threshold)
+    return jnp.maximum(floor, smooth)
+
+
+def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count=None):
+    """Vectorized birth probability. Pure JAX.
+
+    Optionally applies density-dependent breeding (DDB): when species
+    population is low, the energy threshold (zeta) for breeding is scaled
+    down by a squared-saturation factor, making breeding easier at deep
+    bottlenecks. See findings.md §15.
+    """
     kappa_b = config["kappa_b"]
     beta_b = config["beta_b"]
-    zeta = jnp.where(species == 0, config["zeta_b_prey"], config["zeta_b_pred"])
+    zeta_prey = config["zeta_b_prey"]
+    zeta_pred = config["zeta_b_pred"]
 
+    stability = config.get("stability_mechanism", "none")
+    if stability == "ddb":
+        if prey_count is None or pred_count is None:
+            raise ValueError(
+                "stability_mechanism='ddb' requires prey_count and pred_count "
+                "to be passed to _batch_birth_prob_jax."
+            )
+        floor = float(config.get("ddb_floor", 0.3))
+        prey_threshold = float(config.get("ddb_prey_threshold", 30.0))
+        pred_threshold = float(config.get("ddb_pred_threshold", 5.0))
+
+        prey_factor = _ddb_factor(prey_count, prey_threshold, floor)
+        pred_factor = _ddb_factor(pred_count, pred_threshold, floor)
+        zeta_prey = zeta_prey * prey_factor
+        zeta_pred = zeta_pred * pred_factor
+
+    zeta = jnp.where(species == 0, zeta_prey, zeta_pred)
     exponent = jnp.clip(zeta - beta_b * energies, -700, 700)
     return kappa_b / (1.0 + jnp.exp(exponent))
 
@@ -174,12 +210,16 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
     rng, birth_key = jax.random.split(rng)
     birth_randoms = jax.random.uniform(birth_key, shape=(max_agents,))
 
-    b_all = _batch_birth_prob_jax(sim_state.energies, sim_state.species, config)
-    wants_birth = sim_state.is_active & (birth_randoms < b_all)
-
-    # Population caps
+    # Compute post-death populations early — used both by DDB (if enabled) to
+    # scale the breeding threshold, and by the population caps below.
     prey_count = jnp.sum(new_is_active & (sim_state.species == 0))
     pred_count = jnp.sum(new_is_active & (sim_state.species == 1))
+
+    b_all = _batch_birth_prob_jax(
+        sim_state.energies, sim_state.species, config,
+        prey_count=prey_count, pred_count=pred_count,
+    )
+    wants_birth = sim_state.is_active & (birth_randoms < b_all)
 
     prey_under_cap = prey_count < prey_cap
     pred_under_cap = pred_count < predator_cap

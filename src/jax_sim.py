@@ -99,6 +99,18 @@ def build_sim_step(config, space):
         def _compute_rewards(sim_state, stimuli):
             r = jax.vmap(compute_mlp_reward)(sim_state.reward_mlp_params, stimuli)
             return r, sim_state
+    elif reward_type == "linear_plus_mlp_residual":
+        # Residual reward (axis 1 v4): K&D linear + small zero-init MLP.
+        # Both genomes evolve; system starts at K&D-faithful baseline.
+        from src.reward import compute_residual_reward
+
+        def _compute_rewards(sim_state, stimuli):
+            r = jax.vmap(compute_residual_reward)(
+                sim_state.reward_weights,
+                sim_state.reward_mlp_params,
+                stimuli,
+            )
+            return r, sim_state
     elif reward_type == "temporal":
         from src.reward import compute_temporal_reward
 
