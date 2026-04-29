@@ -18,9 +18,20 @@ Observation layout (baseline, 205 dims):
   203:     angular velocity
   204:     energy
 
-Extension: social observation (social_obs = "position_heading_velocity", 215 dims):
-  205-214: social obs (5, 2) -- [heading, speed] x 5 closest conspecifics
-           Sorted by Euclidean distance (closest first), zero-padded.
+Social observation block (n_social_kin and n_social_other config fields):
+  Each tracked target contributes [heading, speed] = 2 dims.
+  Layout when active: kin block (n_kin entries) then other-species block
+  (n_other entries). obs_dim = 205 + 2*(n_kin + n_other).
+
+  - n_social_kin: number of nearest conspecifics (same species) to track.
+    Used for flocking dynamics — averaging over multiple kin lets the
+    policy detect group movement direction.
+  - n_social_other: number of nearest other-species agents to track.
+    Used for cross-species perception — prey can see predator heading/speed
+    directly, predator can see prey heading/speed directly.
+
+Backward compatibility: the old `social_obs: "position_heading_velocity"`
+flag is still honored and maps to n_social_kin=5, n_social_other=0.
 """
 
 import math
@@ -279,12 +290,15 @@ def _single_tactile(obs_pos, obs_angle, obs_radius, obs_species, obs_idx,
 def _single_social_obs(obs_pos, obs_species, obs_idx,
                        all_pos, all_active, all_species,
                        all_angles, all_velocities_xy,
-                       max_range, n_neighbors):
+                       max_range, n_neighbors, match_kin):
     """Social observation for one observer. Returns (2 * n_neighbors,).
 
-    For each of the n_neighbors closest conspecifics (same species, active,
-    within max_range), returns [heading, speed] interleaved. Zero-padded
-    if fewer than n_neighbors are visible.
+    For each of the n_neighbors closest targets (same species if match_kin,
+    other species otherwise; active, within max_range), returns
+    [heading, speed] interleaved. Zero-padded if fewer than n_neighbors
+    are visible.
+
+    `match_kin` is a Python bool — burned in at trace time.
     """
     A = all_pos.shape[0]
 
@@ -292,11 +306,14 @@ def _single_social_obs(obs_pos, obs_species, obs_idx,
     delta = all_pos - obs_pos                                          # (A, 2)
     dist = jnp.linalg.norm(delta, axis=1)                             # (A,)
 
-    # Validity mask: same species, active, not self, within range
-    same_species = (all_species == obs_species)
+    # Validity mask: matching species filter, active, not self, within range
+    if match_kin:
+        species_match = (all_species == obs_species)
+    else:
+        species_match = (all_species != obs_species)
     not_self = (jnp.arange(A) != obs_idx)
     in_range = (dist <= max_range)
-    valid = all_active & same_species & not_self & in_range
+    valid = all_active & species_match & not_self & in_range
 
     # Mask invalid agents to inf distance for sorting
     masked_dist = jnp.where(valid, dist, jnp.inf)                     # (A,)
@@ -327,6 +344,20 @@ def _single_social_obs(obs_pos, obs_species, obs_idx,
 _obs_fn_cache = {}
 
 
+def _resolve_social_counts(config: dict) -> tuple[int, int]:
+    """Resolve (n_kin, n_other) from config, honoring the legacy social_obs flag.
+
+    Precedence: explicit n_social_kin / n_social_other override the legacy
+    string flag. If neither is set, fall back to the legacy social_obs flag.
+    """
+    if "n_social_kin" in config or "n_social_other" in config:
+        return int(config.get("n_social_kin", 0)), int(config.get("n_social_other", 0))
+    legacy = config.get("social_obs", "position_only")
+    if legacy == "position_heading_velocity":
+        return int(config.get("n_social_neighbors", 5)), 0
+    return 0, 0
+
+
 def compute_all_observations(obs_state: dict, config: dict) -> jnp.ndarray:
     """Compute observations for ALL agents simultaneously.
 
@@ -341,10 +372,9 @@ def compute_all_observations(obs_state: dict, config: dict) -> jnp.ndarray:
     food_max = config["food_max"]
     n_sensors = config["n_proximity_sensors"]
     n_tactile_bins = config["n_tactile_sensors"]
-    social_obs = config.get("social_obs", "position_only")
-    n_social = config.get("n_social_neighbors", 0) if social_obs != "position_only" else 0
+    n_kin, n_other = _resolve_social_counts(config)
 
-    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins, social_obs, n_social)
+    cache_key = (max_agents, food_max, n_sensors, n_tactile_bins, n_kin, n_other)
     if cache_key not in _obs_fn_cache:
         _obs_fn_cache[cache_key] = _build_obs_fn(config, max_agents, food_max)
 
@@ -366,9 +396,9 @@ def _build_obs_fn(config, max_agents, food_max):
     tactile_bin_centers = jnp.arange(n_tactile_bins) * tactile_spacing_rad
 
     # Social observation config (compile-time branch)
-    social_obs = config.get("social_obs", "position_only")
-    include_social = (social_obs == "position_heading_velocity")
-    n_neighbors = config.get("n_social_neighbors", 5) if include_social else 0
+    n_kin, n_other = _resolve_social_counts(config)
+    include_kin = n_kin > 0
+    include_other = n_other > 0
 
     # Build vmapped proximity functions
     _vmap_prox_agents = jax.vmap(
@@ -395,12 +425,22 @@ def _build_obs_fn(config, max_agents, food_max):
         in_axes=(0, 0, 0, 0, 0, None, None, None, None, None, None),
     )
 
-    # Build vmapped social observation function (only if social_obs active)
-    if include_social:
-        _vmap_social = jax.vmap(
+    # Build vmapped social observation functions (one per active block).
+    # match_kin is a Python bool burned in at trace time, so two distinct
+    # vmaps are needed when both blocks are present.
+    if include_kin:
+        _vmap_social_kin = jax.vmap(
             lambda pos, sp, idx, ap, aa, asp, ang, vel: _single_social_obs(
                 pos, sp, idx, ap, aa, asp, ang, vel,
-                max_range, n_neighbors
+                max_range, n_kin, True
+            ),
+            in_axes=(0, 0, 0, None, None, None, None, None),
+        )
+    if include_other:
+        _vmap_social_other = jax.vmap(
+            lambda pos, sp, idx, ap, aa, asp, ang, vel: _single_social_obs(
+                pos, sp, idx, ap, aa, asp, ang, vel,
+                max_range, n_other, False
             ),
             in_axes=(0, 0, 0, None, None, None, None, None),
         )
@@ -465,13 +505,20 @@ def _build_obs_fn(config, max_agents, food_max):
             energies[:, None],                               # 204
         ]
 
-        # 6.5 Social observation (Axis 2)
-        if include_social:
-            social = _vmap_social(
+        # 6.5 Social observation (Axis 2). Kin block first, then other-species
+        # block. Each adds 2*N dims. obs_dim = 205 + 2*(n_kin + n_other).
+        if include_kin:
+            social_kin = _vmap_social_kin(
                 positions, species, obs_indices,
                 positions, is_active, species, angles, velocities_xy,
-            )  # (A, 2*N)
-            parts.append(social)
+            )  # (A, 2*n_kin)
+            parts.append(social_kin)
+        if include_other:
+            social_other = _vmap_social_other(
+                positions, species, obs_indices,
+                positions, is_active, species, angles, velocities_xy,
+            )  # (A, 2*n_other)
+            parts.append(social_other)
 
         obs = jnp.concatenate(parts, axis=1)
 

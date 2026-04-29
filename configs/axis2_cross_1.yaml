@@ -1,0 +1,145 @@
+# Axis 2 v2: Cross-species perception only (n_kin=0, n_other=1)
+# ==============================================================
+# Linear genome on the mouth_smol substrate (where linear baseline survives 1M
+# with fear -1.97). The single change vs sweep_mouth_smol:
+#   each agent gets 2 extra obs dims = [heading, speed] of its single nearest
+#   *other-species* agent. Prey sees nearest predator's kinematics; predator
+#   sees nearest prey's kinematics. No conspecific kinematics — no flocking
+#   pathway.
+#
+# Question this isolates:
+#   Does direct kinematic perception of the other species let prey preempt
+#   predator surges? In axis2 v1 (kin-only), prey couldn't see predator
+#   heading/velocity directly, so the only avenue for predator-aware behavior
+#   was the reward-level fear weight — which evolution didn't grow because
+#   reactive (kin-driven) avoidance was good enough at low pred density.
+#   By giving prey direct sight of predator motion (and not flockmate motion),
+#   we test whether perceptual access to threats alone changes the dynamics.
+#
+# obs_dim breakdown:
+#   128 (proximity) + 72 (tactile) + 5 (self-state) + 0 (kin) + 2 (other) = 207
+#
+# See findings.md §13 for the full design rationale + experimental program.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis2_cross_1"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            207
+n_social_kin:       0                # no conspecific kinematics
+n_social_other:     1                # nearest other-species [heading, speed]
+
+# ─── World ───────────────────────────────────────────────────────────────────
+world_size:         960
+total_steps:        10_240_000
+
+# ─── Population ──────────────────────────────────────────────────────────────
+prey_initial:       150
+predator_initial:   10
+prey_cap:           450
+predator_cap:       50
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               600
+food_initial:           40
+food_growth_rate:       0.5
+food_max_regen_per_step: 10
+
+# ─── Energy — Prey ───────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+
+# ─── Energy — Predator ───────────────────────────────────────────────────────
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_tactile_bins: [0]   # mouth_smol substrate
+predator_eat_interval:       10
+
+# ─── Hazard Function h(t, e) ─────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth Function b(e) ─────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome ───────────────────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy Network ──────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO Hyperparameters ─────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0
