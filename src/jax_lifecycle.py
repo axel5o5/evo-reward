@@ -18,8 +18,13 @@ from src.jax_evolution import spawn_offspring_jax
 # ---------------------------------------------------------------------------
 
 def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
-                        all_actions, config):
+                        all_actions, config, pred_count=None):
     """Vectorized energy update for all agents. Pure JAX.
+
+    Optionally applies density-dependent metabolism (DDM): when predator
+    population is low, the predator's energy decay rate (d_b) is scaled
+    down by the same squared-saturation curve as DDB. Lone survivors hold
+    their energy longer while waiting to catch prey. See findings.md §15.
 
     Args:
         sim_state: SimState
@@ -27,6 +32,8 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
         pred_caught_energy: (max_agents,) float32 — sum of caught prey
             energies per predator (shared credit; D28). eta applied here.
         pred_n_catches: (max_agents,) int32 — catches per predator
+        pred_count: scalar int — current predator population, required
+            when stability_mechanism=="ddb_ddm" or "ddm".
         all_actions: (max_agents, 2) — actions taken (sigmoid-scaled)
         config: dict
     """
@@ -52,11 +59,31 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
     # was computed upstream without nearest-pred dedup (D28 shared-credit).
     pred_gain = eta * pred_caught_energy  # (max_agents,)
 
+    # Density-dependent metabolism: scale predator d_b down when N_pred is low.
+    # Mirrors DDB shape: f(N) = max(floor, N^2 / (N^2 + threshold^2)).
+    # Same threshold/floor as DDB by default but configurable separately.
+    stability = config.get("stability_mechanism", "none")
+    apply_ddm = stability in ("ddm", "ddb_ddm")
+    if apply_ddm:
+        if pred_count is None:
+            raise ValueError(
+                f"stability_mechanism={stability!r} requires pred_count "
+                "to be passed to update_energies_jax."
+            )
+        ddm_floor = float(config.get("ddm_floor", config.get("ddb_floor", 0.3)))
+        ddm_pred_threshold = float(
+            config.get("ddm_pred_threshold", config.get("ddb_pred_threshold", 8.0))
+        )
+        ddm_factor_pred = _ddb_factor(pred_count, ddm_pred_threshold, ddm_floor)
+        d_b_eff = d_b * ddm_factor_pred
+    else:
+        d_b_eff = d_b
+
     # Species-conditional update
     is_prey = sim_state.species == 0
     food_gain = jnp.where(is_prey, prey_gain, pred_gain)
     cost_a = jnp.where(is_prey, c_a, d_a)
-    cost_b = jnp.where(is_prey, c_b, d_b)
+    cost_b = jnp.where(is_prey, c_b, d_b_eff)
 
     delta = food_gain - cost_a * action_norms - cost_b
     new_energies = jnp.minimum(sim_state.energies + delta, cap)
@@ -113,10 +140,11 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
     zeta_pred = config["zeta_b_pred"]
 
     stability = config.get("stability_mechanism", "none")
-    if stability == "ddb":
+    apply_ddb = stability in ("ddb", "ddb_ddm")
+    if apply_ddb:
         if prey_count is None or pred_count is None:
             raise ValueError(
-                "stability_mechanism='ddb' requires prey_count and pred_count "
+                f"stability_mechanism={stability!r} requires prey_count and pred_count "
                 "to be passed to _batch_birth_prob_jax."
             )
         floor = float(config.get("ddb_floor", 0.3))

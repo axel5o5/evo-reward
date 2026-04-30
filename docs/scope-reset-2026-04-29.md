@@ -100,7 +100,7 @@ Behind config flag `proximity_encoding: "distance_only" | "distance_and_heading"
 
 ---
 
-## DDB — the stability scaffold
+## DDB + DDM — the stability scaffolds
 
 ### Why we added it
 
@@ -135,6 +135,29 @@ Real Allee effects often work the opposite way (rare animals struggle to find ma
 
 We're being transparent about this: it's a pragmatic deviation from K&D, not a claim about real biology. Default OFF; turn ON for our axis runs; document with vs without later.
 
+### DDM — the energy-side complement (added 2026-04-30)
+
+**The first DDB-only run (`baseline_med_ddb`) showed why DDB alone isn't enough:** at step 70K predator pop dropped to 6, DDB fired, predators recovered to 10 — first real bottleneck rescue we'd seen. But the system collapsed to pred=1 again by step 100K, and at energy 36 the lone survivor couldn't breed even with DDB's lowered breeding gate (still needed energy ≥ 75). **DDB lowers the bar but can't put energy in the bank.** Lone survivors were starving.
+
+**DDM (Density-Dependent Metabolism)** addresses the energy side. Same shape as DDB, applied to predator energy decay rate `d_b`:
+
+```
+effective_d_b = d_b × max(floor, N² / (N² + threshold²))
+```
+
+At N=1 (deep bottleneck), `f=0.3` (floor) → predator metabolism is 30% of normal → lone survivor's energy budget lasts **3× longer** while waiting to catch prey. At N=20 (healthy), `f≈0.86` — basically off.
+
+**The combined behavior:**
+1. Pred pop drops to 1-3 (deep bottleneck)
+2. **DDM kicks in:** lone survivor's energy decay slows → buys time
+3. Survivor catches a few prey → energy crosses breeding threshold
+4. **DDB kicks in:** lowered breeding gate fires → recovery
+5. Population rebuilds
+
+DDB and DDM bracket the bottleneck-survival problem from both sides. Predator-only (prey didn't have a starvation problem in any run).
+
+**Config:** `stability_mechanism: "ddb_ddm"` (combined), or `"ddb"` / `"ddm"` / `"none"`. All gated, default `"none"` to preserve K&D-faithful behavior.
+
 ---
 
 ## Small-scale baseline — middle-ground after first attempt failed
@@ -163,8 +186,9 @@ Estimated ~50 sps (~2× original speed, 2M runs ≈ 11h). If middle-ground also 
 | # | Run | Purpose | Status |
 |---|---|---|---|
 | 0a | `baseline_smol_ddb` (linear, 2M) | First validation attempt (600² world) | **Failed** — predators extincted at step ~80K from trophic over-pressure. See findings §15.6 |
-| 0b | `baseline_med_ddb` (linear, 2M, middle-ground 800²) | Second validation attempt with less aggressive scale-down + DDB threshold 8 | **Launching** |
-| 1 | `axis1_residual_med` (residual reward, 2M) | Does evolution grow useful nonlinear reward structure? | Queued behind 0b validation |
+| 0b | `baseline_med_ddb` (linear, 2M, middle-ground 800²) | Second attempt: less aggressive scale-down + DDB threshold 8 | **Partial** — DDB rescued at step 70K (pred 6→10) but lone survivor starved at step 100K. Found new failure: DDB lowers breeding bar but can't put energy in the bank. See findings §15.8 |
+| 0c | `baseline_med_ddb_ddm` (linear, 2M) | Third attempt: + DDM (density-dependent metabolism) so lone survivors decay slower | **Launching** |
+| 1 | `axis1_residual_med` (residual reward, 2M) | Does evolution grow useful nonlinear reward structure? | Queued behind 0c validation |
 | 2 | `axis2_aligned_med` (bin-aligned obs, 2M) | Does cross-species kinematic perception prevent trophic collapse? | Queued |
 | 3 | `axis1+2_combo` (residual + bin-aligned, 2M) | Do the two axes compose, conflict, or amplify? | Queued, gated on results of 1 and 2 |
 

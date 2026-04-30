@@ -393,9 +393,46 @@ This is a different failure mode than the prior "predators too weak" extinctions
 
 **One honest caveat:** if the middle-ground geometry doesn't sufficiently reduce predator over-pressure, DDB still can't fix the underlying starvation. In that case we'd add **DDM (density-dependent metabolism)** — slow predator energy decay when rare — as a complementary mechanism. Holding off until needed; one change at a time.
 
-### 15.8 Status snapshot
+### 15.8 Second attempt — partial rescue, partial collapse
 
-- Code committed in `dd66d92`. Tests pass (231/231). Mac smoke tests of all three new configs run end-to-end without crashes.
-- First validation `baseline_smol_ddb` 2M completed 2026-04-30 08:14 UTC — predators extinct at ~80K from trophic over-pressure. Lessons recorded in §15.6.
-- Second validation `baseline_med_ddb` 2M to launch with the middle-ground geometry + DDB threshold 8.
-- Once validation confirms stable LV cycles + fear evolution, axis-1 and axis-2 launch in sequence.
+`baseline_med_ddb` ran from 22:26 UTC. Through the first 100K steps:
+
+| Step | Prey | Pred | Δcatch | Pred mean E |
+|---|---|---|---|---|
+| 30K | 300 | 16 | 97 | 93 |
+| 60K | 271 | **6** (DDB fires) | 32 | 68 |
+| 70K | 198 | **10 (DDB rescued!)** | 99 | 54 |
+| 80K | 148 | 8 | 74 | 41 |
+| 90K | 148 | 2 | 33 | 35 |
+| 100K | 163 | **1** | 9 | 36 |
+
+**Genuine partial success:** DDB rescued the population once (pred 6→10 at step 70K) — first time we've seen a real population recovery from a bottleneck. Prey held at 150-300 throughout (vs failed run's crash to 74). Geometry+threshold tweaks worked for trophic balance.
+
+**But the lone-survivor problem returned:** at pred=1 with energy=36, even DDB's lowered breeding gate of effective_zeta=30 (need energy ≥ 75) couldn't fire. The lone predator was *starving*, not just bottlenecked. DDB lowers the breeding bar but can't put energy in the bank.
+
+### 15.9 Adding DDM (Density-Dependent Metabolism) — third attempt
+
+Mirrors DDB's shape but applied to predator energy decay rate `d_b`:
+
+```
+effective_d_b = d_b * f(N_pred)
+where f(N) = max(floor, N² / (N² + threshold²))
+```
+
+When N=1 (deep bottleneck), `f=0.3` (floor) → predator metabolism is 30% of normal → lone survivor's energy budget is **3× longer** while waiting for catches. When N=20 (healthy), `f≈0.86` → essentially off, dynamics unchanged.
+
+**The intuition:** DDB lowers the bar for breeding; DDM keeps the lone survivor alive long enough to catch prey and reach the bar. Together they bracket the bottleneck-survival problem from both sides.
+
+**Biological grounding:** real solitary hunters often have lower per-capita metabolic costs than group hunters — less competition for prey patches, less stress, no territorial defense. Empirically observed across ecology. Like DDB, this is a soft analog to a real-world effect, used here as scaffold not as biological claim.
+
+**Config:** `stability_mechanism: "ddb_ddm"` (combined). Same threshold/floor as DDB by default (`ddm_pred_threshold: 8.0`, `ddm_floor: 0.3`). Implementation in [src/jax_lifecycle.py](src/jax_lifecycle.py) — `update_energies_jax` now scales predator `d_b` when `pred_count` is below threshold.
+
+**Predator only.** Prey didn't have a starvation problem in the failed runs — their crashes came from over-predation, which the geometry change addressed. Adding prey-DDM would risk runaway prey growth.
+
+### 15.10 Status snapshot
+
+- Code committed: DDB + residual reward + small-scale (`dd66d92`), middle-ground (`8582397`), DDM (this commit).
+- Tests pass (231/231). End-to-end smoke test of `baseline_med_ddb_ddm` runs cleanly.
+- First validation `baseline_smol_ddb` 2M: predators extinct at ~80K (trophic over-pressure).
+- Second validation `baseline_med_ddb` ran to ~step 100K with pred=1, partial DDB rescue but lone-survivor starvation. Killed to launch v3.
+- Third validation `baseline_med_ddb_ddm` to launch on `evo-reward-gpu`. If LV cycles + fear evolution clean → green-light axis runs.

@@ -333,9 +333,13 @@ def build_sim_step(config, space):
         )
 
         # === 7. Update energies ===
+        # Pass pred_count for DDM (density-dependent metabolism) — when
+        # predators are rare, d_b is scaled down so lone survivors hold
+        # their energy longer. Computed pre-update from is_active.
+        pred_count = jnp.sum(sim_state.is_active & (sim_state.species == 1))
         sim_state = update_energies_jax(
             sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
-            all_actions, config,
+            all_actions, config, pred_count=pred_count,
         )
 
         # === 8. Process births and deaths ===

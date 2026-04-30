@@ -1,0 +1,159 @@
+# Baseline (middle-ground + DDB + DDM) — third validation attempt
+# ================================================================
+# Adds DDM (Density-Dependent Metabolism) on top of DDB. The previous
+# attempt (baseline_med_ddb) showed DDB rescuing predators once at step
+# 70K (pred 6 -> 10) but they crashed again at step 90K to pred=2 and
+# limped along at pred=1 with energy 36 — could not breed even with the
+# DDB-lowered breeding gate of zeta=30 (effective_zeta/beta_b = 75 still
+# exceeded mean energy). The diagnosis: DDB lowers the breeding bar but
+# can't put energy in the bank. Lone survivors were starving.
+#
+# DDM addresses the energy side directly: when predator population is
+# low, predator energy decay rate (d_b) is scaled down by the same
+# squared-saturation curve as DDB. Lone survivors hold their energy
+# longer while waiting to catch prey.
+#
+# Combined with DDB, the bottleneck-survival path is:
+#   1. Pred pop drops to 1-3 (deep bottleneck)
+#   2. DDM kicks in: d_b drops to ~30% normal — energy lasts ~3x longer
+#   3. Lone survivor catches a few prey, energy crosses breeding threshold
+#   4. DDB kicks in: zeta_b drops to ~30, breeding succeeds at low energy
+#   5. Population recovers
+#
+# Both mechanisms are biologically grounded in solitary-vs-group hunter
+# literature (rare individuals face less intraspecific competition AND
+# have lower per-capita metabolic costs). Real Allee effects work the
+# opposite way for mate-finding, but DDM/DDB model the upside without
+# the downside — pragmatic scaffold, not a claim about real biology.
+#
+# All other parameters identical to baseline_med_ddb.yaml. Same
+# middle-ground geometry (800 world, caps 300/30, etc).
+#
+# See findings.md §15.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "baseline_med_ddb_ddm"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism ─────────────────────────────────────────────────────
+stability_mechanism:    "ddb_ddm"   # DDB + DDM combined
+ddb_pred_threshold:     8.0
+ddb_prey_threshold:     30.0
+ddb_floor:              0.3
+ddm_pred_threshold:     8.0         # same threshold as DDB by default
+ddm_floor:              0.3         # at N=1, predator decay is 30% of normal
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── World (middle-scale) ────────────────────────────────────────────────────
+world_size:         800
+total_steps:        10_240_000
+
+# ─── Population (middle-scale) ───────────────────────────────────────────────
+prey_initial:       100
+predator_initial:   7
+prey_cap:           300
+predator_cap:       30
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    200.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               450
+food_initial:           30
+food_growth_rate:       0.5
+food_max_regen_per_step: 8
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth ──────────────────────────────────────────────────────────
+predator_mouth_tactile_bins: [0]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome ───────────────────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy ──────────────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO ─────────────────────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps: 20_000
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0
