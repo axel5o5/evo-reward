@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-30T17:44:00+00:00",
+  "updated_at": "2026-04-30T18:17:58+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-04-24T06:19:02.950-07:00",
-        "runtime_hours_current": 148.414,
+        "runtime_hours_current": 148.981,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 126.1519,
+        "estimated_current_run_usd": 126.6338,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 372,
         "latest_step": 2000000,
-        "latest_age_hours": 9.404,
+        "latest_age_hours": 9.971,
         "total_gb": 119.2571
       },
       "costs": {
-        "compute_current_run": 126.1519,
-        "nat_since_active": 12.47,
-        "storage_current": 2.3304,
-        "live_estimate_total": 140.95,
+        "compute_current_run": 126.6338,
+        "nat_since_active": 12.5,
+        "storage_current": 2.3322,
+        "live_estimate_total": 141.47,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 9.489,
+        "progress_file_age_hours": 10.056,
         "evolution_detected": true
       },
       "errors": []
@@ -112,72 +112,72 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 12,
         "latest_step": 1200000,
-        "latest_age_hours": 1.426,
+        "latest_age_hours": 1.992,
         "total_gb": 2.1554
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.0421,
+        "storage_current": 0.0422,
         "live_estimate_total": 0.04,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
       },
       "training": {
-        "experiment_name": "axis2_social_obs",
+        "experiment_name": "axis2_aligned",
         "seed": 0,
-        "step": 1260000,
+        "step": 10000,
         "total_steps": 10240000,
-        "progress_frac": 0.12305,
-        "sps": 29.079,
-        "eta_hours": 85.78,
+        "progress_frac": 0.00098,
+        "sps": 24.536,
+        "eta_hours": 115.82,
         "population": {
           "prey": 450,
-          "pred": 0,
-          "food": 600,
-          "mean_energy": 90.16361236572266
+          "pred": 13,
+          "food": 599,
+          "mean_energy": 33.702598571777344
         },
         "reward_weights": {
           "prey": {
             "eat": [
-              1.4143017530441284,
-              3.434256076812744
+              -0.11319336295127869,
+              2.1647658348083496
             ],
             "act": [
-              5.104384899139404,
-              6.750937461853027
+              -0.04954336956143379,
+              1.2592699527740479
             ],
             "prey": [
-              1.8928779363632202,
-              3.1718239784240723
+              0.035713568329811096,
+              1.0788758993148804
             ],
             "pred": [
-              0.9447925090789795,
-              4.585495471954346
+              -0.03471198305487633,
+              1.0066885948181152
             ]
           },
           "pred": {
             "eat": [
-              0.0,
-              0.0
+              0.028670288622379303,
+              0.1401713788509369
             ],
             "act": [
-              0.0,
-              0.0
+              0.028808007016777992,
+              0.1560448706150055
             ],
             "prey": [
-              0.0,
-              0.0
+              0.019301502034068108,
+              0.25717005133628845
             ],
             "pred": [
-              0.0,
-              0.0
+              0.14028385281562805,
+              0.4003733992576599
             ]
           }
         },
-        "progress_file_age_hours": 0.839,
-        "evolution_detected": true
+        "progress_file_age_hours": 0.026,
+        "evolution_detected": false
       },
       "errors": []
     }
