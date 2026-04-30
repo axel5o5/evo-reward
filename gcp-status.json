@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-30T17:18:53+00:00",
+  "updated_at": "2026-04-30T17:44:00+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-04-24T06:19:02.950-07:00",
-        "runtime_hours_current": 147.9961,
+        "runtime_hours_current": 148.414,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 125.7967,
+        "estimated_current_run_usd": 126.1519,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 372,
         "latest_step": 2000000,
-        "latest_age_hours": 8.986,
+        "latest_age_hours": 9.404,
         "total_gb": 119.2571
       },
       "costs": {
-        "compute_current_run": 125.7967,
-        "nat_since_active": 12.45,
-        "storage_current": 2.329,
-        "live_estimate_total": 140.58,
+        "compute_current_run": 126.1519,
+        "nat_since_active": 12.47,
+        "storage_current": 2.3304,
+        "live_estimate_total": 140.95,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 9.071,
+        "progress_file_age_hours": 9.489,
         "evolution_detected": true
       },
       "errors": []
@@ -112,7 +112,7 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 12,
         "latest_step": 1200000,
-        "latest_age_hours": 1.008,
+        "latest_age_hours": 1.426,
         "total_gb": 2.1554
       },
       "costs": {
@@ -176,7 +176,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 0.42,
+        "progress_file_age_hours": 0.839,
         "evolution_detected": true
       },
       "errors": []
