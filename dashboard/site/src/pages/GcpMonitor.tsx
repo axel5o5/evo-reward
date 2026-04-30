@@ -56,14 +56,25 @@ type Training = {
 
 type WorkerError = { stage: string; message: string };
 
-type Payload = {
-  updated_at: string;
+// One probe per (project + VM + bucket). The monitor's config has a
+// `targets:` list; each entry produces one Target on every poll tick.
+// allow_actions gates whether the PIN-protected control panel renders —
+// only `evo-reward` has the action workflow wired up, so other projects
+// stay read-only.
+type Target = {
+  label: string | null;
   project_id: string;
+  allow_actions: boolean;
   vm: VM;
   checkpoints: Checkpoints;
   costs: Costs;
   training: Training | null;
   errors: WorkerError[];
+};
+
+type Payload = {
+  updated_at: string;
+  targets: Target[];
 };
 
 // Static link to the config file on GitHub's main branch. The VM's
@@ -82,25 +93,31 @@ const STALE_MINUTES = 20;
 
 const FIXTURE: Payload = {
   updated_at: new Date().toISOString(),
-  project_id: "evo-reward",
-  vm: {
-    name: "evo-reward-gpu", status: "UNKNOWN", zone: null, machine_type: null,
-    provisioning: "UNKNOWN", created_at: null, last_started_at: null,
-    runtime_hours_current: null, hourly_rate_usd: null, estimated_current_run_usd: null,
-    labels: {},
-  },
-  checkpoints: {
-    bucket: "evo-reward-ckpts", count: 0,
-    latest_step: null, latest_age_hours: null, total_gb: null,
-  },
-  costs: {
-    compute_current_run: 0, nat_since_active: null, storage_current: 0,
-    live_estimate_total: 0, billing_actual_usd: null, billing_as_of: null,
-    month_to_date_usd: null,
-  },
-  training: null,
-  errors: [{ stage: "config",
-    message: "VITE_GCP_STATUS_URL not set — see dashboard/ops/GCP_MONITOR.md." }],
+  targets: [
+    {
+      label: "Axel",
+      project_id: "evo-reward",
+      allow_actions: true,
+      vm: {
+        name: "evo-reward-gpu", status: "UNKNOWN", zone: null, machine_type: null,
+        provisioning: "UNKNOWN", created_at: null, last_started_at: null,
+        runtime_hours_current: null, hourly_rate_usd: null, estimated_current_run_usd: null,
+        labels: {},
+      },
+      checkpoints: {
+        bucket: "evo-reward-ckpts", count: 0,
+        latest_step: null, latest_age_hours: null, total_gb: null,
+      },
+      costs: {
+        compute_current_run: 0, nat_since_active: null, storage_current: 0,
+        live_estimate_total: 0, billing_actual_usd: null, billing_as_of: null,
+        month_to_date_usd: null,
+      },
+      training: null,
+      errors: [{ stage: "config",
+        message: "VITE_GCP_STATUS_URL not set — see dashboard/ops/GCP_MONITOR.md." }],
+    },
+  ],
 };
 
 function usd(n: number | null | undefined): string {
@@ -746,6 +763,58 @@ function ControlPanel({ vmStatus }: { vmStatus: string }) {
   );
 }
 
+function TargetSection({ target }: { target: Target }) {
+  const headerLabel = target.label || target.project_id;
+  return (
+    <section className="mb-10">
+      <div className="flex items-baseline gap-3 mb-3 pb-1.5 border-b border-gray-200 dark:border-gray-800">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{headerLabel}</h2>
+        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{target.project_id}</span>
+        {!target.allow_actions && (
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">read-only</span>
+        )}
+      </div>
+
+      {target.errors.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-sm text-amber-800 dark:text-amber-300">
+          <div className="font-medium mb-1">Partial data — {target.errors.length} probe(s) failed:</div>
+          <ul className="space-y-0.5 text-xs">
+            {target.errors.map((e, i) => (
+              <li key={i} className="font-mono">{e.stage}: {e.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <HeroCard vm={target.vm} t={target.training} costs={target.costs} />
+
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        <div className="md:col-span-2">
+          {target.training ? (
+            <TrainingCard t={target.training} />
+          ) : (
+            <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+              No population or reward-weight data yet. The runner writes <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> every log interval; the gcs-sync sidecar pushes it to GCS every 5 min. Expect this card to populate within a few minutes of training starting.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <VMCard vm={target.vm} />
+          <CheckpointsCard c={target.checkpoints} />
+          <CostsCard costs={target.costs} />
+        </div>
+      </div>
+
+      {target.allow_actions && (
+        <div className="mt-6 max-w-md">
+          <ControlPanel vmStatus={target.vm.status} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function GcpMonitor() {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -775,6 +844,7 @@ export default function GcpMonitor() {
   }, []);
 
   const isStale = payload ? minutesAgo(payload.updated_at) > STALE_MINUTES : false;
+  const targets = payload?.targets ?? [];
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-6">
@@ -791,9 +861,9 @@ export default function GcpMonitor() {
         )}
       </div>
       <p className="text-gray-600 dark:text-gray-400 mb-6">
-        Live status of the <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">evo-reward-gpu</code> VM,
-        GCS checkpoint state, and accumulated spend. Live estimate is computed from runtime × rate; billing-actual
-        comes from the BigQuery billing export (~24h lag).
+        Live status of every configured VM, its GCS checkpoint state, and accumulated spend. Live estimate is
+        computed from runtime × rate; billing-actual comes from the BigQuery billing export (~24h lag). Targets
+        are configured in <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">scripts/gcp_monitor_config.yaml</code>.
       </p>
 
       {fetchError && (
@@ -802,44 +872,9 @@ export default function GcpMonitor() {
         </div>
       )}
 
-      {payload && payload.errors.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-sm text-amber-800 dark:text-amber-300">
-          <div className="font-medium mb-1">Partial data — {payload.errors.length} probe(s) failed:</div>
-          <ul className="space-y-0.5 text-xs">
-            {payload.errors.map((e, i) => (
-              <li key={i} className="font-mono">{e.stage}: {e.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {payload && (
-        <>
-          <HeroCard vm={payload.vm} t={payload.training} costs={payload.costs} />
-
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-            <div className="md:col-span-2">
-              {payload.training ? (
-                <TrainingCard t={payload.training} />
-              ) : (
-                <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-                  No population or reward-weight data yet. The runner writes <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">progress.json</code> every log interval; the gcs-sync sidecar pushes it to GCS every 5 min. Expect this card to populate within a few minutes of training starting.
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <VMCard vm={payload.vm} />
-              <CheckpointsCard c={payload.checkpoints} />
-              <CostsCard costs={payload.costs} />
-            </div>
-          </div>
-
-          <div className="mt-6 max-w-md">
-            <ControlPanel vmStatus={payload.vm.status} />
-          </div>
-        </>
-      )}
+      {payload && targets.map((t) => (
+        <TargetSection key={t.project_id} target={t} />
+      ))}
 
       {!payload && !fetchError && (
         <div className="text-gray-400 dark:text-gray-500">Loading...</div>

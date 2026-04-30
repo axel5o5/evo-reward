@@ -360,14 +360,15 @@ def query_billing(
 
 # --- orchestration ----------------------------------------------------------
 
-def run(config: dict[str, Any]) -> dict[str, Any]:
-    project_id = config["project_id"]
-    vm_name = config["vm_name"]
-    zones = config["candidate_zones"]
-    pricing = config.get("pricing", {})
-    gcs_cfg = config.get("gcs", {})
-    infra = config.get("infra_costs", {})
-    billing_cfg = config.get("billing", {}) or {}
+def _run_target(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Probe one target (project + VM + bucket). Returns per-target payload."""
+    project_id = cfg["project_id"]
+    vm_name = cfg["vm_name"]
+    zones = cfg["candidate_zones"]
+    pricing = cfg.get("pricing", {})
+    gcs_cfg = cfg.get("gcs", {})
+    infra = cfg.get("infra_costs", {})
+    billing_cfg = cfg.get("billing", {}) or {}
 
     errors: list[WorkerError] = []
     creds = load_credentials()
@@ -447,13 +448,28 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     )
 
     return {
-        "updated_at": iso_now(),
+        "label": cfg.get("label"),
         "project_id": project_id,
+        "allow_actions": bool(cfg.get("allow_actions", True)),
         "vm": dataclasses.asdict(vm),
         "checkpoints": dataclasses.asdict(ckpt),
         "costs": dataclasses.asdict(costs),
         "training": dataclasses.asdict(training) if training else None,
         "errors": [dataclasses.asdict(e) for e in errors],
+    }
+
+
+def run(config: dict[str, Any]) -> dict[str, Any]:
+    """Probe every target in config['targets']. A flat (single-target) config
+    without a 'targets' key is wrapped into a one-element list for backward
+    compat with older configs."""
+    targets_cfg = config.get("targets")
+    if targets_cfg is None:
+        targets_cfg = [config]
+    targets = [_run_target(t) for t in targets_cfg]
+    return {
+        "updated_at": iso_now(),
+        "targets": targets,
     }
 
 
@@ -474,54 +490,88 @@ def main() -> int:
         payload = run(config)
 
     Path(args.out).write_text(json.dumps(payload, indent=2))
-    print(f"wrote {args.out} "
-          f"(vm={payload['vm']['status']}, "
-          f"ckpt={payload['checkpoints']['count']}, "
-          f"errors={len(payload['errors'])})", file=sys.stderr)
+    summary = ", ".join(
+        f"{(t.get('label') or t['project_id'])}={t['vm']['status']}/"
+        f"ckpt{t['checkpoints']['count']}/err{len(t['errors'])}"
+        for t in payload["targets"]
+    )
+    print(f"wrote {args.out} ({summary})", file=sys.stderr)
     return 0
 
 
 def _synthetic_payload() -> dict[str, Any]:
     return {
         "updated_at": iso_now(),
-        "project_id": "evo-reward",
-        "vm": {
-            "name": "evo-reward-gpu", "status": "RUNNING", "zone": "us-central1-a",
-            "machine_type": "g2-standard-8", "provisioning": "STANDARD",
-            "created_at": "2026-04-18T12:00:00+00:00",
-            "last_started_at": "2026-04-20T02:00:00+00:00",
-            "runtime_hours_current": 6.5,
-            "hourly_rate_usd": 0.85, "estimated_current_run_usd": 5.52,
-            "labels": {"experiment": "baseline_faithful", "phase": "1a", "seed": "0"},
-        },
-        "checkpoints": {
-            "bucket": "evo-reward-ckpts", "count": 41, "latest_step": 410_000,
-            "latest_age_hours": 0.08, "total_gb": 2.31,
-        },
-        "costs": {
-            "compute_current_run": 5.52,
-            "nat_since_active": 2.50,
-            "storage_current": 0.03,
-            "live_estimate_total": 8.05,
-            "billing_actual_usd": None,
-            "billing_as_of": None,
-            "month_to_date_usd": None,
-        },
-        "training": {
-            "experiment_name": "baseline_faithful", "seed": 0,
-            "step": 410_000, "total_steps": 10_240_000, "progress_frac": 0.04,
-            "sps": 34.5, "eta_hours": 79.2,
-            "population": {"prey": 180, "pred": 12, "food": 258, "mean_energy": 131.8},
-            "reward_weights": {
-                "prey": {"eat": [0.12, 0.15], "act": [0.05, 0.18],
-                         "prey": [0.00, 0.35], "pred": [-0.04, 0.47]},
-                "pred": {"eat": [0.08, 0.12], "act": [0.02, 0.19],
-                         "prey": [0.03, 0.24], "pred": [0.10, 0.21]},
+        "targets": [
+            {
+                "label": "Axel",
+                "project_id": "evo-reward",
+                "allow_actions": True,
+                "vm": {
+                    "name": "evo-reward-gpu", "status": "RUNNING", "zone": "us-central1-a",
+                    "machine_type": "g2-standard-8", "provisioning": "STANDARD",
+                    "created_at": "2026-04-18T12:00:00+00:00",
+                    "last_started_at": "2026-04-20T02:00:00+00:00",
+                    "runtime_hours_current": 6.5,
+                    "hourly_rate_usd": 0.85, "estimated_current_run_usd": 5.52,
+                    "labels": {"experiment": "baseline_faithful", "phase": "1a", "seed": "0"},
+                },
+                "checkpoints": {
+                    "bucket": "evo-reward-ckpts", "count": 41, "latest_step": 410_000,
+                    "latest_age_hours": 0.08, "total_gb": 2.31,
+                },
+                "costs": {
+                    "compute_current_run": 5.52,
+                    "nat_since_active": 2.50,
+                    "storage_current": 0.03,
+                    "live_estimate_total": 8.05,
+                    "billing_actual_usd": None,
+                    "billing_as_of": None,
+                    "month_to_date_usd": None,
+                },
+                "training": {
+                    "experiment_name": "baseline_faithful", "seed": 0,
+                    "step": 410_000, "total_steps": 10_240_000, "progress_frac": 0.04,
+                    "sps": 34.5, "eta_hours": 79.2,
+                    "population": {"prey": 180, "pred": 12, "food": 258, "mean_energy": 131.8},
+                    "reward_weights": {
+                        "prey": {"eat": [0.12, 0.15], "act": [0.05, 0.18],
+                                 "prey": [0.00, 0.35], "pred": [-0.04, 0.47]},
+                        "pred": {"eat": [0.08, 0.12], "act": [0.02, 0.19],
+                                 "prey": [0.03, 0.24], "pred": [0.10, 0.21]},
+                    },
+                    "progress_file_age_hours": 0.08,
+                    "evolution_detected": False,
+                },
+                "errors": [],
             },
-            "progress_file_age_hours": 0.08,
-            "evolution_detected": False,
-        },
-        "errors": [],
+            {
+                "label": "Gil",
+                "project_id": "rl-bio-sims-494715",
+                "allow_actions": False,
+                "vm": {
+                    "name": "evo-reward-gpu", "status": "MISSING", "zone": None,
+                    "machine_type": None, "provisioning": "UNKNOWN",
+                    "created_at": None, "last_started_at": None,
+                    "runtime_hours_current": None,
+                    "hourly_rate_usd": None, "estimated_current_run_usd": None,
+                    "labels": {},
+                },
+                "checkpoints": {
+                    "bucket": "rl-bio-sims-494715-ckpts", "count": 12,
+                    "latest_step": 1_200_000, "latest_age_hours": 18.0,
+                    "total_gb": 0.45,
+                },
+                "costs": {
+                    "compute_current_run": 0.0, "nat_since_active": None,
+                    "storage_current": 0.0, "live_estimate_total": 0.0,
+                    "billing_actual_usd": None, "billing_as_of": None,
+                    "month_to_date_usd": None,
+                },
+                "training": None,
+                "errors": [],
+            },
+        ],
     }
 
 

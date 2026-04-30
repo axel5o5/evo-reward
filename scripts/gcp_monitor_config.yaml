@@ -1,70 +1,98 @@
-# GCP monitor — single-project config matching the current evo-reward setup.
+# GCP monitor — multi-target config.
 #
-# What's monitored:
-#   * The single named VM `evo-reward-gpu` (searched across candidate zones,
-#     since spot_orchestrator.py rotates it between us-central1 / us-east4 /
-#     us-west1 / us-east1 when capacity shifts).
-#   * The GCS checkpoint bucket (count, latest step, freshness).
-#   * Live cost estimate: VM compute + Cloud NAT (24/7) + disk when stopped.
-#   * Optional: billing-actual from the BigQuery billing export (~24h lag).
+# Each `targets` entry is one (project, VM, bucket) triple. The monitor
+# probes them sequentially every cron tick and emits a payload like
+#   { updated_at, targets: [ {label, project_id, vm, checkpoints, costs,
+#                             training, errors, allow_actions}, ... ] }
+# which the dashboard renders as one card per target.
+#
+# allow_actions: only targets where this is true get the PIN-protected
+# Stop/Start/Restart/Delete control panel. The action workflow
+# (.github/workflows/gcp-action.yml) is wired only to the Axel/evo-reward
+# project, so other targets must stay read-only.
+#
+# Auth: a single service account (gcp-dashboard@evo-reward.iam) is used
+# for all probes. It needs roles/compute.viewer + roles/storage.objectViewer
+# on every project/bucket below.
+#
+# Adding a target: copy a block, change project_id / vm_name /
+# candidate_zones / gcs.bucket. Grant the SA the two viewer roles on the
+# new project + bucket.
 
-project_id: evo-reward
-vm_name: evo-reward-gpu
+targets:
+  - label: Axel
+    project_id: evo-reward
+    vm_name: evo-reward-gpu
+    allow_actions: true
+    # Zones to check for the VM. Mirrors ZONES_TO_TRY in
+    # scripts/spot_orchestrator.py. If you edit one, edit both.
+    candidate_zones:
+      - us-central1-a
+      - us-central1-b
+      - us-central1-c
+      - us-east4-b
+      - us-east4-c
+      - us-west1-a
+      - us-west1-b
+      - us-east1-b
+      - us-east1-c
+    gcs:
+      bucket: evo-reward-ckpts
+      # Price per GB-month for standard-class storage in us-central1, Apr 2026.
+      storage_usd_per_gb_month: 0.020
+    pricing:
+      g2-standard-8:
+        ondemand: 0.85
+        spot:     0.28
+      n1-standard-4:
+        ondemand: 0.19
+        spot:     0.04
+    infra_costs:
+      nat_hourly_usd: 0.044                # us-central1 Cloud NAT gateway
+      disk_hourly_usd_when_stopped: 0.020  # 200 GB PD-balanced standard rate
+      # First NAT (us-central1) was created 2026-04-18 by docs/gcp-setup.md
+      # step 6. Underestimates 2026-04-18 → 2026-04-20 when 2-3 NATs
+      # overlapped while the orchestrator rotated regions.
+      nat_active_since: "2026-04-18T15:15:13-07:00"
+    billing:
+      export_table: null
+      account_id:   null
 
-# Zones to check for the VM. Mirrors ZONES_TO_TRY in
-# scripts/spot_orchestrator.py. If you edit one, edit both.
-candidate_zones:
-  - us-central1-a
-  - us-central1-b
-  - us-central1-c
-  - us-east4-b
-  - us-east4-c
-  - us-west1-a
-  - us-west1-b
-  - us-east1-b
-  - us-east1-c
+  - label: Gil
+    project_id: rl-bio-sims-494715
+    # launch_sweep_vm.sh names the VM via $1 — keep this in sync with the
+    # name passed at launch time (or set to the actual running VM's name).
+    vm_name: evo-reward-gpu
+    # Read-only on the dashboard: api/action.ts + gcp-action.yml only
+    # know about the evo-reward project, so PIN actions can't target this.
+    allow_actions: false
+    candidate_zones:
+      - us-central1-a
+      - us-central1-b
+      - us-central1-c
+      - us-east1-b
+      - us-east1-c
+      - us-east4-b
+      - us-east4-c
+      - us-west1-a
+      - us-west1-b
+    gcs:
+      bucket: rl-bio-sims-494715-ckpts
+      storage_usd_per_gb_month: 0.020
+    pricing:
+      g2-standard-8:
+        ondemand: 0.85
+        spot:     0.28
+      g2-standard-4:
+        ondemand: 0.71
+        spot:     0.21
+    infra_costs:
+      nat_hourly_usd: 0.044
+      disk_hourly_usd_when_stopped: 0.020
+      nat_active_since: null  # set when first router+NAT created in this project
+    billing:
+      export_table: null
+      account_id:   null
 
-# GCS state — checkpoint bucket monitored by status.py.
-gcs:
-  bucket: evo-reward-ckpts
-  # Price per GB-month for standard-class storage in us-central1, Apr 2026.
-  storage_usd_per_gb_month: 0.020
-
-# Compute pricing, us-central1 rates (Apr 2026). Extend if you ever use
-# a different machine shape.
-pricing:
-  g2-standard-8:
-    ondemand: 0.85
-    spot:     0.28
-  # Other shapes left in for easy extension
-  n1-standard-4:
-    ondemand: 0.19
-    spot:     0.04
-
-# Infrastructure that accumulates cost independently of VM runtime.
-#   * NAT runs 24/7 from the moment you ran gcp-setup.md step 6 until
-#     you delete the router+NAT. That's the single most-missed cost.
-#   * Stopped-disk pro-rates when the VM is TERMINATED/STOPPED.
-infra_costs:
-  nat_hourly_usd: 0.044                # us-central1 Cloud NAT gateway
-  disk_hourly_usd_when_stopped: 0.020  # 200 GB PD-balanced standard rate
-  # Earliest timestamp from which NAT has been charging. If set, the
-  # monitor shows a running "NAT burn since ..." number. Leave null to
-  # show only the current polling-window figure.
-  #
-  # Set to 2026-04-18T15:15:13-07:00: first NAT (us-central1) was created
-  # that day by docs/gcp-setup.md step 6. Underestimates actual spend
-  # during 2026-04-18 → 2026-04-20 when 2-3 NATs overlapped while the
-  # orchestrator rotated regions (cleaned up 2026-04-20).
-  nat_active_since: "2026-04-18T15:15:13-07:00"
-
-# Billing export — optional. Without this, `billing_actual_usd` stays null
-# and only the live estimate is shown (which is fine).
-billing:
-  # Fully-qualified BigQuery table, e.g. "billing-proj.billing.gcp_billing_export_v1_XXXX"
-  export_table: null
-  # Billing account that pays for this project, e.g. "01ABCD-234567-89EFGH"
-  account_id:   null
-
-# UI hints
+# UI hints (frontend reads from the top level, not per-target).
 staleness_threshold_minutes: 20

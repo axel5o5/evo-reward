@@ -22,7 +22,7 @@
     },
     {
       "name": "jax_evolution",
-      "lines": 166,
+      "lines": 260,
       "file": "src/jax_evolution.py"
     },
     {
@@ -32,7 +32,7 @@
     },
     {
       "name": "jax_lifecycle",
-      "lines": 273,
+      "lines": 313,
       "file": "src/jax_lifecycle.py"
     },
     {
@@ -47,12 +47,12 @@
     },
     {
       "name": "jax_sim",
-      "lines": 300,
+      "lines": 354,
       "file": "src/jax_sim.py"
     },
     {
       "name": "jax_state",
-      "lines": 457,
+      "lines": 506,
       "file": "src/jax_state.py"
     },
     {
@@ -67,7 +67,7 @@
     },
     {
       "name": "observations",
-      "lines": 482,
+      "lines": 664,
       "file": "src/observations.py"
     },
     {
@@ -82,7 +82,7 @@
     },
     {
       "name": "reward",
-      "lines": 145,
+      "lines": 218,
       "file": "src/reward.py"
     }
   ],
@@ -144,12 +144,20 @@
       "target": "policy"
     },
     {
+      "source": "jax_sim",
+      "target": "reward"
+    },
+    {
       "source": "jax_state",
       "target": "environment"
     },
     {
       "source": "jax_state",
       "target": "policy"
+    },
+    {
+      "source": "jax_state",
+      "target": "reward"
     },
     {
       "source": "lifecycle",

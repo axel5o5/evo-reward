@@ -874,6 +874,15 @@
       "session": null
     },
     {
+      "hash": "92fb4570",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 22:49:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "89eecf0d",
       "message": "[Docs] Collaborator access guide for GCP viewer/IAP/bucket reader",
       "body": "Short reference for a partner who has been granted:\n- roles/viewer\n- roles/iap.tunnelResourceAccessor\n- roles/compute.osLogin\n- roles/storage.objectViewer\n\nCovers gcloud setup, VM inspection, IAP SSH, downloading checkpoints +\nprogress.json, local use of status.py, and what IAM blocks (start/stop,\nwrite to bucket) with pointers back to the dashboard for those.",
@@ -888,6 +897,15 @@
       "body": "[Docs] Collaborator access guide + tech-spec mutation-distribution fix",
       "date": "2026-04-20 18:57:14 -0400",
       "author": "axel browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f6a2f72c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 23:02:32 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -910,6 +928,15 @@
       "session": null
     },
     {
+      "hash": "29dfdf75",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 23:10:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "1a99432a",
       "message": "[Dashboard+Docs] Align K&D expectations with paper \u00a74.2 medium-mouth bimodality",
       "body": "Reading docs/papers/sources/kd-2025/main.tex \u00a74.2 (default condition =\nmedium mouth + \u0394n=0.5) revealed our success criteria + dashboard\ncoloring over-simplify the paper's actual findings.\n\nDocs (technical-spec \u00a714):\n- Split criteria into Core / Predator-side / Environmental, matching the\n  paper's structure.\n- Criterion 1 (prey w_pred) now explicitly notes the bimodality K&D\n  describe: seeds 2 & 4 (\"P2 lineage\") evolve counter-intuitively\n  positive w_pred, expected to correlate with strongly positive w_prey.\n  Our 3/5 threshold still works; just documenting the \"why.\"\n- Criterion 3 split into 3 (prey w_eat universal >0) and 4 (prey w_act\n  consistently >0, which the old spec didn't mention at all).\n- Added criterion 5 (predator w_eat >0 in 3/5 medium mouth \u2014 noting the\n  paper's mouth-size sensitivity per \u00a74.3).\n- Added criterion 6 (predator w_pred \"almost positively\" \u2014 the social\n  following finding we weren't gating on).\n- Added criterion 7 (predator w_prey >0 most seeds, with the coupling\n  to prey w_pred K&D describe).\n- Added criterion 9 (steady-state population near K&D Table 1 defaults\n  ~349 prey / ~23 pred \u2014 catches cap-pinning bugs).\n- Noted predator w_act is explicitly bimodal; don't gate on sign.\n\nDashboard (GcpMonitor.tsx TrainingCard):\n- prey.w_pred color-coding changed from wantSign=\"-\" to null because\n  K&D expect bimodal, not unilaterally negative. Note now explains\n  both outcomes.\n- prey.w_act now wantSign=\"+\" (it should be positive, was shown as\n  informational-only).\n- pred.w_eat note softened to \"medium mouth\" so the color expectation\n  is scoped; wantSign=\"+\" retained for our condition.\n- pred.w_prey note mentions the coupling to prey.w_pred.\n- Added an amber \"at cap\" callout when population hits prey_cap=450\n  or predator_cap=50, pointing at K&D steady-state for comparison.\n  Silent when numbers are below caps.\n\nNo code-logic changes; purely documentation + UI copy.",
@@ -928,6 +955,24 @@
       "session": null
     },
     {
+      "hash": "150cc094",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 23:30:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "baa095d3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-20 23:58:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "687ba880",
       "message": "[Dashboard] Remove Card overflow-hidden so tooltips can escape the border",
       "body": "Tooltips positioned above rows near the top of a card were being\nclipped by the Card's outer overflow-hidden \u2014 not a z-index problem,\nwhich only affects stacking order, but an overflow-container problem\nthat clips any descendant visually exceeding the bounds.\n\nThe overflow-hidden wasn't earning its keep: no child has a background\nthat would bleed past the rounded corners (only the outer div has a\nbackground; header/body/footer are padding + border separators).\n\nRemoving it lets Tooltip's absolute-positioned popover render freely\noutside the card. z-30 still stacks it above sibling cards correctly.\n\nProgress bar keeps its own overflow-hidden \u2014 needed to clip the fill\nto its rounded container.",
@@ -937,11 +982,38 @@
       "session": null
     },
     {
+      "hash": "76356b7f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 01:00:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "28cd8d59",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 01:44:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "cf15cd82",
       "message": "redesign GCP Montiro page",
       "body": null,
       "date": "2026-04-20 21:57:27 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2878bc49",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 02:49:27 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -960,6 +1032,15 @@
       "body": "Short cadence + short clips so we can see replays appearing within\n~7 min of resume and visually confirm the pipeline works before\nstepping up to a long-run cadence. Retention is `milestones` with\npins at 0 / 100k / 500k / 1M / 5M / 10M + last 20.\n\nOnce the flow is verified, bump replay_record_interval_steps back to\n100_000 for the main run.",
       "date": "2026-04-20 23:37:53 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4180bd0d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 03:58:25 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -991,11 +1072,155 @@
       "session": null
     },
     {
+      "hash": "acdd635b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 05:08:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0bd5196c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 05:56:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "70487124",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 06:52:03 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bc71af9e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 07:42:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0de8aeb2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 08:24:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4225e6f1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 09:09:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b8acd34d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 09:50:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9d4fa952",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 10:25:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ab55535e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 10:55:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1b8bb04e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 11:32:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d578aa90",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 12:03:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7ae73ee6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 12:39:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "a5bdfa54",
       "message": "[Infra] start_tmux: unconditionally kill + recreate gcs-sync",
       "body": "The previous `if ! tmux has-session -t gcs-sync` guard meant a\npresent-but-broken session was never restarted. We hit this on\n2026-04-21 after an upload_repo: the rm -rf + mv of ~/evo-reward left\nthe existing gcs-sync shell with a cwd inode pointing at the deleted\npre-swap directory, so every rsync errored with \"arg (results) does\nnot name a directory\" and checkpoints silently stopped syncing for\n~13 hours (step 800k -> 1.59M). Training kept advancing and local\nrotate_checkpoints culled the un-synced ckpts, a permanent history gap.\n\nKill-and-recreate matches how we already handle phase1a, which is\nresilient to exactly this failure mode.",
       "date": "2026-04-21 09:05:10 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1982c29e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 13:11:58 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3708c789",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 14:03:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4e52d65c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 14:49:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "264439ba",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 15:23:00 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1009,11 +1234,47 @@
       "session": null
     },
     {
+      "hash": "34c58df4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 15:58:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bb4a2254",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 16:33:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bccc72cd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 17:04:57 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "b91d21ba",
       "message": "[Replay] Tagged-path support for distinguishing code-version runs",
       "body": "Motivation: pre-D18 (broken, frozen-predator) replays and post-D18\n(fixed-evolution) replays were in the same GCS bucket with identical\npath format \u2014 you couldn't tell them apart without timestamps. Added\na `run_tag` segment so replays can live under\n  gs://<bucket>/<exp>/seed_<N>/<tag>/step_<NNN>/\nalongside the legacy\n  gs://<bucket>/<exp>/seed_<N>/step_<NNN>/\nlayout.\n\nChanges:\n- scripts/replay_retention.py: ReplayRef gains optional `run_tag` field.\n- scripts/replay_upload.py:\n  * _PATH_RE widened to tolerate an optional tag segment.\n  * _prefix() helper centralizes path construction.\n  * upload_replay() takes `run_tag` kwarg (defaults to\n    $EVO_REPLAY_RUN_TAG env var, else \"\" = legacy layout).\n  * list_remote_replays() extracts tag, populates ReplayRef.run_tag.\n  * delete_replay() accepts run_tag.\n  * rebuild_index() includes `run_tag` in each index.json entry.\n\nManual operation alongside this commit:\n  * 17 pre-D18 replays moved to baseline_faithful/seed_0/pre_d18_fix/\n    (steps 00000001 through 01790001).\n  * index.json rebuilt and now shows 17 `pre_d18_fix` entries + 1\n    untagged entry (step 00090001, from the current post-D18 run).\n\nNo change to the currently-running VM; it will continue uploading to\nthe untagged (post-D18 default) path. Any later run that wants\nexplicit tagging can `export EVO_REPLAY_RUN_TAG=post_d18_fix` before\nlaunching.",
       "date": "2026-04-21 13:31:26 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ab51ebd1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 17:34:44 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1027,11 +1288,38 @@
       "session": null
     },
     {
+      "hash": "7ddf028e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 18:04:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a08ffef1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 18:37:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "da6ad94c",
       "message": "[D19] Slot\u2194body fix + phyjax2d contact plumbing + invariant tests",
       "body": "After D18 (D18: contact + mouth-bin + cooldown) Phase 1a still saw\nonly 1 birth per 70K steps. Root cause was two coupled bugs:\n\n1. Slot mismatch: init_simstate placed predators contiguously after\n   prey (slots n_prey..n_prey+n_pred-1), but _build_physics reserves\n   slots [0, prey_cap) for prey-radius bodies and [prey_cap, max_agents)\n   for predator-radius bodies. Our \"predators\" lived in prey-sized\n   bodies \u2014 wrong mass, wrong inertia, smaller collision surface.\n\n2. Post-step distance check missed mid-step contacts. phyjax2d's\n   velocity solver separates colliders during substeps; by step-end\n   the distance rarely showed contact even when the two circles\n   clearly touched during some substep.\n\nFix mirrors emevo gecco2026 circle_foraging.py::nstep:\n  * Species-reserved slots: prey [0, prey_cap), predator [prey_cap, max)\n  * Birth dispatcher finds free slot in parent's species range\n  * physics_step emits contact.penetration >= 0 per substep,\n    reduces via jnp.max(axis=0)\n  * sim_step_core calls space.get_contact_mat(\"circle\", \"circle\", ...)\n    to build (A, A) bool matrix, passes to check_eating_jax\n  * check_eating_jax uses contact_mat instead of distance check\n\nTests: +21 new (17 fast + 4 slow), 182 total passing. Covers the\nslot\u2194body invariant, species-correct births, param drift vs emevo\nTOML, and short-dynamics smoke (catches + turnover + no energy\nsaturation). Updates existing test fixtures to the new layout.\n\nReplay cadence denser: interval 100k\u219220k, keep_last_n 20\u2192100,\npins added at 20k, 40k, 60k, 80k, 150k, 300k for early-coverage.",
       "date": "2026-04-21 14:53:52 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d7f9ec43",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 19:08:33 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1045,11 +1333,65 @@
       "session": null
     },
     {
+      "hash": "5d73f319",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 19:42:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7974f20c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 20:12:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d66d3887",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 20:37:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c19a5e45",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 21:03:21 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "470d7e04",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 21:29:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "b39d0846",
       "message": "[D20] Deactivate caught prey + verify_replay.py integrity check",
       "body": "Found while building a post-hoc replay verifier: even after D18+D19,\npredators showed 0 catches counted as deaths, saturated at ~991 energy,\nand populations stayed pinned at cap for 10K-step windows. Root cause:\ncheck_eating_jax was producing pred_catch_slots but nothing ever\ndeactivated those prey. Predators harvested +eta*prey_energy on the\ncatch, the prey kept existing, and the 10-step cooldown let the same\npair pairwise-feed the predator forever. Predator cost < gain \u2192 cap.\n\nFix: check_eating_jax now also returns prey_caught_mask (A,) bool, and\nsim_step_core applies a same-step deactivation right after eating-check\n\u2014 clears is_active, zeroes energy, resets rollout ptr, and turns off\nthe physics body / velocity \u2014 mirroring the death path already in\nprocess_births_and_deaths_jax. The fix is a 15-line addition; no\nreward / energy / physics math changed.\n\nLocal 2K-step smoke with tiny config (30 prey cap, 10 pred cap):\n  pre-D20: pred mean_energy \u2248 991 (cap 1000), 0 births after init\n  post-D20: pred mean_energy = 87.5, 11 births past initial 25 slots\n\nAdded tests/test_sim_dynamics.py::test_caught_prey_actually_die and\ntest_predator_energy_not_saturated_at_5k as regression guards.\nFull suite: 193 passed (was 189).\n\nAlso adds scripts/verify_replay.py, a post-hoc integrity check:\ndownloads a replay from the public GCS bucket (or reads local),\ncounts frame-pair events (feedings, catches, births, deaths),\nreports predator energy band, and flags obvious pathologies. This\nis what surfaced D20 \u2014 running it against the in-flight \"post-D19\"\nreplay showed 0 catches / saturated energy / 0 deaths, which no\namount of D18+D19 math could explain.",
       "date": "2026-04-21 17:31:54 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d070d947",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 21:54:40 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1072,11 +1414,38 @@
       "session": null
     },
     {
+      "hash": "71e2f0ba",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 22:22:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "74fca8b9",
       "message": "[Verify] Extinction-risk watchdog in verify_replay.py",
       "body": "Adds two new red_flags:\n  * PREY_EXTINCTION_RISK when prey drops below 30 in a window\n    (K&D \u00a74.2 steady state is ~349, so < 30 is ~10x below and\n    suggests the LV oscillation trough is deeper than expected).\n  * PREDATOR_EXTINCTION_RISK when predators drop below 5\n    (K&D steady state ~23).\n\nBoth are thresholds, not guarantees \u2014 a single replay in the trough\nof an oscillation could fire even on a healthy run. Treat as\n'investigate before continuing', not 'stop the run'.",
       "date": "2026-04-21 18:33:03 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0be353e7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 22:49:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ebc21faa",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 23:09:24 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1090,11 +1459,200 @@
       "session": null
     },
     {
+      "hash": "6c0af87f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 23:27:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7e0f1cf9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-21 23:49:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "574484f2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 00:06:08 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dfc191db",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 00:59:51 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "20eb3bdd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 01:45:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "22538a9d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 02:49:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fd7f2345",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 03:57:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "32197cb9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 05:06:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5615e938",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 05:54:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1b2122f2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 06:50:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "568457c9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 07:42:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a2d13989",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 08:22:29 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ce0bee2e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 09:05:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0030a4b4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 09:47:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "aaf737b8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 10:21:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f78b989d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 10:54:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "23ac050c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 11:31:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7aa84a41",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 12:03:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "21aa8e11",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 12:38:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f3d331ce",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 13:10:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "c69e89c2",
       "message": "[D23] Mark rollout_dones=True on agent death (semantic fix)",
       "body": "PPO audit surfaced that sim_step_core writes rollout_dones=False\nunconditionally every step, even when an agent dies that step. GAE\nthen bootstraps past terminal transitions instead of masking them.\n\nSeverity is cosmetic in the current architecture (PPO's is_active\ngate prevents dead-agent rollouts from being consumed and rebirth\nzeros the buffer), so this is NOT the predator-extinction blocker.\nBut the flag is semantically required and future-proofs any change\nthat relaxes the PPO gate.\n\nTwo-part fix:\n  * sim_step_core step 6: rollout_dones write takes prey_caught_mask\n    instead of hard-coded False. D20 catches now flip done=True at\n    the prey's last rollout slot.\n  * process_births_and_deaths_jax: new kwarg rollout_ptrs_for_done\n    (= safe_ptrs used in step 6) drives an OR-merge of dead_mask\n    into rollout_dones at each dying agent's last rollout slot.\n    Handles hazard/starvation deaths too.\n\nRegression test:\n  tests/test_predator_eating.py::TestDoneFlagOnDeath\n  Places a predator touching a prey in the mouth arc, runs one full\n  sim_step_core, asserts rollout_dones[prey, old_ptr] == True.\n\nFast suite: 186 passed (was 185).\n\nExtinction at step 80K persists in isolation \u2014 the PPO audit ruled\nout other plumbing issues, so next-session's priority is either the\nendpoint-code refactor (rectangular world + 9 tactile bins) or\nanother round of audit in yet-unexplored territory.",
       "date": "2026-04-22 09:54:02 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d5570062",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 13:56:43 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1108,11 +1666,29 @@
       "session": null
     },
     {
+      "hash": "d5654da9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 14:42:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "ad5aa692",
       "message": "[D25] Rectangular world support (+ make baseline_endpoint runnable)",
       "body": "Our code assumed a square world via `world_size` as a scalar. Emevo's\ncf_predator.py endpoint defaults to 1200\u00d7600 rectangular (via\n20241212-predator.toml). Our paper-faithful config uses 960\u00d7960 square\nand has been hitting predator extinction; we want the option to test\nthe endpoint parameterization without rewriting every call site.\n\nAdded: src/environment.py::world_bounds(config) -> tuple[float, float]\nwith three-way back-compat:\n  * world_size_x + world_size_y \u2192 explicit rectangle\n  * world_size = [x, y] \u2192 tuple in the scalar field\n  * world_size = N \u2192 legacy scalar (square) \u2014 returns (N, N)\n\nThreaded (world_x, world_y) through every scalar-world_size site in\nthe JAX path: _build_physics, init_simstate (positions + food),\nregenerate_food_jax, spawn_offspring_jax, _compute_wall_distances,\n_single_tactile. phyjax2d's `make_square_segments` already supports\nrectangles (the name is misleading); emevo calls it the same way.\n\nconfigs/baseline_endpoint.yaml now runs end-to-end through\nsim_step_core. Its \"NOT YET RUNNABLE\" header comment is stale for\nthe world/position plumbing (fixed here) but still applies to\ntactile mouth-range string decoding (\"front-wide\" / \"narrow\"),\nwhich is low-severity; our FOV check is functionally similar.\n\nRegression suite (tests/test_rectangular_world.py, 10 new tests):\n  * world_bounds resolution for all three config shapes\n  * endpoint config bounds, initial positions, food positions all\n    fall inside [0, 1200] \u00d7 [0, 600] AND hit the long axis (no\n    accidental clamping to the smaller dimension)\n  * sim_step_core runs 5 steps end-to-end on the endpoint config\n  * paper-faithful config still resolves to (960, 960); population\n    count unchanged after init (additive-only for square worlds)\n\nFull fast suite: 197 passed (was 187).\n\nNot a deviation from emevo. Emevo supports square (xlim=ylim) and\nrectangle (xlim\u2260ylim) via the same API. We now match that shape.",
       "date": "2026-04-22 11:04:28 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "806ac0c7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 15:23:47 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1144,6 +1720,15 @@
       "session": null
     },
     {
+      "hash": "e45d478a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 15:53:57 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "dbccfa51",
       "message": "[Tools] scripts/trace_agent.py \u2014 post-hoc per-agent trace",
       "body": "Loads a SimState checkpoint and runs sim_step_core forward for N steps,\nrecording everything ONE specific agent experienced along the way.\nBecause the simulation is deterministic (rng_key lives on SimState),\nreplaying from a checkpoint reproduces the original run bit-for-bit \u2014\nno training-time instrumentation needed, no ongoing storage cost.\n\nPer step the trace logs: position, angle, velocity, energy, age,\naction, log_prob, value, reward, done, is_active, plus snapshots of\nthe global cum_catches / cum_deaths / cum_feedings counters. Action /\nreward / log_prob / value are read from the rollout buffer after each\nstep (sim_step_core just wrote them at rollout_ptrs[slot] - 1), so\nthere's no code duplication of the step logic.\n\nSize budget:\n  * thin (no obs):       ~50 B/step     \u2192  10K steps \u2248 500 KB\n  * --include-obs:       ~870 B/step    \u2192  10K steps \u2248 8.6 MB\n\nTracking modes:\n  * --agent-id N   stops early if agent dies (caught, starved, or\n                   hazard); stable identity across lifetime\n  * --slot K       follows a fixed physics body, continuing through\n                   death + rebirth (useful for slot-level analysis)\n\nWrites .npz + .summary.json. Smoke-tested on a step-0 checkpoint:\n501-step predator trace runs cleanly, produces 26 KB compressed,\nsummary shows energy rising from 100 to 144 and 11 global catches\nacross the window.",
@@ -1171,6 +1756,132 @@
       "session": null
     },
     {
+      "hash": "a2516707",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 16:32:59 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "aefecc54",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 17:04:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9123a19d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 17:34:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cd6f569a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 18:03:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bb9e2515",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 18:36:51 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ddcea0ca",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 19:07:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8dbbdd84",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 19:43:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f4b3220d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 20:13:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e175b0df",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 20:39:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8de1a281",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 21:07:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a1df2516",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 21:33:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f2bbe462",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 22:01:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cd5879b8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 22:29:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "eb3db539",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 22:54:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "0d724cbe",
       "message": "[Docs] Phase 1a v5 analysis \u2014 first LV cycles + over-evolved-fear extinction",
       "body": "First run to produce real Lotka-Volterra oscillations (pre-D26 runs\ncollapsed monotonically at step 80K). Extincted at step 410K after\ntwo complete cycles, via a failure mode the paper itself describes:\nprey fear over-evolves, predator density can't be sustained at low\nprey, solo predators starve.\n\nExtinction diagnosed via scripts/trace_agent.py from the step-400K\ncheckpoint:\n  * lone predator (agent 3564): 0 catches over 510 final steps,\n    mean action magnitude 41.9 (actively trying to hunt), energy\n    4.1 \u2192 0 pure starvation\n  * contemporary prey (agent 4140): w_pred evolved to -1.14 (3\u00d7\n    stronger fear than early-run -0.36), survived trivially,\n    ate 146 food in 2000 steps\n\nCaptures trajectory, replays worth watching for visual confirmation\nof evolved avoidance, and next-session action items (seed 1 run,\npredator_cap adjustment, baseline_endpoint comparison).",
@@ -1185,6 +1896,15 @@
       "body": "The heading overlay drew (cos a, sin a), which assumes angle=0 \u2192 +x. phyjax2d\nstores angle=0 \u2192 +y, so the tick rendered 90\u00b0 off from true heading. Switch\nto forward = (-sin a, cos a) to match the sim convention.",
       "date": "2026-04-22 19:17:08 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "55cde0d3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 23:24:12 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1243,6 +1963,24 @@
       "session": null
     },
     {
+      "hash": "b34e7cb6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-22 23:49:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5d46162e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 00:10:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "b7ae35c1",
       "message": "[Replay v2 schema] Per-frame identity/lineage/phenotype/action tracks",
       "body": "Bumps replay meta.version to 2 and adds five per-frame sections:\nagent_ids, parent_ids, ages, reward_weights, action. Per-frame (not\nstatic) because slot reuse after death would otherwise misattribute\nparent/phenotype to the previous tenant.\n\nAction is pulled from rollout_actions at (rollout_ptrs-1) % rollout_steps\n\u2014 the action that drove this step. Frame immediately after a PPO ptr\nreset reads the stale tail of the rollout buffer; documented.\n\nLoader gates new fields as optional (null for v1 replays) so existing\nreplays still render. FrameView gains matching per-frame slices.",
@@ -1297,11 +2035,200 @@
       "session": null
     },
     {
+      "hash": "f84b99bb",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 01:07:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8b9d86db",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 01:54:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e9d29f88",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 03:16:02 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2dba66d9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 04:25:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7ef46a12",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 05:21:59 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "de14bb28",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 06:15:54 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "00a9721f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 07:04:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d1c21435",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 07:50:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0cc4300b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 08:29:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ac4f764b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 09:11:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0134b824",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 09:57:30 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f569d47d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 10:40:03 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e47a2515",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 11:11:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b76cf59f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 11:43:51 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2ca51575",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 12:10:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0df29030",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 12:44:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9367a792",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 13:21:02 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f59d5a72",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 14:12:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9669b9fa",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 15:07:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "b9188c86",
       "message": "[Experiments] v8/v9 configs + email draft + STOP-vs-DELETE guardrails",
       "body": "Three pieces of groundwork for the next round of debugging K&D\nreplication after v5 (sensor=200) extincted at step 410K via over-\nevolved prey fear, and v7 (sensor=120) extincted at step 110K\nbecause fear couldn't evolve at all.\n\n1. docs/drafts/email_to_kanagawa_doya.md \u2014 draft email to paper\n   authors asking 3 specific paper-vs-emevo discrepancy questions\n   that would save days of blind parameter sweeps:\n     * sensor_length 120 (paper) vs 200 (emevo TOMLs)\n     * predator_eat_interval in emevo code but not paper text\n     * weight clip \u00b1100 (paper) vs \u00b110 (emevo gops TOML)\n\n2. configs/experiments/v8_no_cooldown.yaml \u2014 tests the hypothesis\n   that emevo's 10-step predator catch cooldown (unmentioned in\n   paper) is what prevents our predators from establishing a stable\n   population. Sets predator_eat_interval=1, reverts D27 to match\n   v5's sensor=200 baseline.\n\n3. configs/experiments/v9_slow_evolution.yaml \u2014 tests the hypothesis\n   that v5's cycle-2 extinction was driven by runaway fear evolution\n   (prey w_pred reached -1.14). Sets weight_clip=10 per emevo gops\n   TOML, also reverts sensor=200.\n\n4. docs/monitoring.md gets a prominent STOP-vs-DELETE section at\n   the top. The existing teardown section explained 'delete' with no\n   warning that you lose unsynced checkpoints forever, and without\n   a 'stop' alternative for just pausing to save money. Lost the\n   v6+v7 seed_1 checkpoints overnight this way \u2014 won't happen again.\n\nFull fast suite: 218 still passing (no code changes, just config\nfiles and docs).",
       "date": "2026-04-23 11:20:04 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1a00042f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 15:53:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2a2c6458",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 16:46:33 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1315,11 +2242,146 @@
       "session": null
     },
     {
+      "hash": "442c4115",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 17:20:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "09ae6716",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 17:55:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "09735b7e",
       "message": "[Replay] Include run_tag in upload log path",
       "body": "The printed \"[replay] uploaded to gs://...\" line hardcoded an untagged\npath, which was misleading during the recent scope-auth debugging because\nthe real GCS path included the run_tag segment. Display string now\nmatches the actual bucket layout.",
       "date": "2026-04-23 14:13:11 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "22e6b61a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 18:36:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b79de455",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 19:10:06 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2a5153e0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 19:45:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ab8167d0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 20:13:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8c1ef8e0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 20:40:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "27c03a53",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 21:10:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1d888606",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 21:33:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9cf0702a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 21:59:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "85100e85",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 22:23:22 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "654ec956",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 22:49:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dfc0a899",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 23:12:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "14cd6764",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-23 23:36:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "00e3d6cf",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 00:00:46 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1333,11 +2395,173 @@
       "session": null
     },
     {
+      "hash": "31589127",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 01:04:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "96f4c477",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 01:51:30 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "54f84886",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 03:16:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "543f6452",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 04:27:57 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e31bee0b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 05:26:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1649bd1d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 06:18:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "61bbd6b6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 07:07:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9875c04c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 07:54:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "14fd2a15",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 08:51:29 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bfd0fda5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 09:42:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8d620266",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 10:20:13 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "96ce7199",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 10:52:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cd205cf5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 11:32:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6a3294cc",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 12:02:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "15ddd51a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 12:37:55 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c540c9d0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 13:09:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "1aa8114d",
       "message": "[Ablation] 2x2 D29/D30 isolation infra + emevo_src verification",
       "body": "Verifies D29 (sensor agg) and D30 (reward obs timing) against\nemevo_src locally (both gecco2026 and predator branches):\n\n  - Reward is computed from post-step obs (timestep.obs) \u2192 D30 correct\n  - sensor_agg_type default is \"mean\"; max is opt-in \u2192 D29 correct\n\nAdds toggles in src/jax_sim.py so both can be flipped without code\nedits:\n  - sensor_agg_type: \"mean\" | \"max\"  (already existed from D29 work)\n  - reward_obs_timing: \"pre_step\" | \"post_step\"  (new)\n\nFour ablation configs in configs/experiments/ form a 2x2 grid with\nD28 fixed on (D28 independently verified vs emevo):\n\n  d28a = max  + pre_step   (D28 only \u2014 revert D29 and D30)\n  d28b = mean + pre_step   (D28 + D29)\n  d28c = max  + post_step  (D28 + D30)\n  d28d = mean + post_step  (full stack = yesterday's d30 run)\n\nTests:\n  tests/test_params_match_emevo.py \u2014 defaults pinned (mean, post_step)\n    + source-level contract that jax_sim.py retains both timing paths\n  tests/test_predator_eating.py \u2014 3 semantic pins:\n    * two predators same prey \u2192 both credited (D28)\n    * max > mean in sparse scene (D29 switch is real)\n    * pre_step > post_step when prey leaves range (D30 switch is real)\n\n224 passed, 3 skipped locally.",
       "date": "2026-04-24 09:18:37 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "611d9a0c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 13:55:17 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "776f9233",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 14:41:44 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1351,11 +2575,83 @@
       "session": null
     },
     {
+      "hash": "6c8328d5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 15:17:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c0ce4a71",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 15:50:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "29a0f043",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 16:15:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "107fc4e0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 16:41:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "258704b6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 17:13:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b4d57739",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 17:40:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f880fbfc",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 18:02:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "8279f238",
       "message": "[Docs] Experiments log \u2014 single-source run history + D-fix index",
       "body": "Captures every Phase 1a run (v2-v5, v7, v8, d19, d30, d28a-b, d31a-d)\nwith code state, seed, outcome, and one-line diagnosis. Links to\nphase1a-v5-analysis.md for the one run with a deep-dive so far.\n\nD-fix table from commit messages: D18-D31 with impact assessment\n(massive/large/medium/small) on dynamics. Paper-anchored comparison\npulls in paper Table 1 (avg pred 23, prey 349) and Figure 6 period\n(200-400K steps) as targets.\n\nDocuments the emerging \"overshoot hypothesis\": our pred peaks 30-42\nvs paper's 23; once above the zeta_b_pred=100 knife-edge, recovery\nfrom first crash is structurally impossible.\n\nAlso surfaces seed variance in the paper itself \u2014 5/13 survival in\nn=0.6 condition, 1/6 extinct in large-mouth \u2014 which reframes the\n\"are we missing a bug\" question as \"are we in the extinction regime\nthat paper silently dropped seeds for.\"",
       "date": "2026-04-24 14:24:38 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "802cd19c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 18:28:49 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1369,11 +2665,974 @@
       "session": null
     },
     {
+      "hash": "3f76cbce",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 19:24:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b37352aa",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 19:50:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "240d7d76",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 20:23:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a7da65ad",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 20:50:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c229bc70",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 21:12:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4c4878bd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 21:37:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bc2c26f8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 22:01:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a5a29c3b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 22:27:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cd2beb9c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 22:50:58 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0c0d2611",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 23:21:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d6bf65cf",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-24 23:48:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "92691465",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 00:07:58 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e152e235",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 00:59:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3d69206e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 01:43:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f85c5e4f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 02:49:02 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c7f3d12f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 03:54:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e22d8930",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 04:57:17 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "220a29c8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 05:42:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "eae91bf7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 06:20:13 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "65c7cb86",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 06:54:03 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "36e823ac",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 07:37:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "88b547e3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 08:06:27 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e9b1ea07",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 08:32:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f648de8d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 09:03:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2fd6ed11",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 09:31:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "31d0db90",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 10:00:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7feeb9d5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 10:28:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "56ec38d2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 10:52:55 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ae0c5c41",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 11:21:19 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7b77450e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 11:47:54 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5f7dbaaa",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 12:05:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d3919927",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 12:28:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fcd8bffa",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 12:55:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d2d2b9f3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 13:35:48 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d5a687e9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 14:04:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "95226a97",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 14:28:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "07ce1999",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 14:52:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "783c4bdd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 15:21:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "db6a5386",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 15:48:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6e56017e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 16:07:31 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "32985d3c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 16:25:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f7b440ea",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 16:49:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "79669314",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 17:10:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "04da8659",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 17:35:08 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c9705d7a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 17:57:22 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "045b7d86",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 18:24:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a462770c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 18:50:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a412fe6a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 19:14:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9bdd7a37",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 19:37:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9a048239",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 19:57:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1951dc58",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 20:19:55 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f17c0731",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 20:41:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c67edcd2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 21:04:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b16258be",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 21:23:30 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6a91d71b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 21:48:02 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "be270343",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 22:04:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d560a643",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 22:22:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fb5c6132",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 22:48:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "51a28578",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 23:07:40 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "67f67a3a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 23:25:48 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "23776be5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-25 23:48:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "653f5b0d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 00:06:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d90203ff",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 01:06:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5b550f88",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 01:53:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a979cd14",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 03:17:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5a34f9c1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 04:31:03 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "480bfffb",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 05:35:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bf860cc1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 06:22:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "06097f9a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 07:08:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7a9c3911",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 07:51:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "02426d00",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 08:35:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "15ff49e7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 09:04:35 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9e2f12e9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 09:33:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "deb94e6f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 10:02:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0f2b2af0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 10:28:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "76d9311b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 10:53:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "413e4d15",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 11:21:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d3d0559d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 11:48:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a547bcce",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 12:06:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "80395f60",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 12:30:56 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "19694a12",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 13:04:56 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2cdcbd2b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 13:42:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a772a6c0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 14:10:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0c814ac8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 14:36:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "02252ade",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 15:00:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b6b9ae21",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 15:28:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "57bfd162",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 15:52:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "559e36bf",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 16:21:24 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "48115a97",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 16:49:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c605e0cf",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 17:10:13 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "05cc1627",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 17:29:12 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3c920071",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 17:52:45 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ffebbb23",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 18:27:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c6aac82e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 18:52:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1b6dcf40",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 19:24:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d45e13ee",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 19:49:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "091b95cc",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 20:06:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "6fd07e79",
       "message": "[Tuning] Parameter pivot: eta sweep + fear/extinction tension",
       "body": "After confirming emevo's own code reproduces our seed-0 extinction on both\nrect and square paper-default configs, pivoted from chasing exact paper match\nto parameter tuning. Added three eta variants of baseline_faithful:\n\n- tune_eta_0.45: stable but fragile; 1 cycle, no fear evolution\n- tune_eta_0.50: 3 LV cycles to step ~670K, then damped-oscillation extinction\n- tune_eta_0.55: 4 cycles + runaway peak to predator cap, extinction ~720K\n                 BUT fear (prey_w_pred) evolved -0.04 \u2192 -5 by cycle 3 \u2192 -16\n\nHeadline finding: the regime that drives fear evolution (overshoots) is\nthe same regime that eventually extinguishes predators. Stable runs don't\nevolve fear. Documented in experiments-log.md.\n\nAlso queues emevo smoke tooling under scripts/emevo_repro/ and gitignores\nthe external emevo_src/ clone (separate upstream repo).",
       "date": "2026-04-26 16:11:06 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3e60767a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 20:24:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "76974f3c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 20:48:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a0919ee8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 21:07:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "11511e10",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 21:25:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "89d00c53",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 21:48:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0b99e16f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 22:06:35 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0b693d6b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 22:24:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "39616bbd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 22:48:41 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4895987d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 23:08:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c8a2694c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 23:27:12 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1387,11 +3646,155 @@
       "session": null
     },
     {
+      "hash": "1394c17d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-26 23:50:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
       "hash": "c35bfab4",
       "message": "[Docs] Reorganize Phase 1a knowledge into findings + playbook",
       "body": "The experiments-log.md grew into a tangled mix of run table + cross-cutting\nanalysis + scattered hypotheses. Split into three docs:\n\n- experiments-log.md: now a thin chronological run table only, with\n  cross-links to the others. Added missing entries for axis smokes,\n  axis2 real run, eta sweep extensions.\n\n- findings.md (new): cross-cutting insights \u2014 what we now believe is\n  true. Covers: code reproduces emevo's dynamics on seed 0; paper uses\n  square geometry not rectangle; paper avg pred=23 is survivor-biased;\n  fear-vs-extinction tension across the eta sweep; runaway mechanism\n  driven by co-evolved hunting skills hitting breeding threshold;\n  eta=0.50 as cleanest baseline for axis runs; all four axes\n  mechanically working. Lists open questions worth follow-up.\n\n- params-playbook.md (new): per-parameter reference. For each tunable:\n  paper value, our value, role, observed sensitivity, tuning notes.\n  Ranks the most promising next levers (multi-seed, small mouth,\n  zeta_b_pred=150, initial fear bias, n_max_predators).",
       "date": "2026-04-26 19:52:59 -0400",
       "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9261ebc4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 01:01:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b890e392",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 01:51:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4d6fcb60",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 03:18:41 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "db2d7f09",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 04:36:33 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "abd2f128",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 05:42:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5e98ceb3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 06:42:05 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ec1514a6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 07:42:34 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "16c2b44a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 08:41:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1c1566f1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 09:36:18 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d5855f02",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 10:27:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "631fa8d6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 11:17:16 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "186b27d7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 12:00:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fc7ae059",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 12:48:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bd96445f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 13:26:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7175716f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 14:20:54 +0000",
+      "author": "gcp-monitor[bot]",
       "phase": null,
       "session": null
     },
@@ -1411,6 +3814,1050 @@
       "date": "2026-04-27 11:05:56 -0400",
       "author": "Axel Browne",
       "phase": "2",
+      "session": null
+    },
+    {
+      "hash": "58b76fbf",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 15:16:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "883584e2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 15:59:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "09d67866",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 16:42:41 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7de44b53",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 17:20:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a94ddb2c",
+      "message": "[Replay] Weight tinting + trajectory strip + MLP landscape spike",
+      "body": "Three additions to the replay page motivated by the start of axis\nexperiments. Two ship against the existing v2 linear-genome data; the\nthird is a synthetic-fixture spike that proves the MLP visualization\npipeline before plumbing real MLP genomes through jax_sim.\n\n1. Canvas weight-tinting (works on any v2 replay)\n   ReplayCanvas gains a colorBy prop driven by a sidebar picker \u2014 choose\n   species (default) or any of w_eat / w_act / w_prey / w_pred. Discs\n   are filled by a diverging red-neutral-blue colormap (-2..+2) and\n   wrapped in a species-colored ring so prey/pred stay distinguishable\n   in the colormap's neutral band. Falls back gracefully on v1 replays.\n\n2. WeightTrajectoryStrip\n   Four stacked sparklines under the population strip showing the\n   prey + pred *population mean* per weight axis across the recorded\n   window. NaN-gap breaks for dead-species frames; click-to-scrub\n   like PopulationStrip. Companion to \"size over time\"; this is\n   \"phenotype over time.\"\n\n3. RewardLandscape spike (gated on ?lab=mlp)\n   Synthetic-only \u2014 Axis 1 (MLP reward) is not yet wired through the\n   JAX runner (jax_sim.py:263 still computes linear reward\n   unconditionally; reward_type is read by no runtime code). Until\n   that wiring lands, the heatmap renders against four hand-baked\n   archetypes from scripts/bake_mlp_reward_fixture.py:\n     - founder (random init)\n     - drifted_seed42\n     - linear_evolved (MLP constructed to mimic w=[+1,-0.5,+0.5,-1.5])\n     - threshold_fear (sharp s_pred>=0.4 cliff; function class linear\n       genome cannot represent)\n   The heatmap supports any X/Y axis pair plus held-input sliders for\n   the other two. Linear-equivalent fit (5x5 normal equations over\n   5^4 samples) surfaces both the projected w_eat/w_act/w_prey/w_pred\n   bars and a nonlinearity score (residual / target RMS) \u2014 the\n   capacity-utilization metric from the experimental plan.\n\nThe handoff for plumbing real MLP/temporal reward through jax_sim is\nin docs/todo/.",
+      "date": "2026-04-27 13:20:47 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e0c48d1e",
+      "message": "[Docs] Handoff prompt: wire MLP/temporal through jax_sim + data refresh",
+      "body": "Adds docs/todo/wire-mlp-temporal-through-jax-sim.md \u2014 a self-contained\nbrief for the next session covering: what is broken (reward_type read by\nno runtime code), proposed fix sequence (SimState genome field \u2192\njax_sim dispatch \u2192 jax_evolution genome mutation \u2192 recorder v3 \u2192\nremove ?lab=mlp gate), validation gates, and effort estimate.\n\nDrive-by: dashboard/src/data/*.json regenerated by extract_data.py\nduring build verification. Includes config-schema entries for\nsensor_agg_type / reward_obs_timing (D29/D30) and updated git-timeline\nthrough Phase 2 commits.",
+      "date": "2026-04-27 13:22:37 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a305ca48",
+      "message": "[Audit] Correct axis-wiring status: 3 of 4 axes are no-ops",
+      "body": "Verified via grep that the axis flags read by the runner do not all\ndispatch through to the JAX simulation. Status:\n\n- axis1 reward_type=mlp     : no-op (jax_sim.py:263 unconditional linear)\n- axis2 social_obs          : WIRED (src/observations.py:344-401)\n- axis3 reward_context_window: no-op (obs_buffer allocated but never updated)\n- axis4 policy_type=lstm    : no-op (runner imports only build_ppo_update_fn,\n                              not build_ppo_update_fn_lstm; lstm_hidden field\n                              is dead state)\n\nUpdates:\n- experiments-log.md: annotate axis1/3/4 smoke and axis1_real rows as no-op\n  baseline-equivalent runs. axis2_smoke and axis2_real_500k flagged as the\n  only genuine axis tests.\n- docs/todo/wire-mlp-temporal-through-jax-sim.md: add Correction section.\n  The earlier draft of this handoff placed Axis 4 out of scope claiming it\n  was already wired; that was wrong. policy_type dispatch should be\n  included in the plumbing alongside reward_type and the temporal buffer.\n\nThe axis2 social_obs result (extinct ~100K on eta=0.50) is unaffected \u2014\nthat was a real test and the result stands.",
+      "date": "2026-04-27 13:30:17 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f1c738ec",
+      "message": "[Axis 1 Phase A] Wire MLP reward through jax_sim end-to-end",
+      "body": "reward_type: \"mlp\" was a no-op \u2014 the dispatch was unconditional linear at\njax_sim.py:263 and SimState had no slot for an MLP genome. Three pieces:\n\n- SimState gets reward_mlp_params (empty dict for linear runs, stacked\n  Flax params per-agent for MLP runs); init_simstate dispatches on\n  reward_type and vmap-inits 121-param genomes when MLP is selected.\n- build_sim_step now closes over reward_type at build time and routes\n  reward computation through the linear formula or vmap(compute_mlp_reward),\n  no lax.cond needed since each run uses one type.\n- jax_evolution gets mutate_mlp_genome_jax \u2014 JAX-native Student's-t via\n  ravel_pytree + the existing sample_students_t \u2014 so the spawn path\n  stays inside JIT instead of forcing a host sync per birth.\n\nSmoke (500 steps, axis1 with bumped kappa_b): 75 births, newborn genomes\ndiverge L2 ~5.4, no NaNs, rewards in [-0.5, 0.25]. Pytest 156/156, linear\nbaseline regression-clean.\n\nPhase B (temporal/Axis 3) and Phase C (recorder v3 + dashboard) still\npending \u2014 see docs/todo/wire-mlp-temporal-through-jax-sim.md. MLP runs\nwill log flat zeros for the legacy reward_weights stats in progress.json\nuntil C lands.",
+      "date": "2026-04-27 13:45:32 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1a321a49",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 17:56:13 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "80788610",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 18:39:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2679bee7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 19:12:29 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "904e5769",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 19:52:21 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6af6ae76",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 20:33:40 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2225fd46",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 21:04:41 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bbf32dca",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 21:34:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "546ed492",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 22:02:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0325fafc",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 22:30:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d44f5376",
+      "message": "[Axis 1 Phase C] Recorder v3: real MLP genomes in replays + dashboard",
+      "body": "Bumps replay format to v3. Linear runs unchanged; MLP runs drop the\nmeaningless per-frame reward_weights field and instead emit one flat\ngenome row per unique agent_id seen during the recording window \u2014\nexact (not sampled) since reward genomes are mutated only at birth.\nmeta gains genome_arch / genome_shape / genome_layout so the loader\ncan re-nest the flat row into per-layer kernels/biases.\n\nDashboard side, RewardLandscape now takes a `genome` prop and lives\ninside AgentInspector for the pinned agent on MLP replays. The\nsynthetic-fixture spike + ?lab=mlp URL gate are gone (fixture path\nremains in rewardMlp.ts as a debug-only helper). Storage cost: ~240\nKB extra per replay at hidden_size=8.\n\nIncludes a Python roundtrip test (rebuilt-from-flat MLP forward-pass\nmatches the original PyTree to 1e-6) and an end-to-end validator script\nthat exercises the runner-recorder integration on a tiny MLP sim.",
+      "date": "2026-04-27 18:56:33 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "27abdbd3",
+      "message": "[Tests] Add birth-during-window case for recorder v3",
+      "body": "Validates the keying-by-agent_id design: a birth that fires during a\nrecording window must produce a fresh genome row distinct from the\nparent's. Slot reuse over an agent's lifetime would silently overwrite\nthe child's row under a slot-keyed scheme.\n\nTest forces a birth via spawn_offspring_jax, then asserts the child's\nid appears in idmap and the L2 distance between parent and child rows\nis non-trivial \u2014 confirming Student's-t mutation ran and the recorder\nsnapshotted the post-mutation state at the right slot.",
+      "date": "2026-04-27 18:58:35 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b20bc124",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 23:02:17 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7751f3b4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-27 23:31:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5e699651",
+      "message": "[Axis 3 Phase B] Wire temporal reward through jax_sim end-to-end",
+      "body": "reward_type=temporal was a no-op in the JAX runner. This wires it:\n\n- jax_state: add reward_temporal_params field; init via vmap(init_temporal_genome).\n- jax_sim: dispatch closure signature is (state, stimuli) -> (rewards, state).\n  Temporal branch rolls obs_buffer left by 1, appends the new stimulus row,\n  forwards through compute_temporal_reward. Linear/MLP return state unchanged.\n- jax_evolution: extract a generic mutate_pytree_genome_jax helper used by\n  both MLP and temporal mutation paths. Spawn now mutates the temporal\n  genome at birth and resets the child's obs_buffer (already zeroed there).\n- recorder v3 already had the temporal hook coded; it just needed the\n  reward_temporal_params field to exist on SimState. New test confirms\n  genome_dim=945 (k=10/h=16), forward-pass equivalence after unflatten.\n- AgentInspector: placeholder for temporal runs \u2014 the 4-d landscape view\n  doesn't apply to a 40-d temporal input, so we surface a \"captured but\n  not yet visualized\" note instead of forcing a mismatched render.\n- axis3_temporal_reward.yaml: production replay cadence.\n\n200-step in-process smoke confirms obs_buffer populates, births fire\nthrough temporal mutation, no crashes. 225 tests pass.",
+      "date": "2026-04-27 19:38:00 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e0294750",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 00:01:27 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dd6816b1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 01:07:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "314dea91",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 01:55:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "945df673",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 03:18:19 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dc67fc61",
+      "message": "[Configs] Add replay_bucket to all 4 axis configs + tighten gcp_l4 ckpt cadence",
+      "body": "Axis configs were silently writing replays only to local results/ \u2014 the dashboard\nreads from gs://evo-reward-replays-public, so v3 replays from MLP/temporal/LSTM\nruns never showed up. Backfilled axis1 replays manually; future runs will upload\non flush.\n\nAlso dropped checkpoint_interval_steps from 100k to 20k so resume points are\ncloser together \u2014 at 24-28 sps that's ~12 min between saves.",
+      "date": "2026-04-27 23:46:56 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d48767b0",
+      "message": "[Gitignore] Local recorder-v3 test artifacts + logs/",
+      "body": "Real v3 replays land on GCS via replay_bucket; the local artifacts\nunder dashboard/site/public/replays/test_*/ are regenerated by\nscripts/validate_recorder_v3.py on demand. logs/ is also local-only.",
+      "date": "2026-04-28 00:34:49 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5dd9dbc5",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 04:38:03 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7a141133",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 05:46:54 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "3b6a6cdb",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 06:44:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e828c2ad",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 07:41:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dfd59d0c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 08:40:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "918b2d72",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 09:37:54 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "180d0aa8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 10:27:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "458b7a9f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 11:17:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "95b8358b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 12:01:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1c0ecee2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 12:54:55 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d93d6640",
+      "message": "[Axis 1] Bump mlp_mutation_scale 0.01 \u2192 0.08; document v1 extinction + hypothesis",
+      "body": "axis1 v1 (mut=0.01) extincted predators at step 380K despite running on the\nmouth_smol substrate where the linear genome survives 1M with fear -1.97.\n\nHypothesis: aggregate per-generation mutation L2 was 7\u00d7 weaker than linear\n(sqrt(121)\u00b70.01 = 0.11 vs sqrt(4)\u00b70.4 = 0.80). At population bottlenecks (the\npredators dropped to 1 at step 140K, recovered, then 5 at 360K), only mutation\nnoise can recreate sibling diversity for selection to act on. With 7\u00d7 weaker\nkicks, all post-bottleneck offspring stayed clones of the founder and the\nsecond bottleneck killed the lineage uniformly.\n\n0.08 yields aggregate kick sqrt(121)\u00b70.08 = 0.88 \u2248 linear's 0.80, isolating\nthe architecture difference (linear vs MLP) from the mutation-rate difference.\n\nFindings.md \u00a711 is the new hypothesis section; \u00a712 is the open-question reroll.\nSame concern applies to axis 3 temporal (945 params, current scale 0.005 \u2192\naggregate kick 0.15, even weaker than current MLP).",
+      "date": "2026-04-28 10:17:10 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6f9dd801",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 15:40:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bc14ec7a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 16:25:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0e7f4dc0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 17:08:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1b5049b7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 17:52:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ee05e288",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 18:42:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "46a888fb",
+      "message": "[Docs] Axis 1 paused \u2014 both mut=0.01 and mut=0.08 extinct, opposite failure modes",
+      "body": "mut=0.08 didn't rescue the run. It produced real per-agent diversity (pred_w\n\u00b10.06-0.11 vs v1's \u00b10.00 clones) and matched per-capita catch rates, but the\npredator population peaked at only ~15 (vs v1's 30) and crashed at the first\nLV downturn \u2014 extincting at step 300K, earlier than v1's 380K.\n\nThe \"structural-instability\" counter-arg from \u00a711 was the dominant effect:\nhigh mutation produces many offspring with bad reward functions, smaller stable\npopulation, less buffer for the trough. Both 0.01 and 0.08 are wrong in\nopposite directions; intermediate values (0.03) are queued as future work.\n\nPivoting to axis 2 (social_obs) \u2014 uses the proven linear genome on the\nmouth_smol substrate, so this isn't a mutation-tuning problem.",
+      "date": "2026-04-28 14:56:08 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "277643f7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 19:21:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e9b2f98b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 20:04:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "826e7b12",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 20:42:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9081bdda",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 21:16:26 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "28c6b187",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 21:43:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d9d51d2d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 22:11:59 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c4338dab",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 22:40:46 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bbc46e78",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 23:11:35 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "389c882f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-28 23:40:22 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "50d0dd71",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 00:06:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b5ea1ed6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 01:08:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "18c7bd57",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 01:56:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fbcea7e0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 03:18:55 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6f81aa5a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 04:36:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a2c0a40c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 05:42:15 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0715446b",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 06:40:00 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8ae35d78",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 07:35:37 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "8392f51e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 08:31:42 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "893d3f53",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 09:26:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5e4e2568",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 10:18:22 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "66762bc6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 11:04:04 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "61b47c03",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 11:48:06 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "eacea0c6",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 12:21:43 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ec9c9211",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 13:06:38 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0c2e003e",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 13:52:21 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5498fc98",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 14:54:14 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "32224df5",
+      "message": "[Axis 2] 1M survival via herd-seeking, not fear \u2014 findings.md \u00a712",
+      "body": "axis2_mouth_smol_1M seed 0 finished cleanly at 1M with both species alive\nthrough multiple LV cycles. The interesting result: prey did NOT evolve fear\n(prey_w_pred = +0.17, near zero). Instead they evolved very strong herd-seeking\n(prey_w_prey = +4.51 \u00b1 5.23, climbing monotonically through the run).\n\nHypothesis going in: richer social obs (heading + velocity, not just position)\nshould accelerate fear evolution. Reality: it substituted herd behavior for\nfear. With perceptual access to motion cues, prey can navigate around\npredators behaviorally via the policy network without needing a reward signal\nthat says \"predators are bad\" \u2014 they get safety-in-numbers from the herd\nweight instead.\n\nBoth runs (linear baseline and axis 2) are 1M survivors but they reach the\nqualitatively different reward landscapes. Next: extend axis 2 past 1M to see\nif fear ever emerges, and confirm with seed 1.",
+      "date": "2026-04-29 11:31:04 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "159ecb06",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 15:47:39 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "441f16a3",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 16:25:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "727c603a",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 17:04:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "692b59c6",
+      "message": "[Axis 2] Correct \u00a712: extension to 2M shows trophic collapse, not stable survival",
+      "body": "The 1M snapshot was misleading. Extending past 1M revealed predator pop\nsurging to 28 (vs typical cycle peak ~17), driving prey from 450 down to 103,\npredators starving when prey couldn't recover fast enough. Extinction at 1.10M.\n\nThis is a *new* failure mode for this codebase \u2014 every prior extinction has\nbeen \"predators too weak to feed themselves.\" This is \"predators too strong\nwith no brake.\"\n\nDiagnosis: the local-optimum trap. With richer social obs (heading + velocity),\nprey have a better reactive-dodge solution available than under position-only\nobs. Evolution greedily finds it (huge herd weight +4.51) and never builds up\nfear gradient because reactive avoidance is \"good enough\" at low pred density.\nWhen LV cycle produces a surge that overwhelms reactive, no strategic backstop\nexists.\n\nNot necessarily a \"fear is required\" claim \u2014 more precisely, prey adaptations\nthat don't actually *limit* predator success let predators over-specialize.\nHerd may even concentrate prey spatially, helping predators find them.\n\nNext: seed 1 to 2M to test reproducibility. If collapse holds, build\nasymmetric social_obs (prey gets upgrade, pred stays at position-only) to\nisolate whether the upgrade is disproportionately useful for predators.",
+      "date": "2026-04-29 13:40:53 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "c6742223",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 17:46:49 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "7f1081cf",
+      "message": "[Dashboard] Live MLP network diagram in AgentInspector",
+      "body": "Adds RewardMlpDiagram \u2014 a 4 \u2192 8 \u2192 8 \u2192 1 SVG diagram with edges colored\nby weight sign (blue +, red -) and opacity/width by |w|/maxWeight, so\ndominant pathways stand out and small weights fade. Nodes fill with the\ndiverging weight palette to show layer activations from a live forward\npass through the genome.\n\nLifts the held-stimulus state out of RewardLandscape and into a new\nMlpStimuliPanel inside AgentInspector. A single set of 4 sliders now\ndrives both views: dragging s_pred re-samples the heatmap slice AND\nre-runs the diagram's forward pass, so you see how a single stimulus\nchange ripples through the evolved reward function.",
+      "date": "2026-04-29 13:52:15 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "81fee60a",
+      "message": "[Docs] Reframe Axis 2: kin-only v1 \\u2192 n_kin/n_other redesign + experimental program",
+      "body": "Findings.md \u00a712 + \u00a713 + \u00a714 reorganized. The two reframings:\n\n1. Axis 2 v1 (existing config) only added KIN heading+speed \u2014 neither species\n   sees the other's kinematics directly. Predator over-success in seed 0 isn't\n   a direct perceptual advantage; it's mediated through prey flocking creating\n   dense clusters that predators can plow through. The \"is the upgrade\n   asymmetric for predators?\" question can't be answered by the v1 design.\n\n2. Replace social_obs string flag with n_kin/n_other integers. Each tracked\n   agent contributes 2 dims, so obs_dim = 205 + 2*(n_kin + n_other).\n   Backward compatible: position_only \u2261 0/0; v1 axis-2 \u2261 5/0.\n\nNew experimental program (after design lands):\n- axis2-cross-1 (n_kin=0, n_other=1): cross-species perception alone\n- axis2-both-1 (n_kin=3, n_other=1): flocking + cross-species combined\n- axis2-cross-1-asym: prey-only cross-species, predator at baseline\n\nEach is a clean single-variable test with mechanistic interpretation.\nN_kin=3 (not 1) when active because flocking is an averaging dynamic.\n\naxis2_social_obs.yaml header updated to flag v1 as legacy/paused; preserved\nfor reproducibility but not for new runs.",
+      "date": "2026-04-29 13:56:47 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d2ac1875",
+      "message": "[Axis 1] mut_scale 0.08 \\u2192 0.03 for v3 retry",
+      "body": "v1 (0.01): too clonal, extincted at 380K.\nv2 (0.08): too noisy, extincted at 300K (smaller pred peak, crashed early).\nv3 (0.03): split the difference. Aggregate L2 sqrt(121)*0.03 = 0.33, halfway\nbetween v1's 0.11 and v2's 0.88. Tests whether the failure mode has a stable\nmiddle ground or is fundamental.",
+      "date": "2026-04-29 13:57:24 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e3e569f3",
+      "message": "[Axis 2 v2] Implement n_kin/n_other social obs design + new configs",
+      "body": "The old social_obs string flag has been replaced by two integers:\n- n_social_kin:   N nearest conspecifics to track [heading, speed]\n- n_social_other: N nearest other-species to track [heading, speed]\n\nEach tracked target adds 2 dims, so obs_dim = 205 + 2*(n_kin + n_other).\nBackward-compat shim: legacy \"position_heading_velocity\" still resolves to\nn_kin=5, n_other=0, so existing axis2_social_obs.yaml runs reproduce\nunchanged. Existing 231-test suite passes.\n\nImplementation:\n- _single_social_obs takes a match_kin: bool flag (Python-level, burned in\n  at trace time) selecting same-species vs other-species filter.\n- _build_obs_fn builds two distinct vmaps when both blocks are present.\n- Assembly order: kin block before other block.\n\nNew configs (linear genome, mouth_smol substrate):\n- configs/axis2_cross_1.yaml: n_kin=0, n_other=1, obs_dim=207\n  Tests: does cross-species perception alone prevent trophic collapse?\n- configs/axis2_both_1.yaml: n_kin=3, n_other=1, obs_dim=213\n  Tests: do flocking + cross-species coexist productively?\n\nSee findings.md \u00a713 for the full experimental program.",
+      "date": "2026-04-29 14:06:07 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "9a7ae089",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 18:20:09 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ffd0b880",
+      "message": "[Axis 2 v3] Bin-aligned heading encoding (sin/cos, relative-to-observer)",
+      "body": "The converged design that supersedes the n_kin/n_other social-slot variants.\nPer proximity bin, each species channel now reports\n[distance, sin(rel_heading), cos(rel_heading)] of the closest agent of that\nspecies in that bin, instead of just distance.\n\nThree design choices, each addressing a real concern:\n\n1. Bin-aligned (not separate slot). The social-slot designs require the\n   policy MLP to *bind* \"the predator in proximity bin X\" to \"the heading in\n   social slot Y\" \u2014 a multiplicative interaction that costs training steps\n   to learn. Bin-aligned co-locates kinematics with position by construction:\n   no binding burden.\n\n2. sin/cos encoding (not raw scalar). A single-scalar relative heading aliases\n   \"no agent in bin\" with \"agent facing same direction as me\" (both = 0).\n   sin/cos puts no-agent at (0,0), which is geometrically impossible for any\n   real angle. Magnitude becomes an unambiguous presence signal.\n\n3. Heading-only (no speed). Energy cost is quadratic in action norm so agents\n   cruise at moderate speeds \u2014 speed encodes nuance not category. Heading\n   carries the categorical signal (predator facing me vs facing away).\n\nobs_dim = 256 (proximity, 32 bins \u00d7 8 channels) + 72 (tactile) + 5 (self) = 333.\n\nBehind config flag: proximity_encoding: \"distance_only\" (K&D-faithful default,\nunchanged) or \"distance_and_heading\" (new path). Existing 231-test suite\npasses; baseline reproducibility preserved.\n\nImplementation:\n- _single_proximity_agents_with_heading: scatter-min on dist (existing), then\n  scatter-min on agent_idx among per-bin winners to recover the closest\n  agent's index per bin, then look up its angle. Ties resolve to lowest idx.\n- _per_channel_encoding: replaces winner-take-all with raw per-channel\n  encoding (each species independently active). Distance encoded as\n  1 - dist/max_range, clamped to [0, 1], 0 for no-detection.\n\nNew config: configs/axis2_aligned.yaml (linear genome, mouth_smol substrate,\nbin-aligned encoding). Queued behind axis-1 v3 on the GPU.\n\nSee findings.md \u00a713 for the full design rationale + experiment program.",
+      "date": "2026-04-29 14:43:44 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "84aa7751",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 18:56:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "435bc225",
+      "message": "[Dashboard] Dimension-flexible MLP genome + diagram",
+      "body": "Refactors MlpGenome from { Dense_0, Dense_1, Dense_2 } to { layers:\nMlpLayer[] }. Every renderer and forward-pass now derives depth, layer\nwidths, and column count from the genome itself instead of the named\nDense_N keys, so any future architecture (deeper MLP, different\nhidden_size, the temporal 40\u219216\u219216\u21921 net, ...) renders with no code\nchange.\n\n- rewardMlp.ts: MlpGenome is now an ordered array of layers; activation\n  convention follows reward.py (tanh on hidden, linear on output).\n  evalRewardMlp iterates the array. Legacy fixture shape kept under\n  LegacyMlpFixtureParams + a one-line legacyFixtureToGenome adapter.\n- replayLoader.ts unflattenMlp groups layout entries by layer name in\n  first-seen order and produces the array shape directly. Validates that\n  every layer has both kernel and bias and that paths are 2-deep.\n- RewardMlpDiagram: column positions and node radius derive from the\n  layer list; supports >40 nodes per column without overlap. Input\n  labels are optional and skipped when the input layer is too wide\n  (temporal's 40-d input).\n- AgentInspector now renders the diagram for both genome_arch=\"mlp\" and\n  genome_arch=\"temporal\". Temporal feeds the network the slider state\n  tiled k times \u2014 interpretable as \"agent has been seeing these stimuli\n  for the last k steps\". The 2-axis reward landscape stays MLP-only\n  (its 4-d slicing doesn't generalize).",
+      "date": "2026-04-29 15:09:31 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dd66d923",
+      "message": "[Strategic reset] DDB stability scaffold + residual reward genome + small-scale baseline",
+      "body": "This commit lands the scope-narrowing redesign described in findings.md \u00a715.\nThree substantive changes:\n\n1. DDB (Density-Dependent Breeding) \u2014 new stability mechanism\n   ----------------------------------------------------------\n   When species population is low, the breeding-energy threshold zeta scales\n   down via squared saturation:  f(N) = max(floor, N^2 / (N^2 + thresh^2)).\n   Predator threshold 5, prey threshold 30, floor 0.3.\n\n   Effect: at N=threshold, breeding gate is half its normal value (much\n   easier to breed at deep bottlenecks). At N=2*threshold, factor is 0.8\n   (mostly off). At healthy populations (N >> threshold), no effect.\n\n   Behind config flag stability_mechanism: \"none\" | \"ddb\". Default \"none\"\n   preserves K&D-faithful behavior; new axis configs set \"ddb\".\n\n   Why: every long run we've done extincts at a deep bottleneck (N_pred\n   drops to 1-3, the lone survivor can't breed back fast enough). DDB\n   directly addresses this failure mode. Pragmatic deviation from K&D \u2014\n   we'll test removing it later if stability emerges naturally.\n\n2. Residual reward genome \u2014 converged axis-1 design\n   -----------------------------------------------\n   New reward_type \"linear_plus_mlp_residual\": K&D linear baseline plus a\n   small zero-init MLP perturbation.\n\n       r = sum(coefs * linear_weights * stimuli)  +  MLP_residual(stimuli)\n\n   - Linear part: 4 weights, K&D init+mutation (proven-stable).\n   - Residual MLP: input(4) \u2192 Dense(4, tanh) \u2192 Dense(1) = 25 params,\n     zero-initialized. Outputs 0 at t=0, so system starts as exact K&D\n     linear. Mutates via Student's t with scale 0.03, clip 5.0.\n\n   Sidesteps the bootstrap failure that killed axis-1 v1 (mut=0.01, too\n   clonal) and v2 (mut=0.08, too noisy). System starts at known-stable\n   solution; evolution adds nonlinearity if it helps.\n\n3. Small-scale baseline \u2014 faster iteration without sacrificing horizon\n   --------------------------------------------------------------------\n   New baseline_smol_ddb.yaml: world 600 (was 960), pred_cap 25 (was 50),\n   prey_cap 200 (was 450), prey_init 75 (was 150), pred_init 5 (was 10),\n   food_max 300 (was 600). Per-agent food ratio preserved.\n\n   Estimated 1.5-2x sps vs current setup. Same 2M run length preserves\n   long-horizon scientific signal \u2014 user explicit preference: 1 long run\n   over 4 short ones.\n\nNew configs:\n- baseline_smol_ddb.yaml  \u2014 new \"honest baseline\" for axis runs\n- axis1_residual.yaml     \u2014 residual reward + small-scale + DDB\n- axis2_aligned_smol.yaml \u2014 bin-aligned obs + small-scale + DDB\n\nExisting 231-test pytest suite passes; end-to-end mini-sim of all three\nnew configs runs without crashes.\n\nDefers axis-3 (temporal reward) and axis-4 (LSTM policy) \u2014 see findings.md\n\u00a715. Focus is now axis-1 (residual) and axis-2 (bin-aligned) on the new\nshared baseline, then their combination.",
+      "date": "2026-04-29 15:23:10 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "99368bf8",
+      "message": "[Docs] findings.md \u00a715 strategic-reset synthesis + standalone handoff doc",
+      "body": "Two doc additions to capture the 2026-04-29 strategic reset thoroughly:\n\n1. findings.md \u00a715 \u2014 synthesis section. The three changes (axis-1 residual\n   reward, axis-2 bin-aligned obs preserved, DDB stability scaffold), the\n   small-scale baseline rationale, the forward experiment ladder, what\n   we deferred (axis-3, axis-4), what we kept (mouth_smol substrate,\n   bin-aligned encoding, replay/ckpt cadence). Marks \u00a713's n_kin/n_other\n   program as \"implemented but superseded\" and \u00a714's open questions as\n   \"subsumed by \u00a715.\"\n\n2. docs/scope-reset-2026-04-29.md \u2014 standalone handoff doc for teammates.\n   Self-contained narrative version: what changed and why, the new design\n   for each axis with the failure modes they sidestep, DDB rationale +\n   biological caveats, small-scale parameters, current status, where to\n   find each resource. Concise enough to read in ~5 min.\n\nValidation run baseline_smol_ddb 2M is in flight on evo-reward-gpu since\n19:25 UTC. Early signal: 81 sps (3.4x speedup vs old setup), DDB visibly\nhelping predator recovery 5\u219213 in first 10K steps.",
+      "date": "2026-04-29 15:28:57 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "43b00e02",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 19:39:07 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d0e27c03",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 20:10:20 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "390e0450",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 20:41:11 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1ad6dbda",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 21:16:36 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6bb509ab",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 21:44:17 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "2457920f",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 22:11:53 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "6d6c4104",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 22:40:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "336cc88d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 23:11:48 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "a96343bd",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-29 23:40:10 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e3d12dd2",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 00:06:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "bee43d35",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 01:08:27 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b1ed859c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 01:56:27 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "50181023",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 03:19:08 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "f118a002",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 04:38:25 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5d6b8048",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 05:46:31 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "4c4eb314",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 06:43:19 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1f1699a0",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 07:39:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "1c56434d",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 08:35:50 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "b6ddb6e1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 09:27:28 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fe84957c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 10:18:54 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "20c0ccd9",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 11:04:23 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "be32fcd7",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 11:47:44 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "e0de7fa4",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 12:20:47 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5421691c",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 13:05:31 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "71871864",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 13:50:57 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "d1d600c8",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 14:51:01 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "fdc44cd1",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 15:42:32 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0383c061",
+      "message": "update gcp-status.json [skip ci]",
+      "body": null,
+      "date": "2026-04-30 16:20:52 +0000",
+      "author": "gcp-monitor[bot]",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0012ed2c",
+      "message": "[Launch] Per-collaborator env override for launch_sweep_vm.sh",
+      "body": "PROJECT and GCS_BUCKET now read CLOUDSDK_CORE_PROJECT and GCS_BUCKET from\nthe environment, defaulting to the original evo-reward values so the\nexisting setup is unchanged. New scripts/gcloud-env-gh.sh mirrors\ngcloud-env.sh for gh2707@columbia.edu on rl-bio-sims-494715 (bucket\nrl-bio-sims-494715-ckpts). Either env file can be sourced to switch the\nlauncher's target project without touching global gcloud config.",
+      "date": "2026-04-30 13:04:09 -0400",
+      "author": "Gil Halevi",
+      "phase": null,
       "session": null
     }
   ]
