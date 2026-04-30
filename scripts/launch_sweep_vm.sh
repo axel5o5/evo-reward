@@ -34,11 +34,11 @@ SEED=$4
 RUNTIME=${5:-configs/runtime/gcp_l4.yaml}
 
 REGION=${ZONE%-*}
-GCS_BUCKET=evo-reward-ckpts
+GCS_BUCKET="${GCS_BUCKET:-evo-reward-ckpts}"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 STARTUP_SCRIPT="$REPO_ROOT/scripts/vm_startup.sh"
-PROJECT=evo-reward
+PROJECT="${CLOUDSDK_CORE_PROJECT:-evo-reward}"
 
 if [ ! -f "$REPO_ROOT/$CONFIG" ]; then
   echo "ERROR: config not found: $REPO_ROOT/$CONFIG" >&2
