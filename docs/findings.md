@@ -350,8 +350,52 @@ Each individual run produces an interpretable result regardless of outcome. Tota
 - bin-aligned heading encoding — §13's design is correct and is being preserved as the axis-2 mechanism.
 - 20K checkpoint cadence + replay-uploads-every-flush + 100-replay milestone retention — operationally fine.
 
-### 15.6 Status snapshot
+### 15.6 First validation attempt — small-scale failed at 2026-04-30
+
+**`baseline_smol_ddb` 2M completed but predators went extinct at step ~80K.** The run finished prey-only for the remaining 1.92M steps. Diagnosis below; second attempt with a less aggressive scale-down is queued.
+
+Trajectory:
+
+| Step | Prey | Pred | Δcatch | Mean E (pred) |
+|---|---|---|---|---|
+| 10K | 200 | 13 | 110 | 118 |
+| 20K | 173 | 14 | 119 | 124 |
+| 30K | 114 | 12 | 97 | 128 |
+| 50K | 74 | 9 | 43 | 64 |
+| 60K | 77 | 4 (DDB fires) | 19 | 35 |
+| **80K** | 96 | **0** | 2 | — |
+
+**Why DDB couldn't save them — the key lesson:** at step 60K when pred=4 (below threshold 5), DDB lowered `effective_zeta_b_pred` from 100 to 39. But predator *energy* was only 35 — to actually breed, predators needed energy ≥ effective_zeta/beta_b ≈ 97. DDB lowers the breeding-energy bar; it doesn't put energy in the bank. If predators are starving, DDB can't make them breed.
+
+**Why predators were starving — the upstream cause:** at world_size=600 with caps 200/25, predator-prey density was ~2.5× the K&D-faithful baseline (which used world=960, caps 450/50). Catches/step were ~5× normal in the first 20K steps. Prey crashed from 200 → 74 between step 20K and 50K — faster than they could breed back even with food at cap. Predators then ran out of prey to eat, energy decayed below the breeding threshold, and DDB couldn't catch them in time.
+
+This is a different failure mode than the prior "predators too weak" extinctions — it's the same trophic over-pressure pattern axis-2 v1 hit at 1.1M, but earlier and from geometry rather than from richer obs.
+
+### 15.7 Second attempt — middle-ground geometry + DDB threshold bump
+
+`baseline_med_ddb` (commit TBD) walks back the small-scale geometry to a less aggressive middle ground, and bumps the predator DDB threshold so the rescue fires earlier in the decline.
+
+| Param | Original | Failed small | **Middle (this attempt)** |
+|---|---|---|---|
+| `world_size` | 960 | 600 | **800** (70% area, 1.4× density vs 2.5× failed) |
+| `prey_cap` | 450 | 200 | **300** |
+| `predator_cap` | 50 | 25 | **30** (cap ratio 10:1, slightly prey-favored vs original 9:1) |
+| `prey_initial` | 150 | 75 | **100** |
+| `predator_initial` | 10 | 5 | **7** |
+| `food_max` | 600 | 300 | **450** |
+| `ddb_pred_threshold` | n/a | 5 | **8** ← bumped to fire earlier in decline |
+| `ddb_prey_threshold` | n/a | 30 | **30** (unchanged) |
+
+**Why threshold = 8 (not higher):**
+- At pred=8, DDB factor f=0.5 (half-rescue). Above pred=16, f≥0.86 (mostly off).
+- Higher threshold (e.g. 10) would fire during normal mid-cycle dynamics (typical pred 15-20), shifting DDB from "scaffold for emergencies" to "permanent tilt."
+- The smoking gun in the failed run was at step 50K: pred=9, mean E=64. Threshold=8 would have fired at this point, giving predators a breeding window before their energy crashed.
+
+**One honest caveat:** if the middle-ground geometry doesn't sufficiently reduce predator over-pressure, DDB still can't fix the underlying starvation. In that case we'd add **DDM (density-dependent metabolism)** — slow predator energy decay when rare — as a complementary mechanism. Holding off until needed; one change at a time.
+
+### 15.8 Status snapshot
 
 - Code committed in `dd66d92`. Tests pass (231/231). Mac smoke tests of all three new configs run end-to-end without crashes.
-- Validation run `baseline_smol_ddb` 2M launched on `evo-reward-gpu` at 2026-04-29 19:25 UTC, tmux session `baseline`.
+- First validation `baseline_smol_ddb` 2M completed 2026-04-30 08:14 UTC — predators extinct at ~80K from trophic over-pressure. Lessons recorded in §15.6.
+- Second validation `baseline_med_ddb` 2M to launch with the middle-ground geometry + DDB threshold 8.
 - Once validation confirms stable LV cycles + fear evolution, axis-1 and axis-2 launch in sequence.

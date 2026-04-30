@@ -137,16 +137,22 @@ We're being transparent about this: it's a pragmatic deviation from K&D, not a c
 
 ---
 
-## Small-scale baseline — faster iteration
+## Small-scale baseline — middle-ground after first attempt failed
 
-| Parameter | K&D / our previous setup | New small-scale |
-|---|---|---|
-| `world_size` | 960 | **600** (~40% area) |
-| `predator_cap` / `prey_cap` | 50 / 450 | **25 / 200** |
-| `predator_initial` / `prey_initial` | 10 / 150 | **5 / 75** |
-| `food_max` | 600 | **300** |
+**First attempt (small-scale 600²) failed.** `baseline_smol_ddb` extincted predators at step ~80K from trophic over-pressure: density was 2.5× original, catches/step were ~5× normal in the first 20K steps, prey crashed faster than they could breed back, predators starved before DDB could rescue them. (DDB lowers the breeding threshold but can't put energy in the bank.)
 
-Per-agent food ratio preserved (300/225 ≈ 1.33 vs 600/500 = 1.2). Estimated 1.5-2× speedup vs current setup.
+**Second attempt** (`baseline_med_ddb`) walks back to a less aggressive middle ground:
+
+| Parameter | Original | Failed small | **Middle** (this attempt) |
+|---|---|---|---|
+| `world_size` | 960 | 600 | **800** (70% area, 1.4× density) |
+| `prey_cap` / `predator_cap` | 450 / 50 | 200 / 25 | **300 / 30** (cap ratio 10:1, prey-favored) |
+| `prey_initial` / `predator_initial` | 150 / 10 | 75 / 5 | **100 / 7** |
+| `food_max` | 600 | 300 | **450** |
+| `ddb_pred_threshold` | n/a | 5 | **8** ← bumped (fires earlier in decline) |
+| `ddb_prey_threshold` | n/a | 30 | **30** (unchanged) |
+
+Estimated ~50 sps (~2× original speed, 2M runs ≈ 11h). If middle-ground also collapses, fallback is original 960² geometry + DDB (slower but proven) or adding DDM (density-dependent metabolism) on top of DDB.
 
 **Run length kept at 2M.** A user-explicit preference: 1 long run over 4 short ones — for scientific signal at the long-horizon timescale where K&D's results live.
 
@@ -156,12 +162,13 @@ Per-agent food ratio preserved (300/225 ≈ 1.33 vs 600/500 = 1.2). Estimated 1.
 
 | # | Run | Purpose | Status |
 |---|---|---|---|
-| 0 | `baseline_smol_ddb` (linear, 2M) | Validate the new baseline reproduces LV oscillation + fear evolution | **In flight as of 2026-04-29 19:25 UTC** |
-| 1 | `axis1_residual` (residual reward, 2M) | Does evolution grow useful nonlinear reward structure? | Queued |
-| 2 | `axis2_aligned_smol` (bin-aligned obs, 2M) | Does cross-species kinematic perception prevent trophic collapse? | Queued |
+| 0a | `baseline_smol_ddb` (linear, 2M) | First validation attempt (600² world) | **Failed** — predators extincted at step ~80K from trophic over-pressure. See findings §15.6 |
+| 0b | `baseline_med_ddb` (linear, 2M, middle-ground 800²) | Second validation attempt with less aggressive scale-down + DDB threshold 8 | **Launching** |
+| 1 | `axis1_residual_med` (residual reward, 2M) | Does evolution grow useful nonlinear reward structure? | Queued behind 0b validation |
+| 2 | `axis2_aligned_med` (bin-aligned obs, 2M) | Does cross-species kinematic perception prevent trophic collapse? | Queued |
 | 3 | `axis1+2_combo` (residual + bin-aligned, 2M) | Do the two axes compose, conflict, or amplify? | Queued, gated on results of 1 and 2 |
 
-Each run is ~12-14h on a single L4 GPU at ~$10-12. Total ~3 days for all four runs.
+Each run is ~11h on a single L4 GPU at ~$10. Axis configs (`axis1_residual_med`, `axis2_aligned_med`) will inherit the middle-ground geometry from `baseline_med_ddb` once it validates. Total ~2-3 days for all four runs once baseline lands.
 
 ---
 
