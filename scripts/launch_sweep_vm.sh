@@ -154,9 +154,12 @@ cat > "$LOOP_SCRIPT" <<EOF
 #!/bin/bash
 source ~/evo-env/bin/activate
 cd ~/evo-reward
-CKPT_DIR="results/${EXPERIMENT}/seed_${SEED}/checkpoints"
+# Modern runs write under results/<exp>/seed_<N>/<run_tag>/checkpoints/.
+# Detect any step_*.npz at any depth so --resume picks up after a restart;
+# run_experiment_jax.py's _resolve_run_tag() then selects the latest run_tag.
+SEED_DIR="results/${EXPERIMENT}/seed_${SEED}"
 while true; do
-  if ls "\$CKPT_DIR"/step_*.npz >/dev/null 2>&1; then
+  if find "\$SEED_DIR" -type f -name 'step_*.npz' -print -quit 2>/dev/null | grep -q .; then
     RESUME="--resume"
   else
     RESUME=""
