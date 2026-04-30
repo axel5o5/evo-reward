@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-30T19:38:50+00:00",
+  "updated_at": "2026-04-30T20:09:41+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-04-24T06:19:02.950-07:00",
-        "runtime_hours_current": 150.3281,
+        "runtime_hours_current": 150.8423,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 127.7789,
+        "estimated_current_run_usd": 128.216,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 372,
         "latest_step": 2000000,
-        "latest_age_hours": 11.318,
+        "latest_age_hours": 11.832,
         "total_gb": 119.2571
       },
       "costs": {
-        "compute_current_run": 127.7789,
-        "nat_since_active": 12.56,
-        "storage_current": 2.3366,
-        "live_estimate_total": 142.68,
+        "compute_current_run": 128.216,
+        "nat_since_active": 12.58,
+        "storage_current": 2.3383,
+        "live_estimate_total": 143.13,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 11.403,
+        "progress_file_age_hours": 11.917,
         "evolution_detected": true
       },
       "errors": []
@@ -110,16 +110,16 @@
       },
       "checkpoints": {
         "bucket": "rl-bio-sims-494715-ckpts",
-        "count": 18,
+        "count": 20,
         "latest_step": 1200000,
-        "latest_age_hours": 3.34,
-        "total_gb": 4.5699
+        "latest_age_hours": 3.854,
+        "total_gb": 5.3571
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.0895,
-        "live_estimate_total": 0.09,
+        "storage_current": 0.105,
+        "live_estimate_total": 0.1,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -127,56 +127,56 @@
       "training": {
         "experiment_name": "axis2_aligned",
         "seed": 0,
-        "step": 120000,
+        "step": 160000,
         "total_steps": 10240000,
-        "progress_frac": 0.01172,
-        "sps": 22.439,
-        "eta_hours": 125.28,
+        "progress_frac": 0.01562,
+        "sps": 22.511,
+        "eta_hours": 124.38,
         "population": {
-          "prey": 176,
-          "pred": 5,
+          "prey": 274,
+          "pred": 3,
           "food": 600,
-          "mean_energy": 22.302940368652344
+          "mean_energy": 21.201133728027344
         },
         "reward_weights": {
           "prey": {
             "eat": [
-              0.45809635519981384,
-              1.4059942960739136
+              0.4992411136627197,
+              1.2847380638122559
             ],
             "act": [
-              0.05245010182261467,
-              1.4301739931106567
+              -0.06801919639110565,
+              1.732553243637085
             ],
             "prey": [
-              0.37233051657676697,
-              2.514765977859497
+              0.009837888181209564,
+              6.830592632293701
             ],
             "pred": [
-              -0.3291962444782257,
-              1.7419332265853882
+              -0.12043611705303192,
+              1.9404081106185913
             ]
           },
           "pred": {
             "eat": [
-              -0.0694514736533165,
-              1.157859444618225
+              0.2831735610961914,
+              0.4821845293045044
             ],
             "act": [
-              -0.24956552684307098,
-              0.8004288673400879
+              -0.5395855903625488,
+              1.0269986391067505
             ],
             "prey": [
-              0.2744813859462738,
-              0.24256373941898346
+              0.28955161571502686,
+              0.5602074861526489
             ],
             "pred": [
-              -0.40984317660331726,
-              0.7135529518127441
+              0.6046473979949951,
+              1.1397573947906494
             ]
           }
         },
-        "progress_file_age_hours": 0.025,
+        "progress_file_age_hours": 0.033,
         "evolution_detected": true
       },
       "errors": []
