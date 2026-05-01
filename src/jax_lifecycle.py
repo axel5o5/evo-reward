@@ -132,12 +132,21 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
     Optionally applies density-dependent breeding (DDB): when species
     population is low, the energy threshold (zeta) for breeding is scaled
     down by a squared-saturation factor, making breeding easier at deep
-    bottlenecks. See findings.md §15.
+    bottlenecks.
+
+    With ddb_max_boost > 1.0, also scales the breeding *rate* (kappa_b)
+    upward by the inverse factor (capped at max_boost), so a lone
+    survivor not only breeds at low energy but breeds *frequently*.
+    Guarantees fast recovery from N=1 to N=4 (preserving genetic
+    diversity for evolution to operate on). See findings.md §15.
     """
     kappa_b = config["kappa_b"]
     beta_b = config["beta_b"]
     zeta_prey = config["zeta_b_prey"]
     zeta_pred = config["zeta_b_pred"]
+
+    kappa_b_prey = kappa_b
+    kappa_b_pred = kappa_b
 
     stability = config.get("stability_mechanism", "none")
     apply_ddb = stability in ("ddb", "ddb_ddm")
@@ -150,15 +159,23 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
         floor = float(config.get("ddb_floor", 0.3))
         prey_threshold = float(config.get("ddb_prey_threshold", 30.0))
         pred_threshold = float(config.get("ddb_pred_threshold", 5.0))
+        max_boost = float(config.get("ddb_max_boost", 1.0))
 
         prey_factor = _ddb_factor(prey_count, prey_threshold, floor)
         pred_factor = _ddb_factor(pred_count, pred_threshold, floor)
         zeta_prey = zeta_prey * prey_factor
         zeta_pred = zeta_pred * pred_factor
 
+        if max_boost > 1.0:
+            prey_boost = 1.0 / jnp.maximum(prey_factor, 1.0 / max_boost)
+            pred_boost = 1.0 / jnp.maximum(pred_factor, 1.0 / max_boost)
+            kappa_b_prey = kappa_b * prey_boost
+            kappa_b_pred = kappa_b * pred_boost
+
     zeta = jnp.where(species == 0, zeta_prey, zeta_pred)
+    kappa_b_eff = jnp.where(species == 0, kappa_b_prey, kappa_b_pred)
     exponent = jnp.clip(zeta - beta_b * energies, -700, 700)
-    return kappa_b / (1.0 + jnp.exp(exponent))
+    return kappa_b_eff / (1.0 + jnp.exp(exponent))
 
 
 def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None):

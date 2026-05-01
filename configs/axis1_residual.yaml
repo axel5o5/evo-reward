@@ -26,8 +26,22 @@
 #     that improves fitness." Positive result for axis 1.
 # Either is publishable and easy to interpret.
 #
-# Inherits the new baseline (small-scale + DDB ON) from baseline_smol_ddb.
-# The only diff is reward_type and the residual mutation params.
+# Inherits the proven scaffolds from baseline_med_ddb_ddm (1.35M-step run):
+#   - Middle-scale geometry (800² world, caps 300/30, prey_initial 100, pred 7)
+#   - DDB + DDM stability scaffolds (squared-saturation curves)
+# Plus the strengthened scaffolds from the post-1.35M analysis:
+#   - Tighter thresholds (pred T=4, prey T=40) so the curve fades faster
+#     into the healthy regime — N=4 pred = 50% factor, N=8 pred = 80%.
+#   - floor=0.0: at deep bottlenecks (N=1) cost approaches zero.
+#   - ddb_max_boost=50: kappa_b is scaled UP at low pop (inverse factor),
+#     so a lone survivor breeds every ~20 steps, not every ~1000. This is
+#     the more biologically defensible scaffold (low-density populations
+#     have higher per-capita reproductive output) — pairs naturally with
+#     the threshold lowering. Together they make extinction at N≤3
+#     effectively impossible.
+#
+# The only diff vs baseline_med_ddb_ddm is reward_type and the residual
+# mutation params.
 #
 # See findings.md §15.
 
@@ -40,23 +54,26 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-stability_mechanism:    "ddb"
-ddb_prey_threshold:     30.0
-ddb_pred_threshold:     5.0
-ddb_floor:              0.3
+stability_mechanism:    "ddb_ddm"
+ddb_prey_threshold:     40.0
+ddb_pred_threshold:     4.0
+ddb_floor:              0.0
+ddb_max_boost:          50.0
+ddm_pred_threshold:     4.0
+ddm_floor:              0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
 
-# ─── World (small-scale) ─────────────────────────────────────────────────────
-world_size:         600
+# ─── World (middle-scale) ────────────────────────────────────────────────────
+world_size:         800
 total_steps:        10_240_000
 
-# ─── Population (small-scale) ────────────────────────────────────────────────
-prey_initial:       75
-predator_initial:   5
-prey_cap:           200
-predator_cap:       25
+# ─── Population (middle-scale) ───────────────────────────────────────────────
+prey_initial:       100
+predator_initial:   7
+prey_cap:           300
+predator_cap:       30
 prey_e_initial:     100.0
 predator_e_initial: 100.0
 
@@ -75,10 +92,10 @@ n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               300
-food_initial:           20
+food_max:               450
+food_initial:           30
 food_growth_rate:       0.5
-food_max_regen_per_step: 5
+food_max_regen_per_step: 8
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

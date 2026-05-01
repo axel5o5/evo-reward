@@ -4,6 +4,8 @@ Research repository for **Evolved Reward Structures in Predator-Prey RL: How Age
 
 **[Interactive Explorer](https://evo-reward.axelinter.net)** — browse the reward equation, observation vector, simulation loop, mutation distributions, and more.
 
+> **Working on this project with a Claude agent?** Read [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) first — it points to where we are now (which axes are running, what scaffolds are active, where to find context).
+
 ---
 
 ## Overview

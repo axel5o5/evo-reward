@@ -1,8 +1,17 @@
-# Axis 2 v3 (small-scale): Bin-aligned heading encoding + small-scale + DDB
-# =========================================================================
-# Inherits the new baseline (small-scale + DDB ON). The single diff vs
-# baseline_smol_ddb is the proximity sensor encoding: bin-aligned heading
-# channels instead of the K&D-faithful winner-take-all.
+# Axis 2 v4: Bin-aligned heading encoding + middle-scale + strong DDB+DDM
+# =======================================================================
+# Inherits the proven scaffolds from baseline_med_ddb_ddm (1.35M-step run):
+#   - Middle-scale geometry (800² world, caps 300/30, prey_initial 100, pred 7)
+#   - DDB + DDM stability scaffolds (squared-saturation curves)
+# Plus the strengthened scaffolds from the post-1.35M analysis:
+#   - Tighter thresholds (pred T=4, prey T=40) so curve fades faster.
+#   - floor=0.0: at deep bottlenecks cost approaches zero.
+#   - ddb_max_boost=50: kappa_b scales UP at low pop (lone survivor breeds
+#     every ~20 steps, not every ~1000). More biologically defensible than
+#     pure threshold scaling — pairs naturally with the threshold drop.
+#
+# The diff vs baseline_med_ddb_ddm is the proximity sensor encoding:
+# bin-aligned heading channels instead of K&D-faithful winner-take-all.
 #
 # Per proximity bin, each species channel reports
 # [distance, sin(rel_heading), cos(rel_heading)] of the closest agent of
@@ -11,11 +20,11 @@
 #
 # obs_dim = 256 (proximity, 32×8) + 72 (tactile) + 5 (self) = 333.
 #
-# See findings.md §13 for the bin-aligned design rationale, §15 for the
-# strategic-reset context.
+# See findings.md §13 for bin-aligned design rationale, §15 for the
+# strategic-reset + scaffold-strengthening context.
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis2_aligned_smol"
+experiment_name:    "axis2_aligned"
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
 reward_type:        "linear"
@@ -23,24 +32,27 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-stability_mechanism:    "ddb"
-ddb_prey_threshold:     30.0
-ddb_pred_threshold:     5.0
-ddb_floor:              0.3
+stability_mechanism:    "ddb_ddm"
+ddb_prey_threshold:     40.0
+ddb_pred_threshold:     4.0
+ddb_floor:              0.0
+ddb_max_boost:          50.0
+ddm_pred_threshold:     4.0
+ddm_floor:              0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:                333
 proximity_encoding:     "distance_and_heading"   # bin-aligned, sin/cos relative
 
-# ─── World (small-scale) ─────────────────────────────────────────────────────
-world_size:         600
+# ─── World (middle-scale) ────────────────────────────────────────────────────
+world_size:         800
 total_steps:        10_240_000
 
-# ─── Population (small-scale) ────────────────────────────────────────────────
-prey_initial:       75
-predator_initial:   5
-prey_cap:           200
-predator_cap:       25
+# ─── Population (middle-scale) ───────────────────────────────────────────────
+prey_initial:       100
+predator_initial:   7
+prey_cap:           300
+predator_cap:       30
 prey_e_initial:     100.0
 predator_e_initial: 100.0
 
@@ -59,10 +71,10 @@ n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               300
-food_initial:           20
+food_max:               450
+food_initial:           30
 food_growth_rate:       0.5
-food_max_regen_per_step: 5
+food_max_regen_per_step: 8
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

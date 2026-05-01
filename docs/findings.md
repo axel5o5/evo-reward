@@ -431,8 +431,50 @@ When N=1 (deep bottleneck), `f=0.3` (floor) → predator metabolism is 30% of no
 
 ### 15.10 Status snapshot
 
-- Code committed: DDB + residual reward + small-scale (`dd66d92`), middle-ground (`8582397`), DDM (this commit).
+- Code committed: DDB + residual reward + small-scale (`dd66d92`), middle-ground (`8582397`), DDM (`c56441e`).
 - Tests pass (231/231). End-to-end smoke test of `baseline_med_ddb_ddm` runs cleanly.
 - First validation `baseline_smol_ddb` 2M: predators extinct at ~80K (trophic over-pressure).
 - Second validation `baseline_med_ddb` ran to ~step 100K with pred=1, partial DDB rescue but lone-survivor starvation. Killed to launch v3.
-- Third validation `baseline_med_ddb_ddm` to launch on `evo-reward-gpu`. If LV cycles + fear evolution clean → green-light axis runs.
+- Third validation `baseline_med_ddb_ddm`: completed 2M steps; predators extinct at ~step 1.35M after multiple LV cycles. Strong herd-seeking evolved (`prey_w_prey=+7.69`) but no fear (`prey_w_pred≈0`) — same trophic-collapse-via-herd pattern as axis-2 v1, just delayed ~12× by the scaffolds.
+
+### 15.11 Strengthened scaffolds — strong DDB+DDM with rate boost
+
+**Diagnosis from the 1.35M extinction.** The DDB+DDM scaffolds did their job (extending co-evolution from 80K → 1.35M) but ultimately couldn't prevent the canonical trophic-collapse failure. Two structural weaknesses:
+
+1. **Floor=0.3 is too generous in the healthy regime.** At pred N=8 the curve is at 0.5 (50% cost), still half-scaffolded. Selection pressure on hunting weights was weakened across the entire low-population regime, not just at the bottleneck.
+2. **DDB lowered the breeding bar but didn't accelerate breeding rate.** Even with `zeta_b_eff` near zero at N=1, `kappa_b=1e-3` per step means a lone survivor only attempts a birth every ~1000 steps. To recover from N=1 → N=4 takes thousands of steps × 4 births in best case, much longer if the survivor is a bad hunter — long enough to drift into geometric "can't find prey" failure.
+
+**Fix.** Three knob changes, all applied together:
+
+| Knob | Old | New | Effect |
+|---|---|---|---|
+| `ddb_pred_threshold` | 8.0 | **4.0** | curve fades faster: N=4 → 0.50, N=8 → 0.80 |
+| `ddb_prey_threshold` | 30.0 | **40.0** | scaled to prey cap (10× pred cap) |
+| `ddb_floor` / `ddm_floor` | 0.3 | **0.0** | extreme low-N pays near-zero cost |
+| `ddb_max_boost` (NEW) | n/a | **50.0** | `kappa_b → kappa_b / max(factor, 1/50)` at low pop |
+
+**Mechanics of the rate boost.** `_batch_birth_prob_jax` now scales `kappa_b` *upward* at low pop using the inverse of the squared-saturation factor, capped at `max_boost`:
+
+```
+prey_boost = 1.0 / max(prey_factor, 1.0 / max_boost)
+kappa_b_eff_prey = kappa_b * prey_boost
+# (and symmetric for predators)
+```
+
+Concretely with pred T=4, max_boost=50:
+
+| N_pred | factor | breed bar | breed rate | expected steps/birth |
+|---|---|---|---|---|
+| 1 | 0.06 | 5.9 | 17× | ~60 |
+| 2 | 0.20 | 20 | 5× | ~200 |
+| 4 | 0.50 | 50 | 2× | ~500 |
+| 8 | 0.80 | 80 | 1.25× | ~800 |
+| 15+ | ≈1.0 | ≈100 | 1× | ~1000 |
+
+A lone predator with any positive energy now breeds within ~60 steps. From N=1 → N=4 takes ~600 steps total instead of ~5000. The geometric "lone bad hunter wanders unable to find prey" failure mode is squeezed out — by the time they could starve they've produced a handful of offspring with mutated reward weights, restoring genetic diversity.
+
+**Biological framing.** The rate boost is the more defensible of the two scaffolds: low-density populations in real ecosystems often *do* have higher per-capita reproductive output (less intraspecific competition, more resources per individual). The threshold drop is a pragmatic supplement — biologically less realistic but needed to ensure the boost has a positive-energy individual to act on. Together they're a deliberate scaffold designed to enable the simulation to run on a long enough timescale for evolution to act, not a claim about real-world ecology.
+
+**What this preserves.** At healthy populations (factor > 0.95), both scaffolds are nearly inactive — boost ≈ 1.0×, threshold ≈ normal. Selection pressure on hunting and herding weights is essentially unmodified in the regime where evolution actually has work to do.
+
+**What's now in the axis configs.** Both `configs/axis1_residual.yaml` and `configs/axis2_aligned_smol.yaml` (`experiment_name: axis2_aligned`) now use middle-scale geometry + strong DDB+DDM with rate boost. Skipping a fresh baseline run with these stronger scaffolds in the interest of time — axis runs themselves serve as the validation. Baseline-with-strong-scaffolds can be filled in later if axis results suggest the scaffolds aren't doing their job.
