@@ -478,3 +478,39 @@ A lone predator with any positive energy now breeds within ~60 steps. From N=1 �
 **What this preserves.** At healthy populations (factor > 0.95), both scaffolds are nearly inactive — boost ≈ 1.0×, threshold ≈ normal. Selection pressure on hunting and herding weights is essentially unmodified in the regime where evolution actually has work to do.
 
 **What's now in the axis configs.** Both `configs/axis1_residual.yaml` and `configs/axis2_aligned_smol.yaml` (`experiment_name: axis2_aligned`) now use middle-scale geometry + strong DDB+DDM with rate boost. Skipping a fresh baseline run with these stronger scaffolds in the interest of time — axis runs themselves serve as the validation. Baseline-with-strong-scaffolds can be filled in later if axis results suggest the scaffolds aren't doing their job.
+
+### 15.12 Diversity loss before bottleneck — threshold bump (4→8)
+
+**The problem the first axis-1 launch surfaced.** With the strong scaffolds tuned to engage at N≤4 (`ddb_pred_threshold=4`, `ddm_pred_threshold=4`, floor=0, max_boost=50), the run survived a population crash from peak pred=18 (step 40K) down to pred=2 (step 120K) without going extinct. But inspecting per-genome weights at step 120K revealed the rescue cost too much:
+
+```
+step 80K  (pred=8):  std on `prey` weight = 0.59  range [-1.44, +0.64]
+step 120K (pred=2):  std on `prey` weight = 0.02  range [+0.13, +0.17]
+```
+
+The **two surviving predators at step 120K are the ancestral lineage** — ages 120K and 114K, alive since step 0 / step 6K respectively. Their weights are essentially their initial random draw. One of them has `eat=+0.00` — a predator that gets zero reward signal from catching prey, surviving by physical luck.
+
+The phenotypically-interesting predators died:
+- `pred=+1.27, prey=-1.44` (extreme cooperative, prey-avoidant) — gone
+- `pred=+0.71` (pro-cooperative hunter) — gone
+- `act=+0.80` (high-motor explorer) — gone
+
+Selection wasn't picking the best hunters; it was just **culling the high-variance lineages at random** during the LV crash. The strong scaffolds successfully prevented extinction at N=2, but by the time they engaged the diversity battle was already lost.
+
+**Why scaffolds were too late.** With T=4, the squared-saturation curve is essentially off across the danger zone:
+
+| N (pred) | T=4 factor | T=8 factor |
+|---|---|---|
+| 8 | 0.80 | 0.50 |
+| 10 | 0.86 | 0.61 |
+| 12 | 0.90 | 0.69 |
+| 15 | 0.93 | 0.78 |
+| 20 | 0.96 | 0.86 |
+
+At N=10-15, T=4 means predators pay 86-93% of normal cost — selection is weakly tied to fitness because random death dominates. At N=20+ both T=4 and T=8 are essentially off, so the healthy regime is unchanged.
+
+**Fix.** Bump thresholds 4→8 (predator) and 40→80 (prey, scaled proportionally to caps). Same scaffold *shape*, just engages earlier:
+- N=10-15: factor 0.61-0.78 → predators pay 61-78% of normal, breeding rate 1.3-1.6× normal — survivors live measurably longer, weak hunters can be culled by selection rather than disappearing at random.
+- N=20+: factor ≥0.86 → essentially unscaffolded, selection on hunting/herding weights intact.
+
+**Validation:** killed the first axis-1 run at step ~120K (preserved checkpoints + replays for diversity-loss writeup) and re-launched with T=8 scaffolds. If selection grips earlier this time, surviving genomes at step 100K+ should retain the wider weight distributions seen at step 80K of the first run.

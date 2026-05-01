@@ -32,12 +32,14 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
+# T=8/80 (was 4/40) — see findings.md §15.12. Scaffolds now engage across
+# the N=8-15 predator danger zone instead of only at N≤4.
 stability_mechanism:    "ddb_ddm"
-ddb_prey_threshold:     40.0
-ddb_pred_threshold:     4.0
+ddb_prey_threshold:     80.0
+ddb_pred_threshold:     8.0
 ddb_floor:              0.0
 ddb_max_boost:          50.0
-ddm_pred_threshold:     4.0
+ddm_pred_threshold:     8.0
 ddm_floor:              0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────

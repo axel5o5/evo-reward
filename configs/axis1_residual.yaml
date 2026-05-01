@@ -54,12 +54,19 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
+# Thresholds bumped 4→8 (pred) and 40→80 (prey) on 2026-05-01 after the first
+# axis-1 launch lost diversity by step 120K. With T=4, scaffolds were ~off in
+# the N=10-15 regime where the LV crash hits — selection just culled lineages
+# at random as predators dropped from 18 to 2. Surviving 2 were near-init
+# ancestral genomes (eat≈0!) that had been alive since step 0. Bumping to T=8
+# engages scaffolds across the N=8-15 danger zone (factor 0.5-0.78) without
+# touching the healthy regime (N≥30 still ~0.93-1.0). Findings.md §15.12.
 stability_mechanism:    "ddb_ddm"
-ddb_prey_threshold:     40.0
-ddb_pred_threshold:     4.0
+ddb_prey_threshold:     80.0
+ddb_pred_threshold:     8.0
 ddb_floor:              0.0
 ddb_max_boost:          50.0
-ddm_pred_threshold:     4.0
+ddm_pred_threshold:     8.0
 ddm_floor:              0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
