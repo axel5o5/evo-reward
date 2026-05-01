@@ -462,6 +462,75 @@
       ]
     },
     {
+      "exp": "axis1_residual",
+      "seed": 0,
+      "run_tag": "2026-05-01T1800Z",
+      "final_step": 220000,
+      "n_checkpoints": 11,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 375,
+      "peak_pred": 23,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 375,
+          "pred": 23
+        },
+        {
+          "step": 30001,
+          "prey": 276,
+          "pred": 21
+        },
+        {
+          "step": 50001,
+          "prey": 239,
+          "pred": 10
+        },
+        {
+          "step": 70001,
+          "prey": 245,
+          "pred": 8
+        },
+        {
+          "step": 90001,
+          "prey": 288,
+          "pred": 8
+        },
+        {
+          "step": 110001,
+          "prey": 329,
+          "pred": 7
+        },
+        {
+          "step": 130001,
+          "prey": 348,
+          "pred": 10
+        },
+        {
+          "step": 150001,
+          "prey": 349,
+          "pred": 12
+        },
+        {
+          "step": 170001,
+          "prey": 303,
+          "pred": 12
+        },
+        {
+          "step": 190001,
+          "prey": 274,
+          "pred": 11
+        },
+        {
+          "step": 210001,
+          "prey": 226,
+          "pred": 11
+        }
+      ]
+    },
+    {
       "exp": "axis2_aligned",
       "seed": 0,
       "run_tag": "2026-04-30T1806Z",
