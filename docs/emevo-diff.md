@@ -581,7 +581,7 @@ actual run command, we can't tell.
     contact formula emevo uses via physics engine). Food contact area
     jumps from (10/14)² = 51% of emevo's to 100%.
 
-**Fallback plan.** `configs/baseline_endpoint.yaml` preserves the
+**Fallback plan.** `configs/archive/baseline_endpoint.yaml` preserves the
 endpoint-code parameterization (rectangular 1200×600 world, 9 tactile
 bins, 160° FOV, β=4e-6, ζ=15). Not yet runnable — needs code support
 for rectangular world and variable tactile bin count. Documented as
@@ -902,7 +902,7 @@ the `world_size` scalar in the JAX path:
   * `src/observations.py::_compute_wall_distances` + `_single_tactile` —
     wall raycast and wall tactile contact now use separate x/y bounds.
 
-**`configs/baseline_endpoint.yaml`** now runs end-to-end through
+**`configs/archive/baseline_endpoint.yaml`** now runs end-to-end through
 `sim_step_core` (previously documented as "not yet runnable"). That
 header note is still correct that **tactile mouth-range semantics**
 (`"front-wide"` / `"narrow"`) for prey food eating are not yet

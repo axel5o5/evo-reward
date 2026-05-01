@@ -325,7 +325,7 @@ Session 8 (partial):
 Session 9 complete: Axis 2 — Social behavioral observation
   ✅ src/agents.py — get_observation() extended with social_obs branch (heading + speed of N closest conspecifics)
   ✅ src/observations.py — vectorized JAX path extended with _single_social_obs via vmap
-  ✅ configs/axis2_social_obs.yaml — social_obs: position_heading_velocity, obs_dim: 215, n_social_neighbors: 5
+  ✅ configs/archive/axis2_social_obs.yaml — social_obs: position_heading_velocity, obs_dim: 215, n_social_neighbors: 5
   ✅ analysis/capacity_util.py — compute_social_obs_utilization() binned MI estimator
   ✅ src/metrics.py — optional trajectory saving (save_trajectories flag, off by default)
   ✅ tests: 5 social obs tests pass, 51/51 total green (3 skipped), 9/9 vectorized obs green
@@ -337,8 +337,8 @@ Session 10 complete: Axis 3 — Temporal reward context window + Axis 4 — LSTM
   ✅ src/jax_ppo.py — build_ppo_update_fn_lstm with truncated BPTT (128-step chunks, 8 per rollout)
   ✅ src/jax_state.py — SimState: +obs_buffer (max_agents, k, 4), +lstm_hidden (max_agents, 2, 64), +rollout_init_hidden
   ✅ src/jax_evolution.py — spawn_offspring_jax: obs_buffer/lstm_hidden/rollout_init_hidden reset to zeros at birth
-  ✅ configs/axis3_temporal_reward.yaml — reward_type: temporal, reward_context_window: 10
-  ✅ configs/axis4_lstm_policy.yaml — policy_type: lstm, lstm_hidden_size: 64, lstm_chunk_length: 128
+  ✅ configs/archive/axis3_temporal_reward.yaml — reward_type: temporal, reward_context_window: 10
+  ✅ configs/archive/axis4_lstm_policy.yaml — policy_type: lstm, lstm_hidden_size: 64, lstm_chunk_length: 128
   ✅ analysis/capacity_util.py — compute_temporal_utilization (autocorrelation + sensitivity ratio)
   ✅ analysis/capacity_util.py — compute_lstm_utilization (hidden entropy + ablation delta)
   ✅ tests: 6 temporal + 7 LSTM tests pass, 70/70 total green (3 skipped), no regressions

@@ -6,7 +6,7 @@
 #
 # Example:
 #   scripts/launch_sweep_vm.sh evo-sweep-mouth us-east1-b \
-#     configs/experiments/sweep_mouth_smol.yaml 0
+#     configs/archive/experiments/sweep_mouth_smol.yaml 0
 #
 # Each invocation creates one independent VM in the given zone, sets up the
 # repo, and starts a phase1a tmux session. No state file, no monitor loop —

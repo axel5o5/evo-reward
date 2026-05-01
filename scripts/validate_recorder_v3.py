@@ -37,7 +37,7 @@ from src.environment import _build_physics
 
 def main():
     repo_root = Path(__file__).resolve().parent.parent
-    cfg = yaml.safe_load((repo_root / "configs/axis1_mlp_reward.yaml").read_text())
+    cfg = yaml.safe_load((repo_root / "configs/archive/axis1_mlp_reward.yaml").read_text())
     runtime = yaml.safe_load((repo_root / "configs/runtime/mac.yaml").read_text())
     cfg.update(runtime)
     # Tiny world so the run completes in seconds.

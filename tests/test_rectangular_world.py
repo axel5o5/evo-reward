@@ -58,7 +58,7 @@ def test_world_bounds_scalar_world_size():
 
 @pytest.fixture
 def endpoint_config():
-    cfg = _load("configs/baseline_endpoint.yaml")
+    cfg = _load("configs/archive/baseline_endpoint.yaml")
     # Overlay the default runtime so keys like ppo_* and rollout_steps exist.
     cfg.update(_load("configs/runtime/default.yaml"))
     return cfg

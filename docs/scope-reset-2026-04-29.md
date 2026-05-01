@@ -213,7 +213,7 @@ Each run is ~11h on a single L4 GPU at ~$10. Axis configs (`axis1_residual_med`,
 | Full chronological run-by-run log | `docs/experiments-log.md` |
 | Cross-cutting findings + design decisions | `docs/findings.md` (§15 is the strategic-reset synthesis) |
 | Code-level deviations from emevo | `docs/emevo-diff.md` |
-| Configs for each experiment | `configs/baseline_smol_ddb.yaml`, `configs/axis1_residual.yaml`, `configs/axis2_aligned_smol.yaml` |
+| Configs for each experiment | `configs/axis1_residual.yaml`, `configs/axis2_aligned_smol.yaml` (`configs/archive/baseline_smol_ddb.yaml` retained for context) |
 | Live VM | `evo-reward-gpu` in `us-west1-a` (project `evo-reward`) — tmux sessions per run, logs in `~/<runtag>.log` |
 | Replays | `gs://evo-reward-replays-public/<exp>/seed_<N>/<run_tag>/` |
 | Checkpoints | `gs://evo-reward-ckpts/results/<exp>/seed_<N>/<run_tag>/checkpoints/` |
