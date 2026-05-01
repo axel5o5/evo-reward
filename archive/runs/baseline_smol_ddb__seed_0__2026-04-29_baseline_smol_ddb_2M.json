@@ -1,7 +1,7 @@
 {
   "exp": "baseline_smol_ddb",
   "seed": 0,
-  "run_tag": "baseline_smol_ddb_2M",
+  "run_tag": "2026-04-29_baseline_smol_ddb_2M",
   "summary": {
     "final_step": 2000000,
     "n_checkpoints": 100,

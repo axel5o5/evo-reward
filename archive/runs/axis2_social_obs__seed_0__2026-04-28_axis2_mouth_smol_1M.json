@@ -1,7 +1,7 @@
 {
   "exp": "axis2_social_obs",
   "seed": 0,
-  "run_tag": "axis2_mouth_smol_1M",
+  "run_tag": "2026-04-28_axis2_mouth_smol_1M",
   "summary": {
     "final_step": 1180000,
     "n_checkpoints": 59,

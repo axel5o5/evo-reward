@@ -1,7 +1,7 @@
 {
   "exp": "baseline_faithful",
   "seed": 0,
-  "run_tag": "pre_d18_fix",
+  "run_tag": "2026-04-21_pre_d18_fix",
   "summary": {
     "final_step": 1800000,
     "n_checkpoints": 17,

@@ -1,7 +1,7 @@
 {
   "exp": "exp_tune_eta_0.55",
   "seed": 0,
-  "run_tag": "tune_eta_055",
+  "run_tag": "2026-04-25_tune_eta_055",
   "summary": {
     "final_step": 880000,
     "n_checkpoints": 44,

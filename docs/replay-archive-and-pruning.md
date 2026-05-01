@@ -156,6 +156,56 @@ Edge cases worth thinking about each time:
   after that won't be in the delete list, but you don't want any
   partial state racing with rebuild_index either.
 
+## Renaming for chronological sort: `scripts/archive_rename.py`
+
+Run tags accumulated three different conventions over time
+(`d19`, `phase1a-v5`, `2026-04-24T1646Z_v8`...) which made it hard to
+tell at a glance what was old versus new. The fix: prefix every
+non-date-prefixed tag with the ISO date of the earliest blob's GCS
+`time_created`. The exp/seed structure is untouched — only the
+`<run_tag>` segment changes.
+
+```
+exp_tune_eta_0.45/seed_0/tune_eta_045/  →  exp_tune_eta_0.45/seed_0/2026-04-24_tune_eta_045/
+baseline_faithful/seed_0/d19/            →  baseline_faithful/seed_0/2026-04-23_d19/
+baseline_faithful/seed_0/<step_NNN>/     →  baseline_faithful/seed_0/2026-04-21/<step_NNN>/  (untagged → tagged)
+```
+
+The script:
+
+1. Lists the bucket anonymously and finds every `(exp, seed, run_tag)`
+   tuple whose tag doesn't already start with `YYYY-MM-DD`.
+2. Pulls the earliest blob `time_created` per run to derive the date.
+3. Prints a dry-run plan (default) — review before executing.
+4. With `--execute`: runs `gsutil -m mv -r` per run, renames the local
+   `archive/runs/<exp>__seed_<N>__<old>.json` files (and rewrites their
+   embedded `run_tag` field), and prints the substitutions to apply to
+   `ARCHIVE_POLICY` in `archive_prune.py`.
+
+After execute:
+
+```bash
+# Apply the printed (exp, seed, "old") → (exp, seed, "new") edits to
+# scripts/archive_prune.py manually. The script does NOT auto-edit it
+# to avoid silent code changes.
+
+# Rebuild the bucket-side index from the new paths:
+python -c "from scripts.archive_prune import _rebuild_index_anon; \
+           _rebuild_index_anon('evo-reward-replays-public')"
+
+# Re-upload summary.json (regenerates from the renamed archive/runs/* files):
+python scripts/archive_summary.py --upload
+
+# Sync local mirrors:
+gsutil cp gs://evo-reward-replays-public/index.json dashboard/site/public/replays/index.json
+cp archive/SUMMARY.json dashboard/site/public/replays/summary.json
+```
+
+**Caveat: URL bookmarks break.** The replay page encodes the run via
+`?tag=...&exp=...&seed=...&step=...`. Anyone holding a URL with an old
+tag value will 404 after the rename. There's no compatibility mapping
+on the dashboard side; this is the cost of doing it.
+
 ## What the dashboard panel shows
 
 The "Archived runs" panel on the Replay page reads

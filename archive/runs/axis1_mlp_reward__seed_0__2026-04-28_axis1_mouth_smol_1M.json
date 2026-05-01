@@ -1,7 +1,7 @@
 {
   "exp": "axis1_mlp_reward",
   "seed": 0,
-  "run_tag": "axis1_mouth_smol_1M",
+  "run_tag": "2026-04-28_axis1_mouth_smol_1M",
   "summary": {
     "final_step": 1000000,
     "n_checkpoints": 50,

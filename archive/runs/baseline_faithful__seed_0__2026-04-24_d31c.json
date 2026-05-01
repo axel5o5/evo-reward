@@ -1,7 +1,7 @@
 {
   "exp": "baseline_faithful",
   "seed": 0,
-  "run_tag": "d31c",
+  "run_tag": "2026-04-24_d31c",
   "summary": {
     "final_step": 80000,
     "n_checkpoints": 4,

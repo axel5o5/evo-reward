@@ -1,7 +1,7 @@
 {
   "exp": "baseline_med_ddb_ddm",
   "seed": 0,
-  "run_tag": "baseline_med_ddb_ddm_2M",
+  "run_tag": "2026-04-30_baseline_med_ddb_ddm_2M",
   "summary": {
     "final_step": 1980000,
     "n_checkpoints": 99,

@@ -94,28 +94,28 @@ ARCHIVE_POLICY: dict[str, list[tuple[str, int, str]]] = {
     # Most recent / actively meaningful — full scrubbability.
     "keep_all": [
         ("axis2_aligned",         0, "2026-04-30T1806Z"),
-        ("axis2_social_obs",      0, "axis2_mouth_smol_1M"),
-        ("axis2_social_obs",      1, "axis2_mouth_smol_2M_seed1"),
-        ("baseline_med_ddb",      0, "baseline_med_ddb_2M"),
-        ("baseline_med_ddb_ddm",  0, "baseline_med_ddb_ddm_2M"),
-        ("baseline_smol_ddb",     0, "baseline_smol_ddb_2M"),
+        ("axis2_social_obs",      0, "2026-04-28_axis2_mouth_smol_1M"),
+        ("axis2_social_obs",      1, "2026-04-29_axis2_mouth_smol_2M_seed1"),
+        ("baseline_med_ddb",      0, "2026-04-30_baseline_med_ddb_2M"),
+        ("baseline_med_ddb_ddm",  0, "2026-04-30_baseline_med_ddb_ddm_2M"),
+        ("baseline_smol_ddb",     0, "2026-04-29_baseline_smol_ddb_2M"),
     ],
     # Long runs we still want to scrub through, but thinned to ~10 ckpts.
     "keep_sparse": [
-        ("axis1_mlp_reward",      0, "axis1_mouth_smol_1M"),
+        ("axis1_mlp_reward",      0, "2026-04-28_axis1_mouth_smol_1M"),
         ("axis1_residual",        0, "2026-05-01T1646Z"),  # T=4 v3 — diversity-loss case study
-        ("exp_sweep_mouth_smol",  0, "sweep_mouth_smol_1M"),
-        ("exp_sweep_mouth_smol",  1, "sweep_mouth_smol_1M_seed1"),
-        ("exp_tune_eta_0.50",     0, "tune_eta_050"),
-        ("exp_tune_eta_0.55",     0, "tune_eta_055"),
+        ("exp_sweep_mouth_smol",  0, "2026-04-27_sweep_mouth_smol_1M"),
+        ("exp_sweep_mouth_smol",  1, "2026-04-27_sweep_mouth_smol_1M_seed1"),
+        ("exp_tune_eta_0.50",     0, "2026-04-25_tune_eta_050"),
+        ("exp_tune_eta_0.55",     0, "2026-04-25_tune_eta_055"),
         ("exp_v8_no_cooldown",    0, "2026-04-23T1558Z_v8-no-cooldown-seed0"),
     ],
     # Historical / superseded — keep just the final checkpoint so the end
     # state is still playable, but drop the trajectory.
     "keep_last_only": [
-        ("axis1_mlp_reward",      0, "axis1_mouth_smol_1M_mut03"),
-        ("axis1_mlp_reward",      0, "axis1_mouth_smol_1M_mut08"),
-        ("baseline_faithful",     0, ""),  # legacy untagged
+        ("axis1_mlp_reward",      0, "2026-04-29_axis1_mouth_smol_1M_mut03"),
+        ("axis1_mlp_reward",      0, "2026-04-28_axis1_mouth_smol_1M_mut08"),
+        ("baseline_faithful",     0, "2026-04-21"),  # was legacy untagged
         ("baseline_faithful",     0, "2026-04-21T1935Z_post-d19"),
         ("baseline_faithful",     0, "2026-04-21T2159Z_phase1a-v2"),
         ("baseline_faithful",     0, "2026-04-21T2319Z_phase1a-v3"),
@@ -123,18 +123,18 @@ ARCHIVE_POLICY: dict[str, list[tuple[str, int, str]]] = {
         ("baseline_faithful",     0, "2026-04-22T1546Z_phase1a-v5"),
         ("baseline_faithful",     0, "2026-04-23T0400Z"),
         ("baseline_faithful",     0, "2026-04-23T1008Z"),
-        ("baseline_faithful",     0, "d19"),
-        ("baseline_faithful",     0, "d28a"),
-        ("baseline_faithful",     0, "d28b"),
-        ("baseline_faithful",     0, "d30"),
-        ("baseline_faithful",     0, "d31a"),
-        ("baseline_faithful",     0, "d31b"),
-        ("baseline_faithful",     0, "d31c"),
-        ("baseline_faithful",     0, "d31d"),
-        ("baseline_faithful",     0, "pre_d18_fix"),
+        ("baseline_faithful",     0, "2026-04-23_d19"),
+        ("baseline_faithful",     0, "2026-04-24_d28a"),
+        ("baseline_faithful",     0, "2026-04-24_d28b"),
+        ("baseline_faithful",     0, "2026-04-24_d30"),
+        ("baseline_faithful",     0, "2026-04-24_d31a"),
+        ("baseline_faithful",     0, "2026-04-24_d31b"),
+        ("baseline_faithful",     0, "2026-04-24_d31c"),
+        ("baseline_faithful",     0, "2026-04-24_d31d"),
+        ("baseline_faithful",     0, "2026-04-21_pre_d18_fix"),
         ("baseline_faithful",     1, "2026-04-22T2328Z_phase1a-v7-seed1-sensor120"),
-        ("baseline_faithful",     1, "d19"),
-        ("exp_tune_eta_0.45",     0, "tune_eta_045"),
+        ("baseline_faithful",     1, "2026-04-24_d19"),
+        ("exp_tune_eta_0.45",     0, "2026-04-24_tune_eta_045"),
     ],
 }
 

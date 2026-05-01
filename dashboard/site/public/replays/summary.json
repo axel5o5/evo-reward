@@ -3,7 +3,7 @@
     {
       "exp": "axis1_mlp_reward",
       "seed": 0,
-      "run_tag": "axis1_mouth_smol_1M",
+      "run_tag": "2026-04-28_axis1_mouth_smol_1M",
       "final_step": 1000000,
       "n_checkpoints": 50,
       "extinct": true,
@@ -267,46 +267,7 @@
     {
       "exp": "axis1_mlp_reward",
       "seed": 0,
-      "run_tag": "axis1_mouth_smol_1M_mut03",
-      "final_step": 100000,
-      "n_checkpoints": 5,
-      "extinct": false,
-      "extinction_step": null,
-      "extinct_species": "none",
-      "peak_prey": 450,
-      "peak_pred": 23,
-      "trajectory": [
-        {
-          "step": 10001,
-          "prey": 450,
-          "pred": 15
-        },
-        {
-          "step": 30001,
-          "prey": 431,
-          "pred": 22
-        },
-        {
-          "step": 50001,
-          "prey": 320,
-          "pred": 23
-        },
-        {
-          "step": 70001,
-          "prey": 258,
-          "pred": 20
-        },
-        {
-          "step": 90001,
-          "prey": 238,
-          "pred": 12
-        }
-      ]
-    },
-    {
-      "exp": "axis1_mlp_reward",
-      "seed": 0,
-      "run_tag": "axis1_mouth_smol_1M_mut08",
+      "run_tag": "2026-04-28_axis1_mouth_smol_1M_mut08",
       "final_step": 380000,
       "n_checkpoints": 19,
       "extinct": true,
@@ -409,6 +370,45 @@
           "step": 370001,
           "prey": 450,
           "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "axis1_mlp_reward",
+      "seed": 0,
+      "run_tag": "2026-04-29_axis1_mouth_smol_1M_mut03",
+      "final_step": 100000,
+      "n_checkpoints": 5,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 23,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 30001,
+          "prey": 431,
+          "pred": 22
+        },
+        {
+          "step": 50001,
+          "prey": 320,
+          "pred": 23
+        },
+        {
+          "step": 70001,
+          "prey": 258,
+          "pred": 20
+        },
+        {
+          "step": 90001,
+          "prey": 238,
+          "pred": 12
         }
       ]
     },
@@ -768,7 +768,7 @@
     {
       "exp": "axis2_social_obs",
       "seed": 0,
-      "run_tag": "axis2_mouth_smol_1M",
+      "run_tag": "2026-04-28_axis2_mouth_smol_1M",
       "final_step": 1180000,
       "n_checkpoints": 59,
       "extinct": true,
@@ -1077,7 +1077,7 @@
     {
       "exp": "axis2_social_obs",
       "seed": 1,
-      "run_tag": "axis2_mouth_smol_2M_seed1",
+      "run_tag": "2026-04-29_axis2_mouth_smol_2M_seed1",
       "final_step": 20000,
       "n_checkpoints": 1,
       "extinct": false,
@@ -1096,7 +1096,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "",
+      "run_tag": "2026-04-21",
       "final_step": 100000,
       "n_checkpoints": 1,
       "extinct": false,
@@ -1311,6 +1311,105 @@
           "step": 390001,
           "prey": 450,
           "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-21_pre_d18_fix",
+      "final_step": 1800000,
+      "n_checkpoints": 17,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 1,
+          "prey": 337,
+          "pred": 50
+        },
+        {
+          "step": 100001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 500001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 800001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 804501,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 809501,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1090001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1190001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1290001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1390001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1490001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1590001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1600001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1690001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1790001,
+          "prey": 450,
+          "pred": 50
         }
       ]
     },
@@ -1768,7 +1867,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d19",
+      "run_tag": "2026-04-23_d19",
       "final_step": 220000,
       "n_checkpoints": 11,
       "extinct": true,
@@ -1837,7 +1936,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d28a",
+      "run_tag": "2026-04-24_d28a",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": true,
@@ -1871,7 +1970,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d28b",
+      "run_tag": "2026-04-24_d28b",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": true,
@@ -1905,7 +2004,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d30",
+      "run_tag": "2026-04-24_d30",
       "final_step": 220000,
       "n_checkpoints": 11,
       "extinct": true,
@@ -1974,7 +2073,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d31a",
+      "run_tag": "2026-04-24_d31a",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": true,
@@ -2008,7 +2107,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d31b",
+      "run_tag": "2026-04-24_d31b",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": true,
@@ -2042,7 +2141,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d31c",
+      "run_tag": "2026-04-24_d31c",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": false,
@@ -2076,7 +2175,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 0,
-      "run_tag": "d31d",
+      "run_tag": "2026-04-24_d31d",
       "final_step": 80000,
       "n_checkpoints": 4,
       "extinct": false,
@@ -2104,105 +2203,6 @@
           "step": 70001,
           "prey": 104,
           "pred": 2
-        }
-      ]
-    },
-    {
-      "exp": "baseline_faithful",
-      "seed": 0,
-      "run_tag": "pre_d18_fix",
-      "final_step": 1800000,
-      "n_checkpoints": 17,
-      "extinct": false,
-      "extinction_step": null,
-      "extinct_species": "none",
-      "peak_prey": 450,
-      "peak_pred": 50,
-      "trajectory": [
-        {
-          "step": 1,
-          "prey": 337,
-          "pred": 50
-        },
-        {
-          "step": 100001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 500001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 800001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 804501,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 809501,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 890001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 990001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1090001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1190001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1290001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1390001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1490001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1590001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1600001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1690001,
-          "prey": 450,
-          "pred": 50
-        },
-        {
-          "step": 1790001,
-          "prey": 450,
-          "pred": 50
         }
       ]
     },
@@ -2318,7 +2318,7 @@
     {
       "exp": "baseline_faithful",
       "seed": 1,
-      "run_tag": "d19",
+      "run_tag": "2026-04-24_d19",
       "final_step": 20000,
       "n_checkpoints": 1,
       "extinct": false,
@@ -2337,7 +2337,7 @@
     {
       "exp": "baseline_med_ddb",
       "seed": 0,
-      "run_tag": "baseline_med_ddb_2M",
+      "run_tag": "2026-04-30_baseline_med_ddb_2M",
       "final_step": 120000,
       "n_checkpoints": 6,
       "extinct": true,
@@ -2381,7 +2381,7 @@
     {
       "exp": "baseline_med_ddb_ddm",
       "seed": 0,
-      "run_tag": "baseline_med_ddb_ddm_2M",
+      "run_tag": "2026-04-30_baseline_med_ddb_ddm_2M",
       "final_step": 1980000,
       "n_checkpoints": 99,
       "extinct": true,
@@ -2890,7 +2890,7 @@
     {
       "exp": "baseline_smol_ddb",
       "seed": 0,
-      "run_tag": "baseline_smol_ddb_2M",
+      "run_tag": "2026-04-29_baseline_smol_ddb_2M",
       "final_step": 2000000,
       "n_checkpoints": 100,
       "extinct": true,
@@ -3404,7 +3404,7 @@
     {
       "exp": "exp_sweep_mouth_smol",
       "seed": 0,
-      "run_tag": "sweep_mouth_smol_1M",
+      "run_tag": "2026-04-27_sweep_mouth_smol_1M",
       "final_step": 1000000,
       "n_checkpoints": 50,
       "extinct": false,
@@ -3668,7 +3668,7 @@
     {
       "exp": "exp_sweep_mouth_smol",
       "seed": 1,
-      "run_tag": "sweep_mouth_smol_1M_seed1",
+      "run_tag": "2026-04-27_sweep_mouth_smol_1M_seed1",
       "final_step": 720000,
       "n_checkpoints": 36,
       "extinct": false,
@@ -3862,7 +3862,7 @@
     {
       "exp": "exp_tune_eta_0.45",
       "seed": 0,
-      "run_tag": "tune_eta_045",
+      "run_tag": "2026-04-24_tune_eta_045",
       "final_step": 140000,
       "n_checkpoints": 7,
       "extinct": false,
@@ -3911,7 +3911,7 @@
     {
       "exp": "exp_tune_eta_0.50",
       "seed": 0,
-      "run_tag": "tune_eta_050",
+      "run_tag": "2026-04-25_tune_eta_050",
       "final_step": 1000000,
       "n_checkpoints": 50,
       "extinct": true,
@@ -4175,7 +4175,7 @@
     {
       "exp": "exp_tune_eta_0.55",
       "seed": 0,
-      "run_tag": "tune_eta_055",
+      "run_tag": "2026-04-25_tune_eta_055",
       "final_step": 880000,
       "n_checkpoints": 44,
       "extinct": true,

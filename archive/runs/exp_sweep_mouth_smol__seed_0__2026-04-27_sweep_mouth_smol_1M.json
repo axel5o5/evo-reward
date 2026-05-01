@@ -1,7 +1,7 @@
 {
   "exp": "exp_sweep_mouth_smol",
   "seed": 0,
-  "run_tag": "sweep_mouth_smol_1M",
+  "run_tag": "2026-04-27_sweep_mouth_smol_1M",
   "summary": {
     "final_step": 1000000,
     "n_checkpoints": 50,
