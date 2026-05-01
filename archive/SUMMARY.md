@@ -8,6 +8,7 @@ Per-checkpoint detail lives in `runs/<exp>__seed_<N>__<tag>.json`.
 | axis1_mlp_reward | 0 | axis1_mouth_smol_1M | 1,000,000 | 50 | yes | 370,001 | pred | 450 | 36 |
 | axis1_mlp_reward | 0 | axis1_mouth_smol_1M_mut03 | 100,000 | 5 | no | — | none | 450 | 23 |
 | axis1_mlp_reward | 0 | axis1_mouth_smol_1M_mut08 | 380,000 | 19 | yes | 290,001 | pred | 450 | 20 |
+| axis1_residual | 0 | 2026-05-01T1646Z | 140,000 | 7 | no | — | none | 300 | 18 |
 | axis2_aligned | 0 | 2026-04-30T1806Z | 1,500,000 | 58 | yes | 610,001 | pred | 450 | 23 |
 | axis2_social_obs | 0 | axis2_mouth_smol_1M | 1,180,000 | 59 | yes | 1,090,001 | pred | 450 | 28 |
 | axis2_social_obs | 1 | axis2_mouth_smol_2M_seed1 | 20,000 | 1 | no | — | none | 450 | 18 |

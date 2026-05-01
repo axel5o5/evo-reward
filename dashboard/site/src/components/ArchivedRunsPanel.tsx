@@ -29,12 +29,17 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
       .catch((e) => setError(String(e)));
   }, []);
 
-  const liveKeys = useMemo(() => {
-    const s = new Set<string>();
+  // Per-run live checkpoint counts. Used to classify each archived row as
+  // live (every archived ckpt is still on disk), thinned (some pruned), or
+  // pruned (none on disk). Just `Set.has` would call every row "live" after
+  // a thin-only prune, which hides the actual state.
+  const liveCounts = useMemo(() => {
+    const m = new Map<string, number>();
     for (const r of liveReplays) {
-      s.add(`${r.exp}::${r.seed}::${r.run_tag || ""}`);
+      const key = `${r.exp}::${r.seed}::${r.run_tag || ""}`;
+      m.set(key, (m.get(key) ?? 0) + 1);
     }
-    return s;
+    return m;
   }, [liveReplays]);
 
   const rows = useMemo(() => {
@@ -59,6 +64,17 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
 
   const total = summary.runs.length;
   const extinctCount = summary.runs.filter((r) => r.extinct).length;
+  const stateCounts = useMemo(() => {
+    let live = 0, thinned = 0, pruned = 0;
+    for (const r of summary.runs) {
+      const key = `${r.exp}::${r.seed}::${r.run_tag || ""}`;
+      const n = liveCounts.get(key) ?? 0;
+      if (n === 0) pruned++;
+      else if (n < r.n_checkpoints) thinned++;
+      else live++;
+    }
+    return { live, thinned, pruned };
+  }, [summary, liveCounts]);
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -71,8 +87,8 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
             Archived runs ({total})
           </div>
           <div className="text-[11px] text-gray-500 dark:text-gray-400">
-            {extinctCount} went extinct · documentation preserved when replay
-            binaries are pruned
+            {stateCounts.live} live · {stateCounts.thinned} thinned ·{" "}
+            {stateCounts.pruned} pruned · {extinctCount} went extinct
           </div>
         </div>
         <span className="text-gray-400 text-sm">{open ? "▾" : "▸"}</span>
@@ -103,12 +119,18 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
             <tbody>
               {rows.map((r) => {
                 const key = `${r.exp}::${r.seed}::${r.run_tag || ""}`;
-                const isLive = liveKeys.has(key);
+                const liveN = liveCounts.get(key) ?? 0;
+                const status: "live" | "thinned" | "pruned" =
+                  liveN === 0
+                    ? "pruned"
+                    : liveN < r.n_checkpoints
+                      ? "thinned"
+                      : "live";
                 return (
                   <tr
                     key={key}
                     className={`border-t border-gray-100 dark:border-gray-800 ${
-                      isLive ? "" : "text-gray-500 dark:text-gray-400"
+                      status === "pruned" ? "text-gray-500 dark:text-gray-400" : ""
                     }`}
                   >
                     <td className="px-3 py-2">
@@ -149,14 +171,29 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
                     <td className="px-3 py-2">
                       <TrajectorySpark traj={r.trajectory} />
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      {isLive ? (
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                          live
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400">pruned</span>
-                      )}
+                    <td
+                      className="px-3 py-2 text-center"
+                      title={
+                        status === "thinned"
+                          ? `${liveN} of ${r.n_checkpoints} checkpoints still on disk`
+                          : status === "live"
+                            ? `all ${r.n_checkpoints} checkpoints on disk`
+                            : `binaries pruned, summary preserved`
+                      }
+                    >
+                      <span
+                        className={`text-[10px] ${
+                          status === "live"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : status === "thinned"
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-gray-400"
+                        }`}
+                      >
+                        {status === "thinned"
+                          ? `thinned ${liveN}/${r.n_checkpoints}`
+                          : status}
+                      </span>
                     </td>
                   </tr>
                 );

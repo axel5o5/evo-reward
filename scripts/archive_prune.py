@@ -80,7 +80,7 @@ def _anon_list(bucket_name: str) -> list[ReplayRef]:
 # Run identifiers we never touch — currently the live recording in progress.
 # Each entry is a path prefix relative to the bucket root.
 EXCLUDED_PREFIXES = (
-    "axis1_residual/seed_0/2026-05-01T1646Z/",
+    "axis1_residual/seed_0/2026-05-01T1800Z/",  # axis-1 v3 (live)
 )
 
 
@@ -103,6 +103,7 @@ ARCHIVE_POLICY: dict[str, list[tuple[str, int, str]]] = {
     # Long runs we still want to scrub through, but thinned to ~10 ckpts.
     "keep_sparse": [
         ("axis1_mlp_reward",      0, "axis1_mouth_smol_1M"),
+        ("axis1_residual",        0, "2026-05-01T1646Z"),  # T=4 v3 — diversity-loss case study
         ("exp_sweep_mouth_smol",  0, "sweep_mouth_smol_1M"),
         ("exp_sweep_mouth_smol",  1, "sweep_mouth_smol_1M_seed1"),
         ("exp_tune_eta_0.50",     0, "tune_eta_050"),
