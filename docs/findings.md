@@ -516,3 +516,28 @@ At N=10-15, T=4 means predators pay 86-93% of normal cost — selection is weakl
 **Validation:** killed the first axis-1 run at step ~120K (preserved checkpoints + replays for diversity-loss writeup) and re-launched with T=8 scaffolds. If selection grips earlier this time, surviving genomes at step 100K+ should retain the wider weight distributions seen at step 80K of the first run.
 
 **Caveat on scale.** Diversity preservation also depends on absolute population size — at predator_cap=30, even peak pred=18 means only ~18 distinct genomes in play simultaneously. Paper baseline (cap=50, peak ~25-30) has ~1.4-1.7× more genomes carrying the population's evolutionary state, which is structurally better for surviving an LV crash without losing rare variants. Middle-scale geometry trades some diversity for ~1.5× faster iteration. The scaffolds in this section partially compensate by preventing deep bottlenecks; they don't fully replace the larger-population effect. If/when an axis result motivates a final paper-scale run, the 960²+cap-50 setup should naturally preserve diversity better even with weaker scaffolds.
+
+### 15.13 Med-large scale + T=10 — final pre-axis tune
+
+After the T=4 → T=8 bump above, decided to also bump scale (med-large: world=880, prey_cap=375, pred_cap=40, food_max=525) to reach a regime closer to paper baseline (cap=50) without paying the full iteration tax. Pred_cap=40 carries ~33% more genome diversity through LV crashes than cap=30, structurally — independent of scaffold timing.
+
+Threshold also bumped one more notch: **T=10 (pred), T=100 (prey)**. With the larger cap, peak predator pop is ~24-28 (vs ~18 at cap=30), so the scaffold curve needs to shift right to keep the healthy regime mostly unscaffolded:
+
+| N (pred) | T=8 | **T=10** | T=12 | comment |
+|---|---|---|---|---|
+| 8 | 0.50 | 0.39 | 0.31 | pre-bottleneck |
+| **10** | 0.61 | **0.50** | 0.41 | LV-crash inflection |
+| 12 | 0.69 | 0.59 | 0.50 | mid-crash |
+| 15 | 0.78 | 0.69 | 0.61 | early-crash |
+| 20 | 0.86 | 0.80 | 0.74 | recovery |
+| 24 | 0.90 | **0.85** | 0.80 | ~peak |
+| 30 | 0.94 | 0.90 | 0.86 | healthy |
+
+T=10 hits factor=0.5 right at the N=10 LV-crash inflection (where the first run lost most of its diversity), factor=0.69 at N=15 (early crash), and factor=0.85 at N=24 (peak — selection mostly intact). T=12 was rejected as engaging too aggressively at peak (0.80 factor — paying 20% less than normal even when healthy, which would visibly blunt selection in a regime where we want it intact).
+
+**Iteration cost.** ~32 sps at cap=30 → ~26 sps at cap=40 (estimate based on agent-count scaling). 10M steps: 87h → 107h, +20h / +1 day. Acceptable for the diversity gain.
+
+**This is the configuration we're running for axis-1 and axis-2:**
+- world=880, prey_cap=375, pred_cap=40
+- T=10 (pred), T=100 (prey), floor=0, max_boost=50
+- middle-ground between paper baseline (would naturally preserve diversity but slow iteration) and the original small-scale run (fast but hostile to evolution)

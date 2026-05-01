@@ -32,29 +32,28 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-# T=8/80 (was 4/40) — see findings.md §15.12. Scaffolds now engage across
-# the N=8-15 predator danger zone instead of only at N≤4.
+# T=10 (pred), T=100 (prey) — see findings.md §15.12.
 stability_mechanism:    "ddb_ddm"
-ddb_prey_threshold:     80.0
-ddb_pred_threshold:     8.0
+ddb_prey_threshold:     100.0
+ddb_pred_threshold:     10.0
 ddb_floor:              0.0
 ddb_max_boost:          50.0
-ddm_pred_threshold:     8.0
+ddm_pred_threshold:     10.0
 ddm_floor:              0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:                333
 proximity_encoding:     "distance_and_heading"   # bin-aligned, sin/cos relative
 
-# ─── World (middle-scale) ────────────────────────────────────────────────────
-world_size:         800
+# ─── World (med-large scale) ─────────────────────────────────────────────────
+world_size:         880
 total_steps:        10_240_000
 
-# ─── Population (middle-scale) ───────────────────────────────────────────────
-prey_initial:       100
-predator_initial:   7
-prey_cap:           300
-predator_cap:       30
+# ─── Population (med-large scale) ────────────────────────────────────────────
+prey_initial:       125
+predator_initial:   9
+prey_cap:           375
+predator_cap:       40
 prey_e_initial:     100.0
 predator_e_initial: 100.0
 
@@ -73,10 +72,10 @@ n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               450
-food_initial:           30
+food_max:               525
+food_initial:           35
 food_growth_rate:       0.5
-food_max_regen_per_step: 8
+food_max_regen_per_step: 9
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-01 (axis-1 launch with strong DDB+DDM+rate-boost scaffolds).
+**Last updated:** 2026-05-01 (axis-1 v2 launch — med-large scale + T=10 scaffolds after diversity-loss diagnosis from v1).
 
 ## Where we are in the project
 
@@ -42,8 +42,8 @@ When a species' population is low, breeding becomes easier in two ways:
 
 1. **Threshold drop.** `zeta_b_eff = zeta_b * factor`, where `factor` follows
    a squared-saturation curve `f(N) = max(floor, N²/(N²+T²))`. With current
-   knobs (pred T=4, prey T=40, floor=0): N=1 → factor 0.06, N=4 → 0.50,
-   N=8 → 0.80, N=15+ → ~1.0.
+   knobs (pred T=10, prey T=100, floor=0): N=4 → factor 0.14, N=10 → 0.50,
+   N=15 → 0.69, N=24 (peak) → 0.85, N=30+ → ~0.90+ (essentially off).
 2. **Rate boost (added 2026-05-01).** `kappa_b_eff = kappa_b / max(factor, 1/50)`.
    Lone survivor's breeding rate scales up to 17× normal at N=1 (capped at
    50× for pop near zero), fading to 1× at healthy pop. This is the more
