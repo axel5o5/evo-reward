@@ -32,14 +32,16 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-# DDB only with energy-weighted boost — see findings.md §15.14.
-# T=10 (pred), T=100 (prey) — see findings.md §15.13.
-stability_mechanism:        "ddb"
-ddb_prey_threshold:         100.0
-ddb_pred_threshold:         10.0
-ddb_floor:                  0.0
-ddb_max_boost:              50.0
-ddb_boost_distribution:     "energy_weighted"
+# DDB+DDM with energy-weighted rate boost (v8 — see findings.md §15.15).
+# T=10 (pred), T=100 (prey).
+stability_mechanism:             "ddb_ddm"
+ddb_prey_threshold:              100.0
+ddb_pred_threshold:              10.0
+ddb_floor:                       0.0
+ddb_max_boost:                   50.0
+ddb_boost_distribution_alpha:    0.5    # see findings.md §15.16
+ddm_pred_threshold:              10.0
+ddm_floor:                       0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:                333

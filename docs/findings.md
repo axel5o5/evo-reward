@@ -605,3 +605,93 @@ The top hunter breeds 9.6× normal rate; the worst breeds at 0.6× normal — *l
 - `ddb_floor: 0.0`, `ddb_max_boost: 50.0`
 - `ddb_boost_distribution: "energy_weighted"` (NEW)
 - Med-large scale: world=880, prey_cap=375, pred_cap=40
+
+### 15.15 The v7 extinction — DDM is not optional
+
+**v7 launched (med-large + T=10 + DDB only + energy-weighted boost) and predators went extinct at step 88K.** Trajectory:
+
+| step | pred | catches/10K | note |
+|---|---|---|---|
+| 40K | 22 | 167 | peak |
+| 50K | 19 | 119 | crash phase begins |
+| 60K | 12 | 90 | descending fast |
+| 70K | 6 | 36 | bottleneck |
+| 80K | 4 | 34 | edge |
+| 90K | 0 | 13 | extinct |
+
+Compare to v3 (uniform boost + DDM) at matched steps: pred=8 at step 80K and step 90K. v3 held steady through the same regime where v7 collapsed.
+
+**The diagnosis.** I dropped DDM and added energy-weighted DDB at the same time, treating them as a coupled change. But they protect against different failure modes:
+
+- **DDM (decay scaling)** keeps the *population* alive during LV crashes. When prey crash, ALL predators lose energy simultaneously. Without DDM, full-cost decay finishes off the predator population before any individual can recover.
+- **DDB rate boost (uniform)** kept low-energy predators reproducing. The selection-killer.
+- **DDB rate boost (energy-weighted)** redistributes breeding to top performers. But this requires *some* predators to be high-energy — when everyone is starving together (mid-LV crash), there's no fitness gradient to concentrate on.
+
+The earlier v3 ran successfully because:
+- DDM kept the population from crashing to extinction (everyone survives the crash, weakened)
+- Uniform DDB kept everyone reproducing (some weakly, but enough to recover)
+
+I dropped DDM thinking energy-weighted DDB would handle population recovery on its own. **It can't, because the prerequisite (fitness gradient) doesn't hold in deep bottlenecks.**
+
+**The fix (v8): keep DDM, keep energy-weighted DDB.** Two scaffolds operating in *different dimensions*:
+
+- **DDM (uniform)** keeps low-energy predators *alive* (population persists).
+- **DDB (energy-weighted)** keeps low-energy predators *from reproducing* (their `e_share` is small → small breeding boost).
+
+Bad hunters survive but don't propagate. Eventually they starve out (DDM only delays, doesn't prevent — action cost is unscaled). Population stable; reproduction concentrated on top fitness.
+
+The earlier worry that "DDM keeps bad hunters reproducing" was true *only with uniform DDB boost*. With energy-weighted boost, the two scaffolds decouple: DDM preserves the population while energy-weighted DDB preserves selection. They aren't in tension; they're complementary.
+
+**v8 config diff from v7** (only the stability section changes):
+```
+stability_mechanism: "ddb_ddm"   # was "ddb"
+ddm_pred_threshold: 10.0         # NEW (matches DDB threshold)
+ddm_floor: 0.0
+# everything else identical: T=10, max_boost=50, energy_weighted, etc.
+```
+
+**Lesson for future scaffold tuning:** scaffolds operate in different dimensions (survival vs reproduction). Don't drop one because you "don't need it anymore" — first verify which dimension it covers, and what would happen in the regimes where its absence matters. The v7 extinction showed up exactly in the deep-bottleneck regime where DDM's survival function was load-bearing.
+
+**Archived:** `~/evo-reward/results/axis1_residual_v7_no_DDM_extinct` — 88K-step run with full extinction trajectory. Useful as a "publishable failure mode" showing that DDM is necessary even when DDB is energy-weighted.
+
+### 15.16 Continuous α-tuning for DDB boost distribution
+
+After v7 (drop DDM, full energy-weighted breeding) extincted, restoring DDM was clearly necessary (§15.15). But the binary choice — *uniform* vs *full energy-weighted* — is unsatisfying. The right boost distribution probably lives somewhere on a continuum, and may even need to be different for different runs (or different phases of the same run).
+
+**Mechanism.** Added a continuous parameter `ddb_boost_distribution_alpha ∈ [0, 1]`:
+
+- `α = 0.0` → uniform: every active agent gets the same boost (legacy behavior, K&D-faithful)
+- `α = 0.5` → linear: per-agent share ∝ energy (the "energy_weighted" of §15.14)
+- `α = 1.0` → winner-take-all: only the highest-energy individual breeds
+
+Internally implemented as a power-law on energy: per-agent share ∝ `energy_i^k` where `k = α / max(1−α, 1e-3)`. So:
+
+- α=0 → k=0 → all powers = 1 → uniform shares
+- α=0.5 → k=1 → linear shares
+- α=0.95 → k=19 → top agent gets ~95%+ of budget
+- α→1 → k→∞ → top agent gets 100%
+
+Computed via stable masked log-softmax: `share_i = softmax(k · log(energy_i))`. JAX-jit-friendly, no overflow at high α.
+
+**Total breeding budget preserved at the species level** for all α: Σ shares = 1, so Σ (N · boost_uniform · share_i) = N · boost_uniform. Changing α reallocates the budget but doesn't change its size. Population-rescue function intact at any α.
+
+**Backward compat.** The old string knob `ddb_boost_distribution: "uniform" | "energy_weighted"` still works and maps to α=0 / α=0.5 respectively. Set `ddb_boost_distribution_alpha` to override.
+
+**Why this matters.** v7's failure (§15.15) suggests that very-high α might fail in the same way for the same reason: when ALL predators are simultaneously low-energy, "concentrate breeding on top" has nothing to concentrate on. So α should probably never go too close to 1 in regimes where bottlenecks happen. But α=0.5 (where v8 sits) might also be over-correcting — maybe α=0.3 or α=0.4 is the actual sweet spot. Easy to sweep.
+
+**Default unchanged: α=0.0 (uniform)** for any config that doesn't explicitly set it. Backward-compat preservation.
+
+**Live config (axis-1 v8):** `ddb_boost_distribution_alpha: 0.5` (= legacy "energy_weighted"). DDB+DDM both active, T=10, max_boost=50.
+
+**Future-tuning guidance:** if v8 still shows "weak selection" symptoms (means random-walking around zero), bump α up to 0.7. If v8 shows extinction risk during LV crashes (similar to v7), bump α down to 0.3 or 0.2. The key heuristic: α controls *how steep* the energy-fitness gradient is in the breeding scaffold. Steeper = more selection-aligned but more fragile to "everyone-low-energy" regimes; flatter = more stable but more drift.
+
+| α | Top-agent share at energies [800, 100, 100] | Comment |
+|---|---|---|
+| 0.0 | 33% | uniform (1/N) |
+| 0.3 | 67% | mild bias |
+| 0.5 | 80% | linear (current v8) |
+| 0.7 | 92% | strong bias |
+| 0.9 | 99% | near-winner |
+| 1.0 | 100% | winner-take-all |
+
+A natural follow-up if v8 doesn't immediately show what we want: schedule α as a function of step count (linearly increase from 0.3 → 0.6 over the first 1M steps, simulating a "gradual selection sharpening" as evolution gets going).

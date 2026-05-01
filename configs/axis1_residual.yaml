@@ -54,19 +54,31 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-# DDB only (DDM dropped — see findings.md §15.14). The energy-weighted
-# rate-boost distribution preserves selection pressure inside the scaffold:
-# at low pop, breeding rate is redistributed toward HIGH-energy individuals
-# rather than uniformly boosted. Bad hunters don't get rescued; the
-# population recovery is carried by the fittest survivors.
+# DDB+DDM with energy-weighted rate boost (v8 — see findings.md §15.15).
+# v7 dropped DDM and went extinct at step 88K because predators crashed
+# faster than energy-weighted breeding could rescue them — when ALL
+# predators are simultaneously low-energy during an LV crash, "concentrate
+# breeding on high-energy individuals" has nothing to concentrate on. DDM
+# is needed to keep the *population* alive long enough for energy-weighted
+# DDB to do its work on the breeding side.
+#
+# Two scaffolds working in different dimensions:
+#   - DDM (uniform): keeps low-energy predators ALIVE longer
+#   - DDB (energy-weighted): keeps low-energy predators FROM REPRODUCING
+# Bad hunters survive but don't propagate their genes. Net: population
+# stable, selection sharp.
 #
 # Thresholds: T=10 (pred), T=100 (prey). See findings.md §15.13.
-stability_mechanism:        "ddb"
-ddb_prey_threshold:         100.0
-ddb_pred_threshold:         10.0
-ddb_floor:                  0.0
-ddb_max_boost:              50.0
-ddb_boost_distribution:     "energy_weighted"
+stability_mechanism:             "ddb_ddm"
+ddb_prey_threshold:              100.0
+ddb_pred_threshold:              10.0
+ddb_floor:                       0.0
+ddb_max_boost:                   50.0
+ddb_boost_distribution_alpha:    0.5    # see findings.md §15.16
+                                        # 0.0=uniform, 0.5=linear (current),
+                                        # 1.0=winner-take-all
+ddm_pred_threshold:              10.0
+ddm_floor:                       0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205

@@ -167,6 +167,99 @@ def test_energy_weighted_total_budget_preserved(base_config):
     assert float(jnp.sum(p_uni)) == pytest.approx(float(jnp.sum(p_ew)), rel=0.01)
 
 
+def test_alpha_zero_equals_uniform(base_config):
+    """alpha=0 reproduces uniform-distribution behavior (legacy compat)."""
+    cfg_a = {**base_config, "stability_mechanism": "ddb",
+             "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+             "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+             "ddb_boost_distribution_alpha": 0.0}
+    cfg_b = {**base_config, "stability_mechanism": "ddb",
+             "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+             "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+             "ddb_boost_distribution": "uniform"}
+    species = jnp.array([1, 1, 1])
+    is_active = jnp.array([True, True, True])
+    energies = jnp.array([800.0, 100.0, 100.0])
+    p_a = _batch_birth_prob_jax(energies, species, cfg_a,
+                                prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+                                is_active=is_active)
+    p_b = _batch_birth_prob_jax(energies, species, cfg_b,
+                                prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+                                is_active=is_active)
+    for x, y in zip(p_a, p_b):
+        assert float(x) == pytest.approx(float(y), rel=0.01)
+
+
+def test_alpha_half_equals_energy_weighted(base_config):
+    """alpha=0.5 reproduces energy_weighted (linear) behavior."""
+    cfg_a = {**base_config, "stability_mechanism": "ddb",
+             "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+             "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+             "ddb_boost_distribution_alpha": 0.5}
+    cfg_b = {**base_config, "stability_mechanism": "ddb",
+             "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+             "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+             "ddb_boost_distribution": "energy_weighted"}
+    species = jnp.array([1, 1, 1])
+    is_active = jnp.array([True, True, True])
+    energies = jnp.array([800.0, 100.0, 100.0])
+    p_a = _batch_birth_prob_jax(energies, species, cfg_a,
+                                prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+                                is_active=is_active)
+    p_b = _batch_birth_prob_jax(energies, species, cfg_b,
+                                prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+                                is_active=is_active)
+    for x, y in zip(p_a, p_b):
+        assert float(x) == pytest.approx(float(y), rel=0.02)
+
+
+def test_alpha_near_one_concentrates_to_top_predator(base_config):
+    """alpha=0.95 → almost all breeding rate goes to the top-energy agent."""
+    cfg = {**base_config, "stability_mechanism": "ddb",
+           "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+           "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+           "ddb_boost_distribution_alpha": 0.95}
+    species = jnp.array([1, 1, 1, 1])
+    is_active = jnp.array([True, True, True, True])
+    energies = jnp.array([800.0, 200.0, 200.0, 200.0])
+    probs = _batch_birth_prob_jax(energies, species, cfg,
+                                  prey_count=jnp.int32(0), pred_count=jnp.int32(4),
+                                  is_active=is_active)
+    # k = 0.95 / 0.05 = 19. share_top = 800^19 / (800^19 + 3*200^19) ≈ 1.0
+    # Top should get nearly the entire species budget.
+    p_top = float(probs[0])
+    p_others = sum(float(x) for x in probs[1:])
+    assert p_top / (p_top + p_others) > 0.95
+
+
+def test_alpha_intermediate_smooth_interpolation(base_config):
+    """alpha=0.7 falls between linear and winner-take-all in concentration."""
+    species = jnp.array([1, 1, 1])
+    is_active = jnp.array([True, True, True])
+    energies = jnp.array([800.0, 100.0, 100.0])
+
+    def top_share(alpha):
+        cfg = {**base_config, "stability_mechanism": "ddb",
+               "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+               "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+               "ddb_boost_distribution_alpha": alpha}
+        probs = _batch_birth_prob_jax(energies, species, cfg,
+                                      prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+                                      is_active=is_active)
+        return float(probs[0]) / float(jnp.sum(probs))
+
+    s0 = top_share(0.0)    # uniform: top should be 1/3 ≈ 0.33
+    s5 = top_share(0.5)    # linear: top should be 800/1000 = 0.80
+    s7 = top_share(0.7)    # in between higher: should be > 0.80
+    s9 = top_share(0.95)   # near winner: should be ≈ 1.0
+
+    # Monotonic increase
+    assert s0 < s5 < s7 < s9
+    assert s0 == pytest.approx(0.33, abs=0.05)
+    assert s5 == pytest.approx(0.80, abs=0.02)
+    assert s9 > 0.95
+
+
 def test_energy_weighted_no_breeding_for_zero_energy_predator(base_config):
     """An active predator with zero energy gets ~zero breeding rate even
     when scaffolds are otherwise active. Selection pressure intact."""

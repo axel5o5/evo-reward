@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-01 (axis-1 v4 launch — energy-weighted DDB rate boost + DDM dropped to restore selection alignment).
+**Last updated:** 2026-05-01 (axis-1 v8 launch — DDB+DDM with α=0.5 boost distribution; α is now a continuous tuning knob in [0,1], see findings §15.16).
 
 ## Where we are in the project
 
@@ -28,13 +28,19 @@ and going directly to axis-1.
 
 GCP infra: `evo-reward-gpu` VM (single L4), runs in tmux sessions.
 
-## ⭐ The current scaffold framing (2026-05-01) — energy-weighted DDB
+## ⭐ The current scaffold framing (2026-05-01) — DDB+DDM, energy-weighted DDB
 
 The K&D paper has a known stability problem: with eta=0.5 (paper baseline),
 predators tend to over-pressure prey, then crash. To get long enough
-co-evolution for ablations to be meaningful, we use a single scaffold —
-**Density-Dependent Breeding with energy-weighted rate boost** — explicitly
-documented as a scaffold (not a biological claim) and disclosed in findings.
+co-evolution for ablations to be meaningful, we use **two scaffolds operating
+in different dimensions**:
+
+- **DDM (Density-Dependent Metabolism, uniform)**: keeps low-energy predators *alive* during LV crashes
+- **DDB (Density-Dependent Breeding, energy-weighted)**: keeps low-energy predators *from reproducing*
+
+Together: bad hunters survive but don't propagate their genes. Population
+stable, reproduction concentrated on top fitness. Both are explicitly
+documented as scaffolds (not biological claims) and disclosed in findings.
 
 **Core idea:** at low predator population, scaffolds activate to prevent
 extinction. But the breeding-rate scaffold is allocated by within-species
@@ -56,22 +62,39 @@ When predator population is low, breeding becomes easier in two ways:
    a squared-saturation curve `f(N) = max(floor, N²/(N²+T²))`. With current
    knobs (pred T=10, prey T=100, floor=0): N=4 → 0.14, N=10 → 0.50,
    N=15 → 0.69, N=24 (peak with cap=40) → 0.85, N=30+ → ~0.90+ (off).
-2. **Rate boost — energy-weighted (NEW, 2026-05-01).** Total species-level
-   breeding budget = `(N / max(factor, 1/max_boost))`, redistributed by
-   each agent's relative within-species energy share. Net effect:
-   high-energy individuals at low pop get most of the boost (e.g., 9.6×
-   normal); low-energy ones get little or even less than 1×. Bad hunters
-   don't get rescued. **Selection pressure preserved inside the scaffold.**
+2. **Rate boost with continuous distribution `α ∈ [0, 1]`** (`ddb_boost_distribution_alpha`).
+   Total species-level breeding budget = `N / max(factor, 1/max_boost)`.
+   The budget is redistributed among individuals by `share_i ∝ energy_i^k`
+   where `k = α / max(1−α, ε)`. **Total budget preserved at all α**;
+   the parameter only changes *how concentrated* the budget is.
 
-### DDM — Density-Dependent Metabolism (DROPPED, 2026-05-01)
+   - **α = 0.0**: uniform (every agent gets the same boost). K&D-faithful.
+   - **α = 0.5** (current default for axis runs): linear — share ∝ energy. Top agent at energies [800, 100, 100] gets 80% of budget.
+   - **α = 1.0**: winner-take-all. Only the top-energy agent breeds.
 
-DDM was scaling predator decay down at low pop, which kept bad hunters alive
-longer. Combined with uniform breeding boost it produced a regime where
-weak selection / random survival dominated. After observing that mean
-reward weights weren't drifting fitness-aligned in the v3 run despite
-healthy LV cycles, DDM was removed. With energy-weighted DDB rate boost,
-DDM is unnecessary: bad hunters that starve are exactly the ones that
-shouldn't be reproducing anyway.
+   Top-agent share at energies [800, 100, 100] for various α:
+
+   | α | top share |
+   |---|---|
+   | 0.0 | 33% |
+   | 0.3 | 67% |
+   | 0.5 | 80% (v8) |
+   | 0.7 | 92% |
+   | 0.9 | 99% |
+
+### DDM — Density-Dependent Metabolism (RESTORED, 2026-05-01 — see §15.15)
+
+`d_b_eff = d_b * factor(N)` — predator passive decay scaled by the same
+squared-saturation curve as DDB. At low predator pop, the decay rate
+drops, giving low-energy individuals more time. Action cost (`alpha_e *
+action_norm`) stays unscaled, so they still pay for moving — DDM only
+extends the floor of survival, doesn't make them immortal.
+
+**Why DDM is needed even with energy-weighted DDB:** in deep LV crashes,
+ALL predators lose energy simultaneously. Without DDM, full-cost decay
+finishes them off before any individual can recover, regardless of how
+the breeding boost is allocated. v7 (DDM dropped) went extinct at step
+88K to validate this lesson empirically.
 
 ### Why this design
 
@@ -81,10 +104,13 @@ evolved without fear. Strong scaffolds (DDB+DDM, floor=0, max_boost=50,
 T=4) prevented extinction but lost diversity (peak 18 → 2 ancestral
 survivors with near-init weights — see findings §15.12). Med-large scale
 + T=10 (§15.13) preserved diversity but blunted selection. Energy-weighted
-boost + dropping DDM (§15.14) preserves population rescue *while* keeping
-selection sharp — fittest individuals carry recovery, not random survivors.
+boost (§15.14) addressed selection alignment, but dropping DDM (§15.14b /
+v7) caused extinction at step 88K because energy-weighted breeding
+needs survivors to redistribute among. **v8 keeps both: DDM for population
+survival, energy-weighted DDB for reproduction concentrated on top fitness
+(§15.15).**
 
-See [docs/findings.md §15.11-§15.14](findings.md) for the full calibration
+See [docs/findings.md §15.11-§15.15](findings.md) for the full calibration
 journey.
 
 ## The two axis hypotheses
@@ -197,7 +223,7 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 | `ddb_pred_threshold` (currently 10) | Where the scaffold curve hits 50% (factor=0.5 at N=T) | Lower if extinction happens at deep bottlenecks; raise if selection is too blunted at healthy peak |
 | `ddb_floor` (currently 0.0) | Minimum factor — pins the curve at extreme low N | Raise toward 0.1-0.3 if you want baseline selection-pressure relief always present |
 | `ddb_max_boost` (currently 50) | Cap on the inverse factor in the rate formula | Lower (e.g., 20) if breeding is too aggressive at deep bottlenecks |
-| `ddb_boost_distribution` (currently `"energy_weighted"`) | How the rate boost is allocated | Switch to `"uniform"` only if energy_weighted causes weird dynamics (it shouldn't) |
+| `ddb_boost_distribution_alpha` (currently 0.5) | How concentrated the rate boost is on high-energy agents | Lower (0.3) if extinction risk during LV crashes; raise (0.7) if selection seems too weak. **Don't go to 0.95+ unless deep bottlenecks are impossible** — see v7 lesson |
 | `stability_mechanism` (currently `"ddb"`) | Which scaffolds are active | Add `"ddb_ddm"` if a *true* extinction emergency occurs that DDB-rate-boost alone can't rescue |
 
 **Diagnosis playbook:**
@@ -207,7 +233,9 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 - **Population locks at low N never recovers:** ddb_max_boost too low, OR all individuals at zero energy (look at energy quartiles). If everyone's starving, the rate boost can't help — population probably doomed.
 - **Bad hunters survive forever:** check that DDM is actually disabled (`stability_mechanism: "ddb"` not `"ddb_ddm"`). DDM is what keeps them alive past starvation.
 
-**The current design philosophy:** scaffold the *population* to prevent extinction, but never the *individual fitness signal*. Energy-weighted boost is the operationalization of this. If you find yourself wanting to add a scaffold that protects low-energy individuals, ask first whether you're protecting them from an extinction event (legitimate use of DDM in emergency mode) or from selection (illegitimate — that's the bug we just fixed).
+**The current design philosophy:** scaffold the *population* to prevent extinction (DDM), but allocate the *breeding budget* to high-fitness individuals (DDB with α > 0). The two scaffolds work in different dimensions: DDM keeps low-energy agents alive; α-controlled DDB ensures they don't reproduce. Bad hunters survive temporarily, fail to propagate, eventually starve out. Population stable, selection aligned.
+
+**Don't push α too high.** v7 (effectively α=0.5 + DDM dropped) collapsed at step 88K because energy-weighted breeding has no fitness gradient to concentrate on when ALL predators are simultaneously low-energy. Even with DDM intact, α near 1.0 may have similar fragility — keep α ≤ 0.7 unless you've validated the regime.
 
 ## Run history snapshot
 
@@ -216,6 +244,7 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 | baseline_smol_ddb | small + DDB floor=0.3 | Extinct ~80K |
 | baseline_med_ddb | medium + DDB floor=0.3 | Lone-survivor starvation ~100K |
 | baseline_med_ddb_ddm | medium + DDB+DDM floor=0.3 | 1.35M then trophic-collapse-via-herd |
-| axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (lessons → §15.12) |
-| axis1_residual v3 | med-large T=10 + DDB+DDM uniform boost | 230K, healthy LV but selection diluted (lessons → §15.14) |
-| **axis1_residual v4 (running)** | **med-large T=10 + DDB only + energy-weighted boost** | **TBD** |
+| axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (→ §15.12) |
+| axis1_residual v3 (uniform boost) | med-large T=10 + DDB+DDM uniform | 230K, healthy LV but selection diluted (→ §15.14) |
+| axis1_residual v7 (no DDM) | med-large T=10 + DDB only + α=0.5 | **Extinct at 88K** — DDM not optional (→ §15.15) |
+| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **TBD** |
