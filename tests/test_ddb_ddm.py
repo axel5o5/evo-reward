@@ -105,6 +105,88 @@ def test_birth_prob_boost_fades_to_one_at_healthy_pop(base_config):
     assert p == pytest.approx(1.04e-3, rel=0.05)
 
 
+def test_energy_weighted_boost_redistributes_to_high_energy(base_config):
+    """With energy_weighted distribution, high-energy predator gets the boost,
+    low-energy ones get little/none. Total breeding pressure conserved.
+    """
+    cfg = {**base_config, "stability_mechanism": "ddb",
+           "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+           "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+           "ddb_boost_distribution": "energy_weighted"}
+    # 3 predators, 2 prey (ignored in pred-side analysis)
+    species = jnp.array([1, 1, 1, 0, 0])
+    is_active = jnp.array([True, True, True, True, True])
+    # Predator energies: 800 (top), 100, 100. Prey: 100, 100.
+    energies = jnp.array([800.0, 100.0, 100.0, 100.0, 100.0])
+    probs = _batch_birth_prob_jax(
+        energies, species, cfg,
+        prey_count=jnp.int32(2), pred_count=jnp.int32(3),
+        is_active=is_active,
+    )
+    p_top, p_mid1, p_mid2, _, _ = [float(x) for x in probs]
+
+    # All 3 are well above zeta_eff (10*0.083 = 0.83); sigmoid ≈ 1.
+    # Pred factor at N=3, T=10: 9/109 = 0.0826, boost_uniform = 1/0.0826 = 12.1
+    # Total boost budget for predator species: 3 * 12.1 = 36.3
+    # Energy shares: 800/(800+100+100) = 0.80, 100/1000 = 0.10, 100/1000 = 0.10
+    # Per-agent boost: top = 36.3 * 0.80 = 29.0, mid = 36.3 * 0.10 = 3.6
+    # kappa_b_eff_top ≈ 29e-3, kappa_b_eff_mid ≈ 3.6e-3
+    assert p_top == pytest.approx(29e-3, rel=0.10)
+    assert p_mid1 == pytest.approx(3.6e-3, rel=0.10)
+    assert p_mid2 == pytest.approx(3.6e-3, rel=0.10)
+    # Top breeds ~8x more than each low-energy peer
+    assert p_top / p_mid1 > 6
+
+
+def test_energy_weighted_total_budget_preserved(base_config):
+    """At uniform energies within species, energy_weighted == uniform."""
+    cfg_uni = {**base_config, "stability_mechanism": "ddb",
+               "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+               "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+               "ddb_boost_distribution": "uniform"}
+    cfg_ew = {**cfg_uni, "ddb_boost_distribution": "energy_weighted"}
+
+    species = jnp.array([1, 1, 1])
+    is_active = jnp.array([True, True, True])
+    energies = jnp.array([200.0, 200.0, 200.0])  # all equal
+
+    p_uni = _batch_birth_prob_jax(
+        energies, species, cfg_uni,
+        prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+        is_active=is_active,
+    )
+    p_ew = _batch_birth_prob_jax(
+        energies, species, cfg_ew,
+        prey_count=jnp.int32(0), pred_count=jnp.int32(3),
+        is_active=is_active,
+    )
+    # At uniform energies, distributions should match
+    for u, e in zip(p_uni, p_ew):
+        assert float(u) == pytest.approx(float(e), rel=0.01)
+    # And total breeding pressure across the species should be the same
+    assert float(jnp.sum(p_uni)) == pytest.approx(float(jnp.sum(p_ew)), rel=0.01)
+
+
+def test_energy_weighted_no_breeding_for_zero_energy_predator(base_config):
+    """An active predator with zero energy gets ~zero breeding rate even
+    when scaffolds are otherwise active. Selection pressure intact."""
+    cfg = {**base_config, "stability_mechanism": "ddb",
+           "ddb_pred_threshold": 10.0, "ddb_prey_threshold": 100.0,
+           "ddb_floor": 0.0, "ddb_max_boost": 50.0,
+           "ddb_boost_distribution": "energy_weighted"}
+    species = jnp.array([1, 1])
+    is_active = jnp.array([True, True])
+    energies = jnp.array([1000.0, 0.0])  # one full, one starving
+    probs = _batch_birth_prob_jax(
+        energies, species, cfg,
+        prey_count=jnp.int32(0), pred_count=jnp.int32(2),
+        is_active=is_active,
+    )
+    p_full, p_starve = float(probs[0]), float(probs[1])
+    assert p_full > 1e-3  # Top one breeds normally or better
+    assert p_starve < 1e-6  # Starving one barely breeds (sigmoid + zero rate)
+
+
 def test_birth_threshold_still_lowered_with_boost(base_config):
     """DDB threshold scaling is independent of rate boost — both apply.
 

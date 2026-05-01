@@ -541,3 +541,67 @@ T=10 hits factor=0.5 right at the N=10 LV-crash inflection (where the first run 
 - world=880, prey_cap=375, pred_cap=40
 - T=10 (pred), T=100 (prey), floor=0, max_boost=50
 - middle-ground between paper baseline (would naturally preserve diversity but slow iteration) and the original small-scale run (fast but hostile to evolution)
+
+### 15.14 Energy-weighted boost + dropping DDM — selection-aligned scaffolds
+
+**The problem with population-only scaffolds.** Even with the T=10 + med-large tune (§15.13) running cleanly at step 200K (pred oscillating 7-12, healthy LV cycles), inspection of the reward-genome means revealed a deeper issue. The means were drifting toward zero with high variance:
+
+| | step 60K | step 200K |
+|---|---|---|
+| pred_w_eat  | +0.17 ± 0.48 | -0.00 ± 0.64 |
+| pred_w_prey | +0.34 ± 0.91 | -0.00 ± 0.86 |
+
+Under healthy selection we'd expect `pred_w_prey` to evolve clearly positive (rewarded for being near prey, encouraging hunting). Instead the population was random-walking around zero — characteristic of weak selection. Three mechanisms were diluting selection:
+
+1. **DDM (decay scaling) keeps bad hunters alive longer.** A predator that catches little would normally starve in ~250 steps; with DDM factor=0.5 they live ~500 steps, doubling their chances to randomly bump into prey. **This is a direct selection-killer.**
+2. **DDB threshold drop lets bad hunters reproduce.** A predator that can only reach energy 50 normally couldn't breed; with zeta_eff = 50 they can. Low-fitness genomes propagate.
+3. **DDB rate boost is uniform across the species.** Whether a predator has 800 energy or 50, they get the same 2-3× breeding rate boost. The scaffold is *individual-blind* — it rescues the population without distinguishing between high- and low-fitness members.
+
+**The fix: redistribute the rate boost by within-species energy share, drop DDM, keep threshold drop.**
+
+The redistribution preserves the *total* breeding pressure on the species (so the population still recovers from low N) but allocates it proportionally to relative energy:
+
+```
+agent_boost_i = species_uniform_boost * (energy_i / Σenergies_in_species) * N_species
+```
+
+Properties:
+- **At healthy pop** (factor ≈ 1, all energies similar): `agent_boost ≈ 1` for everyone — no scaffold engaged, identical to K&D.
+- **At low pop with uniform energies**: `agent_boost = boost_uniform` per agent — same as old uniform scaffold.
+- **At low pop with skewed energies**: high-energy agents get most of the boost, low-energy agents get little. Selection-aligned.
+
+Example at pred=8, factor=0.39 (boost_uniform=2.6×, total budget=20.5):
+
+| Energy | Energy share | Old boost | New boost (energy_weighted) |
+|---|---|---|---|
+| 800 | 47% | 2.6× | **9.6×** |
+| 300 | 18% | 2.6× | 3.6× |
+| 200 | 12% | 2.6× | 2.4× |
+| 100 | 6%  | 2.6× | 1.2× |
+| 50  | 3%  | 2.6× | 0.6× (below normal) |
+
+The top hunter breeds 9.6× normal rate; the worst breeds at 0.6× normal — *less* than they would without scaffolds. **Bad hunters are actively penalized when good hunters exist.**
+
+**Why drop DDM.** Once breeding rate is energy-weighted, the only thing DDM does is keep dying-bad-hunters alive longer. They still don't get to breed (their `e_share` is tiny), so they just consume world resources without contributing to evolution. Dropping DDM lets natural starvation prune them. Selection on hunting ability fully restored.
+
+**What's preserved:**
+- Population rescue: when pred=2 and both are alive, the breeding rate boost still applies — they'll repopulate quickly.
+- Threshold drop: at low pop, even a "current-best" predator with energy 60 (relatively top-of-pack) can breed.
+- LV cycling: nothing about the dynamics changes at healthy populations.
+
+**What's improved:**
+- Selection differential at the *individual* level is preserved through the entire scaffold envelope.
+- `pred_w_prey` and `prey_w_pred` should drift cleanly toward fitness-aligned values (not random-walk around zero).
+- Variance reduction over time will be *meaningful* (selection-driven) rather than the v1 kind (random-survivor lottery).
+
+**Implementation** ([src/jax_lifecycle.py](../src/jax_lifecycle.py)):
+- New config knob `ddb_boost_distribution: "uniform" | "energy_weighted"` (default uniform — backward compat).
+- `_batch_birth_prob_jax` now takes `is_active` to mask inactive slots from the energy denominator.
+- 3 new tests in [tests/test_ddb_ddm.py](../tests/test_ddb_ddm.py): redistribution at non-uniform energies, total-budget conservation at uniform energies, zero breeding for zero-energy agents.
+
+**Live config (axis-1 v4):**
+- `stability_mechanism: "ddb"` (DDM removed)
+- `ddb_pred_threshold: 10.0`, `ddb_prey_threshold: 100.0`
+- `ddb_floor: 0.0`, `ddb_max_boost: 50.0`
+- `ddb_boost_distribution: "energy_weighted"` (NEW)
+- Med-large scale: world=880, prey_cap=375, pred_cap=40

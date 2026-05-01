@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-01 (axis-1 v2 launch — med-large scale + T=10 scaffolds after diversity-loss diagnosis from v1).
+**Last updated:** 2026-05-01 (axis-1 v4 launch — energy-weighted DDB rate boost + DDM dropped to restore selection alignment).
 
 ## Where we are in the project
 
@@ -36,44 +36,44 @@ co-evolution for ablations to be meaningful, we add two non-paper scaffolds.
 Both are explicitly documented as scaffolds, not biological claims, and we
 disclose them in findings.
 
-### DDB — Density-Dependent Breeding
+### DDB — Density-Dependent Breeding (the only scaffold currently active)
 
-When a species' population is low, breeding becomes easier in two ways:
+When predator population is low, breeding becomes easier in two ways:
 
 1. **Threshold drop.** `zeta_b_eff = zeta_b * factor`, where `factor` follows
    a squared-saturation curve `f(N) = max(floor, N²/(N²+T²))`. With current
-   knobs (pred T=10, prey T=100, floor=0): N=4 → factor 0.14, N=10 → 0.50,
-   N=15 → 0.69, N=24 (peak) → 0.85, N=30+ → ~0.90+ (essentially off).
-2. **Rate boost (added 2026-05-01).** `kappa_b_eff = kappa_b / max(factor, 1/50)`.
-   Lone survivor's breeding rate scales up to 17× normal at N=1 (capped at
-   50× for pop near zero), fading to 1× at healthy pop. This is the more
-   biologically defensible of the two scaffolds — low-density populations
-   really do have higher per-capita reproductive output in many ecosystems.
+   knobs (pred T=10, prey T=100, floor=0): N=4 → 0.14, N=10 → 0.50,
+   N=15 → 0.69, N=24 (peak with cap=40) → 0.85, N=30+ → ~0.90+ (off).
+2. **Rate boost — energy-weighted (NEW, 2026-05-01).** Total species-level
+   breeding budget = `(N / max(factor, 1/max_boost))`, redistributed by
+   each agent's relative within-species energy share. Net effect:
+   high-energy individuals at low pop get most of the boost (e.g., 9.6×
+   normal); low-energy ones get little or even less than 1×. Bad hunters
+   don't get rescued. **Selection pressure preserved inside the scaffold.**
 
-### DDM — Density-Dependent Metabolism
+### DDM — Density-Dependent Metabolism (DROPPED, 2026-05-01)
 
-Predator passive decay rate scales by the same factor: `d_b_eff = d_b * factor`.
-At N=1 a lone predator decays at ~6% normal rate, effectively immortal from
-passive decay alone — but action cost (`alpha_e * action_norm`) is unscaled,
-so they still pay for moving. Selection pressure on motor learning intact.
+DDM was scaling predator decay down at low pop, which kept bad hunters alive
+longer. Combined with uniform breeding boost it produced a regime where
+weak selection / random survival dominated. After observing that mean
+reward weights weren't drifting fitness-aligned in the v3 run despite
+healthy LV cycles, DDM was removed. With energy-weighted DDB rate boost,
+DDM is unnecessary: bad hunters that starve are exactly the ones that
+shouldn't be reproducing anyway.
 
-### Why both, and why now strong
+### Why this design
 
-Earlier weaker versions (floor=0.3, no rate boost) extended runs from
-~80K steps (no scaffolds) to ~1.35M steps (DDB+DDM weak), but predators
-still went extinct via a "trophic-collapse-via-herd" pattern: prey evolved
-strong herd-seeking (`prey_w_prey=+7.69`) without evolving fear
-(`prey_w_pred≈0`), so once predators dropped below ~3 they couldn't keep up
-with the herd's density-dependent escape and collapsed.
+Earlier weaker scaffolds (DDB+DDM, floor=0.3, no rate boost) ran for 1.35M
+steps then extincted via "trophic-collapse-via-herd" — strong prey herding
+evolved without fear. Strong scaffolds (DDB+DDM, floor=0, max_boost=50,
+T=4) prevented extinction but lost diversity (peak 18 → 2 ancestral
+survivors with near-init weights — see findings §15.12). Med-large scale
++ T=10 (§15.13) preserved diversity but blunted selection. Energy-weighted
+boost + dropping DDM (§15.14) preserves population rescue *while* keeping
+selection sharp — fittest individuals carry recovery, not random survivors.
 
-The strengthened scaffolds (floor=0.0, rate boost up to 50×, tighter
-thresholds) make extinction at N≤3 effectively impossible: a lone survivor
-with any positive energy breeds in ~20-60 steps, restoring genetic diversity
-before they can drift into geometric "can't find prey" failure. At healthy
-populations the scaffolds are nearly inactive — selection pressure on
-hunting and herding weights remains intact in the regime that matters.
-
-See [docs/findings.md](findings.md) §15.11 for the calibration math.
+See [docs/findings.md §15.11-§15.14](findings.md) for the full calibration
+journey.
 
 ## The two axis hypotheses
 

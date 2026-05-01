@@ -54,19 +54,19 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-# Thresholds set to T=10 (pred), T=100 (prey) — see findings.md §15.12.
-# Earlier T=4 engaged scaffolds too late and lost lineage diversity from
-# peak pred=18 → bottleneck pred=2 in 80K steps. T=10 hits factor=0.5 at
-# the N=10 LV-crash inflection, factor=0.69 at N=15, factor=0.85 at N=24
-# (~peak with cap=40) — meaningful scaffold across the full danger zone
-# while keeping the healthy regime mostly unscaffolded.
-stability_mechanism:    "ddb_ddm"
-ddb_prey_threshold:     100.0
-ddb_pred_threshold:     10.0
-ddb_floor:              0.0
-ddb_max_boost:          50.0
-ddm_pred_threshold:     10.0
-ddm_floor:              0.0
+# DDB only (DDM dropped — see findings.md §15.14). The energy-weighted
+# rate-boost distribution preserves selection pressure inside the scaffold:
+# at low pop, breeding rate is redistributed toward HIGH-energy individuals
+# rather than uniformly boosted. Bad hunters don't get rescued; the
+# population recovery is carried by the fittest survivors.
+#
+# Thresholds: T=10 (pred), T=100 (prey). See findings.md §15.13.
+stability_mechanism:        "ddb"
+ddb_prey_threshold:         100.0
+ddb_pred_threshold:         10.0
+ddb_floor:                  0.0
+ddb_max_boost:              50.0
+ddb_boost_distribution:     "energy_weighted"
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205

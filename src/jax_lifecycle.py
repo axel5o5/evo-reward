@@ -126,7 +126,9 @@ def _ddb_factor(N, threshold, floor):
     return jnp.maximum(floor, smooth)
 
 
-def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count=None):
+def _batch_birth_prob_jax(energies, species, config,
+                          prey_count=None, pred_count=None,
+                          is_active=None):
     """Vectorized birth probability. Pure JAX.
 
     Optionally applies density-dependent breeding (DDB): when species
@@ -137,16 +139,25 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
     With ddb_max_boost > 1.0, also scales the breeding *rate* (kappa_b)
     upward by the inverse factor (capped at max_boost), so a lone
     survivor not only breeds at low energy but breeds *frequently*.
-    Guarantees fast recovery from N=1 to N=4 (preserving genetic
-    diversity for evolution to operate on). See findings.md §15.
+    See findings.md §15.
+
+    With ddb_boost_distribution="energy_weighted" (vs default "uniform"),
+    the species-level rate boost is *redistributed* among individuals by
+    relative within-species energy share. The total breeding pressure
+    on the species is unchanged, but it's allocated to high-energy
+    (high-fitness) individuals rather than spread uniformly. This
+    preserves the population-rescue function while keeping selection
+    pressure aligned with fitness. See findings.md §15.14.
+
+    `is_active` is required when boost_distribution=="energy_weighted"
+    (so the energy denominator excludes dead/inactive slots).
     """
     kappa_b = config["kappa_b"]
     beta_b = config["beta_b"]
     zeta_prey = config["zeta_b_prey"]
     zeta_pred = config["zeta_b_pred"]
 
-    kappa_b_prey = kappa_b
-    kappa_b_pred = kappa_b
+    kappa_b_eff_all = jnp.full_like(energies, kappa_b)
 
     stability = config.get("stability_mechanism", "none")
     apply_ddb = stability in ("ddb", "ddb_ddm")
@@ -160,6 +171,7 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
         prey_threshold = float(config.get("ddb_prey_threshold", 30.0))
         pred_threshold = float(config.get("ddb_pred_threshold", 5.0))
         max_boost = float(config.get("ddb_max_boost", 1.0))
+        boost_dist = config.get("ddb_boost_distribution", "uniform")
 
         prey_factor = _ddb_factor(prey_count, prey_threshold, floor)
         pred_factor = _ddb_factor(pred_count, pred_threshold, floor)
@@ -167,15 +179,43 @@ def _batch_birth_prob_jax(energies, species, config, prey_count=None, pred_count
         zeta_pred = zeta_pred * pred_factor
 
         if max_boost > 1.0:
-            prey_boost = 1.0 / jnp.maximum(prey_factor, 1.0 / max_boost)
-            pred_boost = 1.0 / jnp.maximum(pred_factor, 1.0 / max_boost)
-            kappa_b_prey = kappa_b * prey_boost
-            kappa_b_pred = kappa_b * pred_boost
+            prey_boost_uniform = 1.0 / jnp.maximum(prey_factor, 1.0 / max_boost)
+            pred_boost_uniform = 1.0 / jnp.maximum(pred_factor, 1.0 / max_boost)
+
+            if boost_dist == "energy_weighted":
+                if is_active is None:
+                    raise ValueError(
+                        "ddb_boost_distribution='energy_weighted' requires is_active "
+                        "to be passed to _batch_birth_prob_jax."
+                    )
+                # Per-agent boost = species_uniform_boost * (energy_share_within_species * N_species)
+                # Sum over a species of agent_boost = N_species * boost_uniform (total budget preserved).
+                # At uniform energies: agent_boost == boost_uniform (no redistribution).
+                # When one agent has all energy: agent_boost = N_species * boost_uniform (max).
+                # Inactive agents' energies are zero-masked in the denominator so they
+                # don't dilute the share among active agents.
+                prey_active = is_active & (species == 0)
+                pred_active = is_active & (species == 1)
+                prey_e_active = jnp.where(prey_active, energies, 0.0)
+                pred_e_active = jnp.where(pred_active, energies, 0.0)
+                prey_e_total = jnp.sum(prey_e_active) + 1e-9
+                pred_e_total = jnp.sum(pred_e_active) + 1e-9
+
+                prey_count_f = prey_count.astype(jnp.float32)
+                pred_count_f = pred_count.astype(jnp.float32)
+                prey_agent_boost = prey_boost_uniform * prey_count_f * (energies / prey_e_total)
+                pred_agent_boost = pred_boost_uniform * pred_count_f * (energies / pred_e_total)
+                kappa_b_eff_all = kappa_b * jnp.where(
+                    species == 0, prey_agent_boost, pred_agent_boost
+                )
+            else:  # "uniform"
+                kappa_b_prey = kappa_b * prey_boost_uniform
+                kappa_b_pred = kappa_b * pred_boost_uniform
+                kappa_b_eff_all = jnp.where(species == 0, kappa_b_prey, kappa_b_pred)
 
     zeta = jnp.where(species == 0, zeta_prey, zeta_pred)
-    kappa_b_eff = jnp.where(species == 0, kappa_b_prey, kappa_b_pred)
     exponent = jnp.clip(zeta - beta_b * energies, -700, 700)
-    return kappa_b_eff / (1.0 + jnp.exp(exponent))
+    return kappa_b_eff_all / (1.0 + jnp.exp(exponent))
 
 
 def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None):
@@ -263,6 +303,7 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
     b_all = _batch_birth_prob_jax(
         sim_state.energies, sim_state.species, config,
         prey_count=prey_count, pred_count=pred_count,
+        is_active=new_is_active,
     )
     wants_birth = sim_state.is_active & (birth_randoms < b_all)
 
