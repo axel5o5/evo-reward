@@ -1,0 +1,91 @@
+{
+  "exp": "axis1_mlp_reward",
+  "seed": 0,
+  "run_tag": "axis1_mouth_smol_1M_mut03",
+  "summary": {
+    "final_step": 100000,
+    "n_checkpoints": 5,
+    "extinct": false,
+    "extinction_step": null,
+    "extinct_species": "none",
+    "peak_prey": 450,
+    "peak_pred": 23
+  },
+  "checkpoints": [
+    {
+      "start_step": 10001,
+      "end_step": 20000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 450,
+      "prey_min": 448,
+      "prey_max": 450,
+      "pred_first": 13,
+      "pred_last": 15,
+      "pred_min": 13,
+      "pred_max": 15,
+      "births": 94,
+      "deaths": 92
+    },
+    {
+      "start_step": 30001,
+      "end_step": 40000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 431,
+      "prey_min": 428,
+      "prey_max": 450,
+      "pred_first": 17,
+      "pred_last": 22,
+      "pred_min": 17,
+      "pred_max": 22,
+      "births": 162,
+      "deaths": 176
+    },
+    {
+      "start_step": 50001,
+      "end_step": 60000,
+      "n_frames": 10000,
+      "prey_first": 375,
+      "prey_last": 320,
+      "prey_min": 319,
+      "prey_max": 375,
+      "pred_first": 22,
+      "pred_last": 23,
+      "pred_min": 21,
+      "pred_max": 23,
+      "births": 59,
+      "deaths": 113
+    },
+    {
+      "start_step": 70001,
+      "end_step": 80000,
+      "n_frames": 10000,
+      "prey_first": 284,
+      "prey_last": 258,
+      "prey_min": 255,
+      "prey_max": 285,
+      "pred_first": 21,
+      "pred_last": 20,
+      "pred_min": 20,
+      "pred_max": 21,
+      "births": 41,
+      "deaths": 68
+    },
+    {
+      "start_step": 90001,
+      "end_step": 100000,
+      "n_frames": 10000,
+      "prey_first": 234,
+      "prey_last": 238,
+      "prey_min": 232,
+      "prey_max": 244,
+      "pred_first": 16,
+      "pred_last": 12,
+      "pred_min": 12,
+      "pred_max": 16,
+      "births": 45,
+      "deaths": 45
+    }
+  ]
+}

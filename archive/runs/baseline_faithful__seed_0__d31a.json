@@ -1,0 +1,76 @@
+{
+  "exp": "baseline_faithful",
+  "seed": 0,
+  "run_tag": "d31a",
+  "summary": {
+    "final_step": 80000,
+    "n_checkpoints": 4,
+    "extinct": true,
+    "extinction_step": 70001,
+    "extinct_species": "pred",
+    "peak_prey": 450,
+    "peak_pred": 38
+  },
+  "checkpoints": [
+    {
+      "start_step": 10001,
+      "end_step": 20000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 427,
+      "prey_min": 426,
+      "prey_max": 450,
+      "pred_first": 25,
+      "pred_last": 36,
+      "pred_min": 25,
+      "pred_max": 37,
+      "births": 301,
+      "deaths": 313
+    },
+    {
+      "start_step": 30001,
+      "end_step": 40000,
+      "n_frames": 10000,
+      "prey_first": 263,
+      "prey_last": 137,
+      "prey_min": 137,
+      "prey_max": 263,
+      "pred_first": 38,
+      "pred_last": 25,
+      "pred_min": 25,
+      "pred_max": 38,
+      "births": 36,
+      "deaths": 175
+    },
+    {
+      "start_step": 50001,
+      "end_step": 60000,
+      "n_frames": 10000,
+      "prey_first": 109,
+      "prey_last": 98,
+      "prey_min": 93,
+      "prey_max": 110,
+      "pred_first": 17,
+      "pred_last": 8,
+      "pred_min": 8,
+      "pred_max": 17,
+      "births": 37,
+      "deaths": 57
+    },
+    {
+      "start_step": 70001,
+      "end_step": 80000,
+      "n_frames": 10000,
+      "prey_first": 129,
+      "prey_last": 198,
+      "prey_min": 129,
+      "prey_max": 198,
+      "pred_first": 0,
+      "pred_last": 0,
+      "pred_min": 0,
+      "pred_max": 0,
+      "births": 73,
+      "deaths": 4
+    }
+  ]
+}

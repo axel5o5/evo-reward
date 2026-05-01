@@ -1,0 +1,61 @@
+{
+  "exp": "baseline_faithful",
+  "seed": 0,
+  "run_tag": "2026-04-22T1417Z_phase1a-v4",
+  "summary": {
+    "final_step": 60000,
+    "n_checkpoints": 3,
+    "extinct": false,
+    "extinction_step": null,
+    "extinct_species": "none",
+    "peak_prey": 450,
+    "peak_pred": 42
+  },
+  "checkpoints": [
+    {
+      "start_step": 10001,
+      "end_step": 20000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 450,
+      "prey_min": 445,
+      "prey_max": 450,
+      "pred_first": 20,
+      "pred_last": 33,
+      "pred_min": 20,
+      "pred_max": 33,
+      "births": 278,
+      "deaths": 265
+    },
+    {
+      "start_step": 30001,
+      "end_step": 40000,
+      "n_frames": 10000,
+      "prey_first": 369,
+      "prey_last": 198,
+      "prey_min": 198,
+      "prey_max": 371,
+      "pred_first": 41,
+      "pred_last": 40,
+      "pred_min": 39,
+      "pred_max": 42,
+      "births": 118,
+      "deaths": 290
+    },
+    {
+      "start_step": 50001,
+      "end_step": 60000,
+      "n_frames": 10000,
+      "prey_first": 129,
+      "prey_last": 119,
+      "prey_min": 115,
+      "prey_max": 129,
+      "pred_first": 27,
+      "pred_last": 13,
+      "pred_min": 13,
+      "pred_max": 27,
+      "births": 31,
+      "deaths": 55
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "exp": "axis2_social_obs",
+  "seed": 1,
+  "run_tag": "axis2_mouth_smol_2M_seed1",
+  "summary": {
+    "final_step": 20000,
+    "n_checkpoints": 1,
+    "extinct": false,
+    "extinction_step": null,
+    "extinct_species": "none",
+    "peak_prey": 450,
+    "peak_pred": 18
+  },
+  "checkpoints": [
+    {
+      "start_step": 10001,
+      "end_step": 20000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 447,
+      "prey_min": 447,
+      "prey_max": 450,
+      "pred_first": 14,
+      "pred_last": 18,
+      "pred_min": 14,
+      "pred_max": 18,
+      "births": 136,
+      "deaths": 135
+    }
+  ]
+}

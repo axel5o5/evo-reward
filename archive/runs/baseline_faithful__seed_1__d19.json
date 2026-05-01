@@ -1,0 +1,31 @@
+{
+  "exp": "baseline_faithful",
+  "seed": 1,
+  "run_tag": "d19",
+  "summary": {
+    "final_step": 20000,
+    "n_checkpoints": 1,
+    "extinct": false,
+    "extinction_step": null,
+    "extinct_species": "none",
+    "peak_prey": 450,
+    "peak_pred": 29
+  },
+  "checkpoints": [
+    {
+      "start_step": 10001,
+      "end_step": 20000,
+      "n_frames": 10000,
+      "prey_first": 449,
+      "prey_last": 450,
+      "prey_min": 447,
+      "prey_max": 450,
+      "pred_first": 18,
+      "pred_last": 29,
+      "pred_min": 18,
+      "pred_max": 29,
+      "births": 195,
+      "deaths": 183
+    }
+  ]
+}

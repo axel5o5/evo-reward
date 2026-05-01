@@ -1,0 +1,4480 @@
+{
+  "runs": [
+    {
+      "exp": "axis1_mlp_reward",
+      "seed": 0,
+      "run_tag": "axis1_mouth_smol_1M",
+      "final_step": 1000000,
+      "n_checkpoints": 50,
+      "extinct": true,
+      "extinction_step": 370001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 36,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 30001,
+          "prey": 405,
+          "pred": 21
+        },
+        {
+          "step": 50001,
+          "prey": 331,
+          "pred": 23
+        },
+        {
+          "step": 70001,
+          "prey": 285,
+          "pred": 14
+        },
+        {
+          "step": 90001,
+          "prey": 263,
+          "pred": 7
+        },
+        {
+          "step": 110001,
+          "prey": 273,
+          "pred": 4
+        },
+        {
+          "step": 130001,
+          "prey": 364,
+          "pred": 1
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 6
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 17
+        },
+        {
+          "step": 250001,
+          "prey": 449,
+          "pred": 32
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 36
+        },
+        {
+          "step": 290001,
+          "prey": 281,
+          "pred": 30
+        },
+        {
+          "step": 310001,
+          "prey": 221,
+          "pred": 19
+        },
+        {
+          "step": 330001,
+          "prey": 221,
+          "pred": 11
+        },
+        {
+          "step": 350001,
+          "prey": 250,
+          "pred": 5
+        },
+        {
+          "step": 370001,
+          "prey": 343,
+          "pred": 0
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 470001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 530001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 550001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 590001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 610001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 630001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 650001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 670001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 690001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 710001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 730001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 750001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 810001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 830001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 850001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 870001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 910001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 930001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 950001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 970001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "axis1_mlp_reward",
+      "seed": 0,
+      "run_tag": "axis1_mouth_smol_1M_mut03",
+      "final_step": 100000,
+      "n_checkpoints": 5,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 23,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 30001,
+          "prey": 431,
+          "pred": 22
+        },
+        {
+          "step": 50001,
+          "prey": 320,
+          "pred": 23
+        },
+        {
+          "step": 70001,
+          "prey": 258,
+          "pred": 20
+        },
+        {
+          "step": 90001,
+          "prey": 238,
+          "pred": 12
+        }
+      ]
+    },
+    {
+      "exp": "axis1_mlp_reward",
+      "seed": 0,
+      "run_tag": "axis1_mouth_smol_1M_mut08",
+      "final_step": 380000,
+      "n_checkpoints": 19,
+      "extinct": true,
+      "extinction_step": 290001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 20,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 30001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 50001,
+          "prey": 448,
+          "pred": 20
+        },
+        {
+          "step": 70001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 8
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 8
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 170001,
+          "prey": 449,
+          "pred": 18
+        },
+        {
+          "step": 190001,
+          "prey": 435,
+          "pred": 18
+        },
+        {
+          "step": 210001,
+          "prey": 355,
+          "pred": 20
+        },
+        {
+          "step": 230001,
+          "prey": 294,
+          "pred": 16
+        },
+        {
+          "step": 250001,
+          "prey": 283,
+          "pred": 9
+        },
+        {
+          "step": 270001,
+          "prey": 357,
+          "pred": 2
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "axis2_aligned",
+      "seed": 0,
+      "run_tag": "2026-04-30T1806Z",
+      "final_step": 1500000,
+      "n_checkpoints": 58,
+      "extinct": true,
+      "extinction_step": 610001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 23,
+      "trajectory": [
+        {
+          "step": 350001,
+          "prey": 194,
+          "pred": 9
+        },
+        {
+          "step": 370001,
+          "prey": 187,
+          "pred": 4
+        },
+        {
+          "step": 390001,
+          "prey": 243,
+          "pred": 1
+        },
+        {
+          "step": 410001,
+          "prey": 303,
+          "pred": 3
+        },
+        {
+          "step": 430001,
+          "prey": 401,
+          "pred": 3
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 470001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 530001,
+          "prey": 449,
+          "pred": 20
+        },
+        {
+          "step": 550001,
+          "prey": 369,
+          "pred": 20
+        },
+        {
+          "step": 570001,
+          "prey": 206,
+          "pred": 12
+        },
+        {
+          "step": 590001,
+          "prey": 213,
+          "pred": 4
+        },
+        {
+          "step": 610001,
+          "prey": 305,
+          "pred": 0
+        },
+        {
+          "step": 630001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 650001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 670001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 690001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 710001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 730001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 750001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 810001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 830001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 850001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 870001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 910001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 930001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 950001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 970001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1010001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1030001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1050001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1070001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1090001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1210001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1370001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1390001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1410001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1430001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1450001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1470001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 1490001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "axis2_social_obs",
+      "seed": 0,
+      "run_tag": "axis2_mouth_smol_1M",
+      "final_step": 1180000,
+      "n_checkpoints": 59,
+      "extinct": true,
+      "extinction_step": 1090001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 28,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 447,
+          "pred": 19
+        },
+        {
+          "step": 30001,
+          "prey": 374,
+          "pred": 22
+        },
+        {
+          "step": 50001,
+          "prey": 256,
+          "pred": 16
+        },
+        {
+          "step": 70001,
+          "prey": 189,
+          "pred": 6
+        },
+        {
+          "step": 90001,
+          "prey": 208,
+          "pred": 4
+        },
+        {
+          "step": 110001,
+          "prey": 285,
+          "pred": 2
+        },
+        {
+          "step": 130001,
+          "prey": 433,
+          "pred": 2
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 11
+        },
+        {
+          "step": 230001,
+          "prey": 449,
+          "pred": 23
+        },
+        {
+          "step": 250001,
+          "prey": 286,
+          "pred": 22
+        },
+        {
+          "step": 270001,
+          "prey": 175,
+          "pred": 14
+        },
+        {
+          "step": 290001,
+          "prey": 150,
+          "pred": 5
+        },
+        {
+          "step": 310001,
+          "prey": 177,
+          "pred": 3
+        },
+        {
+          "step": 330001,
+          "prey": 248,
+          "pred": 1
+        },
+        {
+          "step": 350001,
+          "prey": 375,
+          "pred": 2
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 10
+        },
+        {
+          "step": 430001,
+          "prey": 449,
+          "pred": 13
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 470001,
+          "prey": 358,
+          "pred": 20
+        },
+        {
+          "step": 490001,
+          "prey": 277,
+          "pred": 17
+        },
+        {
+          "step": 510001,
+          "prey": 225,
+          "pred": 11
+        },
+        {
+          "step": 530001,
+          "prey": 259,
+          "pred": 4
+        },
+        {
+          "step": 550001,
+          "prey": 332,
+          "pred": 2
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 590001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 610001,
+          "prey": 450,
+          "pred": 6
+        },
+        {
+          "step": 630001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 650001,
+          "prey": 360,
+          "pred": 22
+        },
+        {
+          "step": 670001,
+          "prey": 248,
+          "pred": 19
+        },
+        {
+          "step": 690001,
+          "prey": 230,
+          "pred": 4
+        },
+        {
+          "step": 710001,
+          "prey": 287,
+          "pred": 2
+        },
+        {
+          "step": 730001,
+          "prey": 385,
+          "pred": 3
+        },
+        {
+          "step": 750001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 810001,
+          "prey": 443,
+          "pred": 23
+        },
+        {
+          "step": 830001,
+          "prey": 344,
+          "pred": 19
+        },
+        {
+          "step": 850001,
+          "prey": 208,
+          "pred": 16
+        },
+        {
+          "step": 870001,
+          "prey": 165,
+          "pred": 10
+        },
+        {
+          "step": 890001,
+          "prey": 149,
+          "pred": 4
+        },
+        {
+          "step": 910001,
+          "prey": 185,
+          "pred": 1
+        },
+        {
+          "step": 930001,
+          "prey": 277,
+          "pred": 1
+        },
+        {
+          "step": 950001,
+          "prey": 434,
+          "pred": 1
+        },
+        {
+          "step": 970001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 10
+        },
+        {
+          "step": 1010001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 1030001,
+          "prey": 319,
+          "pred": 28
+        },
+        {
+          "step": 1050001,
+          "prey": 147,
+          "pred": 19
+        },
+        {
+          "step": 1070001,
+          "prey": 103,
+          "pred": 5
+        },
+        {
+          "step": 1090001,
+          "prey": 122,
+          "pred": 0
+        },
+        {
+          "step": 1110001,
+          "prey": 170,
+          "pred": 0
+        },
+        {
+          "step": 1130001,
+          "prey": 276,
+          "pred": 0
+        },
+        {
+          "step": 1150001,
+          "prey": 446,
+          "pred": 0
+        },
+        {
+          "step": 1170001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "axis2_social_obs",
+      "seed": 1,
+      "run_tag": "axis2_mouth_smol_2M_seed1",
+      "final_step": 20000,
+      "n_checkpoints": 1,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 18,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 447,
+          "pred": 18
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "",
+      "final_step": 100000,
+      "n_checkpoints": 1,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 50
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-21T1935Z_post-d19",
+      "final_step": 160000,
+      "n_checkpoints": 8,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 30001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 50001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 70001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 50
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-21T2159Z_phase1a-v2",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 448,
+      "peak_pred": 43,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 307,
+          "pred": 37
+        },
+        {
+          "step": 30001,
+          "prey": 110,
+          "pred": 39
+        },
+        {
+          "step": 50001,
+          "prey": 56,
+          "pred": 14
+        },
+        {
+          "step": 70001,
+          "prey": 44,
+          "pred": 1
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-21T2319Z_phase1a-v3",
+      "final_step": 400000,
+      "n_checkpoints": 20,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 49,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 404,
+          "pred": 43
+        },
+        {
+          "step": 30001,
+          "prey": 55,
+          "pred": 48
+        },
+        {
+          "step": 50001,
+          "prey": 21,
+          "pred": 18
+        },
+        {
+          "step": 70001,
+          "prey": 25,
+          "pred": 0
+        },
+        {
+          "step": 90001,
+          "prey": 54,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 122,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 388,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-22T1417Z_phase1a-v4",
+      "final_step": 60000,
+      "n_checkpoints": 3,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 42,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 33
+        },
+        {
+          "step": 30001,
+          "prey": 198,
+          "pred": 40
+        },
+        {
+          "step": 50001,
+          "prey": 119,
+          "pred": 13
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-22T1546Z_phase1a-v5",
+      "final_step": 680000,
+      "n_checkpoints": 34,
+      "extinct": true,
+      "extinction_step": 410001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 391,
+          "pred": 41
+        },
+        {
+          "step": 30001,
+          "prey": 161,
+          "pred": 24
+        },
+        {
+          "step": 50001,
+          "prey": 109,
+          "pred": 7
+        },
+        {
+          "step": 70001,
+          "prey": 188,
+          "pred": 1
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 2
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 7
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 170001,
+          "prey": 439,
+          "pred": 44
+        },
+        {
+          "step": 190001,
+          "prey": 240,
+          "pred": 21
+        },
+        {
+          "step": 210001,
+          "prey": 130,
+          "pred": 6
+        },
+        {
+          "step": 230001,
+          "prey": 195,
+          "pred": 1
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 11
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 48
+        },
+        {
+          "step": 350001,
+          "prey": 182,
+          "pred": 42
+        },
+        {
+          "step": 370001,
+          "prey": 91,
+          "pred": 16
+        },
+        {
+          "step": 390001,
+          "prey": 93,
+          "pred": 1
+        },
+        {
+          "step": 410001,
+          "prey": 210,
+          "pred": 0
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 470001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 530001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 550001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 590001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 610001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 630001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 650001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 670001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-23T0400Z",
+      "final_step": 520000,
+      "n_checkpoints": 26,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 40,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 355,
+          "pred": 40
+        },
+        {
+          "step": 30001,
+          "prey": 82,
+          "pred": 25
+        },
+        {
+          "step": 50001,
+          "prey": 102,
+          "pred": 2
+        },
+        {
+          "step": 70001,
+          "prey": 256,
+          "pred": 0
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 470001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "2026-04-23T1008Z",
+      "final_step": 320000,
+      "n_checkpoints": 16,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 41,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 390,
+          "pred": 40
+        },
+        {
+          "step": 30001,
+          "prey": 119,
+          "pred": 33
+        },
+        {
+          "step": 50001,
+          "prey": 64,
+          "pred": 5
+        },
+        {
+          "step": 70001,
+          "prey": 104,
+          "pred": 0
+        },
+        {
+          "step": 90001,
+          "prey": 256,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d19",
+      "final_step": 220000,
+      "n_checkpoints": 11,
+      "extinct": true,
+      "extinction_step": 90001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 38,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 36
+        },
+        {
+          "step": 30001,
+          "prey": 289,
+          "pred": 34
+        },
+        {
+          "step": 50001,
+          "prey": 117,
+          "pred": 17
+        },
+        {
+          "step": 70001,
+          "prey": 111,
+          "pred": 1
+        },
+        {
+          "step": 90001,
+          "prey": 223,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d28a",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 42,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 387,
+          "pred": 38
+        },
+        {
+          "step": 30001,
+          "prey": 122,
+          "pred": 30
+        },
+        {
+          "step": 50001,
+          "prey": 95,
+          "pred": 8
+        },
+        {
+          "step": 70001,
+          "prey": 164,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d28b",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 36,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 417,
+          "pred": 36
+        },
+        {
+          "step": 30001,
+          "prey": 146,
+          "pred": 26
+        },
+        {
+          "step": 50001,
+          "prey": 166,
+          "pred": 2
+        },
+        {
+          "step": 70001,
+          "prey": 424,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d30",
+      "final_step": 220000,
+      "n_checkpoints": 11,
+      "extinct": true,
+      "extinction_step": 50001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 42,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 310,
+          "pred": 41
+        },
+        {
+          "step": 30001,
+          "prey": 79,
+          "pred": 27
+        },
+        {
+          "step": 50001,
+          "prey": 99,
+          "pred": 0
+        },
+        {
+          "step": 70001,
+          "prey": 210,
+          "pred": 0
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d31a",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 38,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 427,
+          "pred": 36
+        },
+        {
+          "step": 30001,
+          "prey": 137,
+          "pred": 25
+        },
+        {
+          "step": 50001,
+          "prey": 98,
+          "pred": 8
+        },
+        {
+          "step": 70001,
+          "prey": 198,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d31b",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 37,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 379,
+          "pred": 36
+        },
+        {
+          "step": 30001,
+          "prey": 89,
+          "pred": 28
+        },
+        {
+          "step": 50001,
+          "prey": 41,
+          "pred": 3
+        },
+        {
+          "step": 70001,
+          "prey": 111,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d31c",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 35,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 449,
+          "pred": 32
+        },
+        {
+          "step": 30001,
+          "prey": 215,
+          "pred": 30
+        },
+        {
+          "step": 50001,
+          "prey": 126,
+          "pred": 12
+        },
+        {
+          "step": 70001,
+          "prey": 204,
+          "pred": 3
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "d31d",
+      "final_step": 80000,
+      "n_checkpoints": 4,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 39,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 422,
+          "pred": 38
+        },
+        {
+          "step": 30001,
+          "prey": 171,
+          "pred": 27
+        },
+        {
+          "step": 50001,
+          "prey": 91,
+          "pred": 7
+        },
+        {
+          "step": 70001,
+          "prey": 104,
+          "pred": 2
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 0,
+      "run_tag": "pre_d18_fix",
+      "final_step": 1800000,
+      "n_checkpoints": 17,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 1,
+          "prey": 337,
+          "pred": 50
+        },
+        {
+          "step": 100001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 500001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 800001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 804501,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 809501,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1090001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1190001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1290001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1390001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1490001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1590001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1600001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1690001,
+          "prey": 450,
+          "pred": 50
+        },
+        {
+          "step": 1790001,
+          "prey": 450,
+          "pred": 50
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 1,
+      "run_tag": "2026-04-22T2328Z_phase1a-v7-seed1-sensor120",
+      "final_step": 380000,
+      "n_checkpoints": 19,
+      "extinct": true,
+      "extinction_step": 110001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 40,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 29
+        },
+        {
+          "step": 30001,
+          "prey": 332,
+          "pred": 40
+        },
+        {
+          "step": 50001,
+          "prey": 127,
+          "pred": 24
+        },
+        {
+          "step": 70001,
+          "prey": 105,
+          "pred": 3
+        },
+        {
+          "step": 90001,
+          "prey": 208,
+          "pred": 1
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_faithful",
+      "seed": 1,
+      "run_tag": "d19",
+      "final_step": 20000,
+      "n_checkpoints": 1,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 29,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 29
+        }
+      ]
+    },
+    {
+      "exp": "baseline_med_ddb",
+      "seed": 0,
+      "run_tag": "baseline_med_ddb_2M",
+      "final_step": 120000,
+      "n_checkpoints": 6,
+      "extinct": true,
+      "extinction_step": 110001,
+      "extinct_species": "pred",
+      "peak_prey": 300,
+      "peak_pred": 16,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 300,
+          "pred": 12
+        },
+        {
+          "step": 30001,
+          "prey": 288,
+          "pred": 15
+        },
+        {
+          "step": 50001,
+          "prey": 271,
+          "pred": 6
+        },
+        {
+          "step": 70001,
+          "prey": 148,
+          "pred": 8
+        },
+        {
+          "step": 90001,
+          "prey": 163,
+          "pred": 1
+        },
+        {
+          "step": 110001,
+          "prey": 229,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_med_ddb_ddm",
+      "seed": 0,
+      "run_tag": "baseline_med_ddb_ddm_2M",
+      "final_step": 1980000,
+      "n_checkpoints": 99,
+      "extinct": true,
+      "extinction_step": 1350001,
+      "extinct_species": "pred",
+      "peak_prey": 300,
+      "peak_pred": 20,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 285,
+          "pred": 20
+        },
+        {
+          "step": 30001,
+          "prey": 180,
+          "pred": 15
+        },
+        {
+          "step": 50001,
+          "prey": 144,
+          "pred": 10
+        },
+        {
+          "step": 70001,
+          "prey": 147,
+          "pred": 3
+        },
+        {
+          "step": 90001,
+          "prey": 170,
+          "pred": 5
+        },
+        {
+          "step": 110001,
+          "prey": 183,
+          "pred": 6
+        },
+        {
+          "step": 130001,
+          "prey": 200,
+          "pred": 7
+        },
+        {
+          "step": 150001,
+          "prey": 266,
+          "pred": 4
+        },
+        {
+          "step": 170001,
+          "prey": 297,
+          "pred": 7
+        },
+        {
+          "step": 190001,
+          "prey": 300,
+          "pred": 7
+        },
+        {
+          "step": 210001,
+          "prey": 300,
+          "pred": 7
+        },
+        {
+          "step": 230001,
+          "prey": 300,
+          "pred": 10
+        },
+        {
+          "step": 250001,
+          "prey": 263,
+          "pred": 11
+        },
+        {
+          "step": 270001,
+          "prey": 205,
+          "pred": 10
+        },
+        {
+          "step": 290001,
+          "prey": 185,
+          "pred": 6
+        },
+        {
+          "step": 310001,
+          "prey": 173,
+          "pred": 2
+        },
+        {
+          "step": 330001,
+          "prey": 205,
+          "pred": 1
+        },
+        {
+          "step": 350001,
+          "prey": 255,
+          "pred": 2
+        },
+        {
+          "step": 370001,
+          "prey": 300,
+          "pred": 4
+        },
+        {
+          "step": 390001,
+          "prey": 288,
+          "pred": 10
+        },
+        {
+          "step": 410001,
+          "prey": 233,
+          "pred": 10
+        },
+        {
+          "step": 430001,
+          "prey": 190,
+          "pred": 9
+        },
+        {
+          "step": 450001,
+          "prey": 153,
+          "pred": 9
+        },
+        {
+          "step": 470001,
+          "prey": 149,
+          "pred": 6
+        },
+        {
+          "step": 490001,
+          "prey": 174,
+          "pred": 6
+        },
+        {
+          "step": 510001,
+          "prey": 236,
+          "pred": 5
+        },
+        {
+          "step": 530001,
+          "prey": 293,
+          "pred": 7
+        },
+        {
+          "step": 550001,
+          "prey": 300,
+          "pred": 8
+        },
+        {
+          "step": 570001,
+          "prey": 300,
+          "pred": 8
+        },
+        {
+          "step": 590001,
+          "prey": 300,
+          "pred": 10
+        },
+        {
+          "step": 610001,
+          "prey": 298,
+          "pred": 10
+        },
+        {
+          "step": 630001,
+          "prey": 300,
+          "pred": 11
+        },
+        {
+          "step": 650001,
+          "prey": 279,
+          "pred": 12
+        },
+        {
+          "step": 670001,
+          "prey": 286,
+          "pred": 10
+        },
+        {
+          "step": 690001,
+          "prey": 300,
+          "pred": 12
+        },
+        {
+          "step": 710001,
+          "prey": 282,
+          "pred": 11
+        },
+        {
+          "step": 730001,
+          "prey": 260,
+          "pred": 10
+        },
+        {
+          "step": 750001,
+          "prey": 235,
+          "pred": 11
+        },
+        {
+          "step": 770001,
+          "prey": 220,
+          "pred": 11
+        },
+        {
+          "step": 790001,
+          "prey": 210,
+          "pred": 9
+        },
+        {
+          "step": 810001,
+          "prey": 193,
+          "pred": 10
+        },
+        {
+          "step": 830001,
+          "prey": 140,
+          "pred": 12
+        },
+        {
+          "step": 850001,
+          "prey": 134,
+          "pred": 8
+        },
+        {
+          "step": 870001,
+          "prey": 120,
+          "pred": 7
+        },
+        {
+          "step": 890001,
+          "prey": 142,
+          "pred": 4
+        },
+        {
+          "step": 910001,
+          "prey": 157,
+          "pred": 5
+        },
+        {
+          "step": 930001,
+          "prey": 172,
+          "pred": 6
+        },
+        {
+          "step": 950001,
+          "prey": 206,
+          "pred": 5
+        },
+        {
+          "step": 970001,
+          "prey": 240,
+          "pred": 6
+        },
+        {
+          "step": 990001,
+          "prey": 260,
+          "pred": 8
+        },
+        {
+          "step": 1010001,
+          "prey": 222,
+          "pred": 9
+        },
+        {
+          "step": 1030001,
+          "prey": 220,
+          "pred": 11
+        },
+        {
+          "step": 1050001,
+          "prey": 207,
+          "pred": 8
+        },
+        {
+          "step": 1070001,
+          "prey": 223,
+          "pred": 7
+        },
+        {
+          "step": 1090001,
+          "prey": 244,
+          "pred": 7
+        },
+        {
+          "step": 1110001,
+          "prey": 300,
+          "pred": 7
+        },
+        {
+          "step": 1130001,
+          "prey": 295,
+          "pred": 9
+        },
+        {
+          "step": 1150001,
+          "prey": 282,
+          "pred": 12
+        },
+        {
+          "step": 1170001,
+          "prey": 242,
+          "pred": 14
+        },
+        {
+          "step": 1190001,
+          "prey": 232,
+          "pred": 11
+        },
+        {
+          "step": 1210001,
+          "prey": 210,
+          "pred": 9
+        },
+        {
+          "step": 1230001,
+          "prey": 175,
+          "pred": 9
+        },
+        {
+          "step": 1250001,
+          "prey": 174,
+          "pred": 7
+        },
+        {
+          "step": 1270001,
+          "prey": 150,
+          "pred": 8
+        },
+        {
+          "step": 1290001,
+          "prey": 142,
+          "pred": 6
+        },
+        {
+          "step": 1310001,
+          "prey": 134,
+          "pred": 5
+        },
+        {
+          "step": 1330001,
+          "prey": 168,
+          "pred": 3
+        },
+        {
+          "step": 1350001,
+          "prey": 263,
+          "pred": 0
+        },
+        {
+          "step": 1370001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1390001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1410001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1430001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1450001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1470001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1490001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1510001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1530001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1550001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1570001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1590001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1610001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1630001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1650001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1670001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1690001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1710001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1730001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1750001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1770001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1790001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1810001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1830001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1850001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1870001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1890001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1910001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1930001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1950001,
+          "prey": 300,
+          "pred": 0
+        },
+        {
+          "step": 1970001,
+          "prey": 300,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "baseline_smol_ddb",
+      "seed": 0,
+      "run_tag": "baseline_smol_ddb_2M",
+      "final_step": 2000000,
+      "n_checkpoints": 100,
+      "extinct": true,
+      "extinction_step": 70001,
+      "extinct_species": "pred",
+      "peak_prey": 200,
+      "peak_pred": 14,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 173,
+          "pred": 14
+        },
+        {
+          "step": 30001,
+          "prey": 95,
+          "pred": 11
+        },
+        {
+          "step": 50001,
+          "prey": 77,
+          "pred": 4
+        },
+        {
+          "step": 70001,
+          "prey": 96,
+          "pred": 0
+        },
+        {
+          "step": 90001,
+          "prey": 157,
+          "pred": 0
+        },
+        {
+          "step": 110001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 130001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 150001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 170001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 190001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 210001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 390001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 410001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 430001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 450001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 470001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 490001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 510001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 530001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 550001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 570001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 590001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 610001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 630001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 650001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 670001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 690001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 710001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 730001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 750001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 770001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 790001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 810001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 830001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 850001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 870001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 890001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 910001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 930001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 950001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 970001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 990001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1010001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1030001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1050001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1070001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1090001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1110001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1130001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1150001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1170001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1190001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1210001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1230001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1250001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1270001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1290001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1310001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1330001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1350001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1370001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1390001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1410001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1430001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1450001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1470001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1490001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1510001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1530001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1550001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1570001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1590001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1610001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1630001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1650001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1670001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1690001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1710001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1730001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1750001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1770001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1790001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1810001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1830001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1850001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1870001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1890001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1910001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1930001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1950001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1970001,
+          "prey": 200,
+          "pred": 0
+        },
+        {
+          "step": 1990001,
+          "prey": 200,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "exp_sweep_mouth_smol",
+      "seed": 0,
+      "run_tag": "sweep_mouth_smol_1M",
+      "final_step": 1000000,
+      "n_checkpoints": 50,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 28,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 448,
+          "pred": 19
+        },
+        {
+          "step": 30001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 50001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 70001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 11
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 12
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 11
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 12
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 290001,
+          "prey": 447,
+          "pred": 15
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 17
+        },
+        {
+          "step": 350001,
+          "prey": 449,
+          "pred": 17
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 450001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 470001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 510001,
+          "prey": 449,
+          "pred": 17
+        },
+        {
+          "step": 530001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 550001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 570001,
+          "prey": 444,
+          "pred": 23
+        },
+        {
+          "step": 590001,
+          "prey": 421,
+          "pred": 27
+        },
+        {
+          "step": 610001,
+          "prey": 329,
+          "pred": 27
+        },
+        {
+          "step": 630001,
+          "prey": 405,
+          "pred": 17
+        },
+        {
+          "step": 650001,
+          "prey": 449,
+          "pred": 15
+        },
+        {
+          "step": 670001,
+          "prey": 450,
+          "pred": 12
+        },
+        {
+          "step": 690001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 710001,
+          "prey": 450,
+          "pred": 21
+        },
+        {
+          "step": 730001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 750001,
+          "prey": 449,
+          "pred": 26
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 810001,
+          "prey": 449,
+          "pred": 22
+        },
+        {
+          "step": 830001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 850001,
+          "prey": 449,
+          "pred": 21
+        },
+        {
+          "step": 870001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 910001,
+          "prey": 449,
+          "pred": 24
+        },
+        {
+          "step": 930001,
+          "prey": 431,
+          "pred": 27
+        },
+        {
+          "step": 950001,
+          "prey": 385,
+          "pred": 27
+        },
+        {
+          "step": 970001,
+          "prey": 345,
+          "pred": 19
+        },
+        {
+          "step": 990001,
+          "prey": 371,
+          "pred": 16
+        }
+      ]
+    },
+    {
+      "exp": "exp_sweep_mouth_smol",
+      "seed": 1,
+      "run_tag": "sweep_mouth_smol_1M_seed1",
+      "final_step": 720000,
+      "n_checkpoints": 36,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 30,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 30001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 50001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 70001,
+          "prey": 448,
+          "pred": 19
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 15
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 150001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 190001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 210001,
+          "prey": 450,
+          "pred": 17
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 250001,
+          "prey": 448,
+          "pred": 21
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 21
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 20
+        },
+        {
+          "step": 330001,
+          "prey": 449,
+          "pred": 21
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 23
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 28
+        },
+        {
+          "step": 450001,
+          "prey": 419,
+          "pred": 29
+        },
+        {
+          "step": 470001,
+          "prey": 444,
+          "pred": 18
+        },
+        {
+          "step": 490001,
+          "prey": 449,
+          "pred": 14
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 530001,
+          "prey": 450,
+          "pred": 19
+        },
+        {
+          "step": 550001,
+          "prey": 450,
+          "pred": 17
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 590001,
+          "prey": 445,
+          "pred": 18
+        },
+        {
+          "step": 610001,
+          "prey": 450,
+          "pred": 22
+        },
+        {
+          "step": 630001,
+          "prey": 448,
+          "pred": 21
+        },
+        {
+          "step": 650001,
+          "prey": 449,
+          "pred": 19
+        },
+        {
+          "step": 670001,
+          "prey": 389,
+          "pred": 21
+        },
+        {
+          "step": 690001,
+          "prey": 425,
+          "pred": 17
+        },
+        {
+          "step": 710001,
+          "prey": 449,
+          "pred": 17
+        }
+      ]
+    },
+    {
+      "exp": "exp_tune_eta_0.45",
+      "seed": 0,
+      "run_tag": "tune_eta_045",
+      "final_step": 140000,
+      "n_checkpoints": 7,
+      "extinct": false,
+      "extinction_step": null,
+      "extinct_species": "none",
+      "peak_prey": 450,
+      "peak_pred": 24,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 449,
+          "pred": 24
+        },
+        {
+          "step": 30001,
+          "prey": 404,
+          "pred": 23
+        },
+        {
+          "step": 50001,
+          "prey": 201,
+          "pred": 16
+        },
+        {
+          "step": 70001,
+          "prey": 301,
+          "pred": 6
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 4
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 5
+        }
+      ]
+    },
+    {
+      "exp": "exp_tune_eta_0.50",
+      "seed": 0,
+      "run_tag": "tune_eta_050",
+      "final_step": 1000000,
+      "n_checkpoints": 50,
+      "extinct": true,
+      "extinction_step": 670001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 30,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 450,
+          "pred": 30
+        },
+        {
+          "step": 30001,
+          "prey": 410,
+          "pred": 24
+        },
+        {
+          "step": 50001,
+          "prey": 317,
+          "pred": 12
+        },
+        {
+          "step": 70001,
+          "prey": 406,
+          "pred": 6
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 6
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 10
+        },
+        {
+          "step": 130001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 150002,
+          "prey": 450,
+          "pred": 18
+        },
+        {
+          "step": 170001,
+          "prey": 450,
+          "pred": 21
+        },
+        {
+          "step": 190001,
+          "prey": 422,
+          "pred": 22
+        },
+        {
+          "step": 210001,
+          "prey": 328,
+          "pred": 27
+        },
+        {
+          "step": 230001,
+          "prey": 295,
+          "pred": 21
+        },
+        {
+          "step": 250001,
+          "prey": 358,
+          "pred": 15
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 290001,
+          "prey": 446,
+          "pred": 20
+        },
+        {
+          "step": 310001,
+          "prey": 447,
+          "pred": 22
+        },
+        {
+          "step": 330001,
+          "prey": 284,
+          "pred": 22
+        },
+        {
+          "step": 350001,
+          "prey": 197,
+          "pred": 9
+        },
+        {
+          "step": 370001,
+          "prey": 315,
+          "pred": 6
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 11
+        },
+        {
+          "step": 410001,
+          "prey": 441,
+          "pred": 20
+        },
+        {
+          "step": 430001,
+          "prey": 360,
+          "pred": 25
+        },
+        {
+          "step": 450001,
+          "prey": 258,
+          "pred": 17
+        },
+        {
+          "step": 470001,
+          "prey": 266,
+          "pred": 5
+        },
+        {
+          "step": 490001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 510001,
+          "prey": 450,
+          "pred": 8
+        },
+        {
+          "step": 530001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 550001,
+          "prey": 450,
+          "pred": 12
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 16
+        },
+        {
+          "step": 590001,
+          "prey": 445,
+          "pred": 17
+        },
+        {
+          "step": 610001,
+          "prey": 329,
+          "pred": 17
+        },
+        {
+          "step": 630001,
+          "prey": 165,
+          "pred": 18
+        },
+        {
+          "step": 650001,
+          "prey": 87,
+          "pred": 8
+        },
+        {
+          "step": 670001,
+          "prey": 213,
+          "pred": 0
+        },
+        {
+          "step": 690001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 710001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 730001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 750001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 810001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 830001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 850001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 870001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 890001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 910001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 930001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 950001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 970001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 990001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "exp_tune_eta_0.55",
+      "seed": 0,
+      "run_tag": "tune_eta_055",
+      "final_step": 880000,
+      "n_checkpoints": 44,
+      "extinct": true,
+      "extinction_step": 710001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 50,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 449,
+          "pred": 31
+        },
+        {
+          "step": 30001,
+          "prey": 297,
+          "pred": 25
+        },
+        {
+          "step": 50001,
+          "prey": 207,
+          "pred": 17
+        },
+        {
+          "step": 70001,
+          "prey": 333,
+          "pred": 5
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 7
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 13
+        },
+        {
+          "step": 130001,
+          "prey": 449,
+          "pred": 16
+        },
+        {
+          "step": 150002,
+          "prey": 448,
+          "pred": 17
+        },
+        {
+          "step": 170001,
+          "prey": 381,
+          "pred": 20
+        },
+        {
+          "step": 190001,
+          "prey": 283,
+          "pred": 19
+        },
+        {
+          "step": 210001,
+          "prey": 224,
+          "pred": 15
+        },
+        {
+          "step": 230001,
+          "prey": 210,
+          "pred": 11
+        },
+        {
+          "step": 250001,
+          "prey": 279,
+          "pred": 7
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 10
+        },
+        {
+          "step": 290001,
+          "prey": 449,
+          "pred": 18
+        },
+        {
+          "step": 310001,
+          "prey": 380,
+          "pred": 26
+        },
+        {
+          "step": 330001,
+          "prey": 127,
+          "pred": 28
+        },
+        {
+          "step": 350001,
+          "prey": 83,
+          "pred": 10
+        },
+        {
+          "step": 370001,
+          "prey": 133,
+          "pred": 1
+        },
+        {
+          "step": 390001,
+          "prey": 370,
+          "pred": 1
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 430001,
+          "prey": 450,
+          "pred": 12
+        },
+        {
+          "step": 450001,
+          "prey": 448,
+          "pred": 34
+        },
+        {
+          "step": 470001,
+          "prey": 146,
+          "pred": 37
+        },
+        {
+          "step": 490001,
+          "prey": 58,
+          "pred": 15
+        },
+        {
+          "step": 510001,
+          "prey": 46,
+          "pred": 2
+        },
+        {
+          "step": 530001,
+          "prey": 72,
+          "pred": 1
+        },
+        {
+          "step": 550001,
+          "prey": 166,
+          "pred": 1
+        },
+        {
+          "step": 570001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 590001,
+          "prey": 450,
+          "pred": 1
+        },
+        {
+          "step": 610001,
+          "prey": 450,
+          "pred": 3
+        },
+        {
+          "step": 630001,
+          "prey": 450,
+          "pred": 5
+        },
+        {
+          "step": 650001,
+          "prey": 450,
+          "pred": 41
+        },
+        {
+          "step": 670001,
+          "prey": 171,
+          "pred": 49
+        },
+        {
+          "step": 690001,
+          "prey": 22,
+          "pred": 18
+        },
+        {
+          "step": 710001,
+          "prey": 30,
+          "pred": 0
+        },
+        {
+          "step": 730001,
+          "prey": 82,
+          "pred": 0
+        },
+        {
+          "step": 750001,
+          "prey": 240,
+          "pred": 0
+        },
+        {
+          "step": 770001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 790001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 810001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 830001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 850001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 870001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    },
+    {
+      "exp": "exp_v8_no_cooldown",
+      "seed": 0,
+      "run_tag": "2026-04-23T1558Z_v8-no-cooldown-seed0",
+      "final_step": 420000,
+      "n_checkpoints": 21,
+      "extinct": true,
+      "extinction_step": 210001,
+      "extinct_species": "pred",
+      "peak_prey": 450,
+      "peak_pred": 36,
+      "trajectory": [
+        {
+          "step": 10001,
+          "prey": 445,
+          "pred": 35
+        },
+        {
+          "step": 30001,
+          "prey": 335,
+          "pred": 28
+        },
+        {
+          "step": 50001,
+          "prey": 276,
+          "pred": 7
+        },
+        {
+          "step": 70001,
+          "prey": 396,
+          "pred": 4
+        },
+        {
+          "step": 90001,
+          "prey": 450,
+          "pred": 4
+        },
+        {
+          "step": 110001,
+          "prey": 450,
+          "pred": 14
+        },
+        {
+          "step": 130001,
+          "prey": 449,
+          "pred": 28
+        },
+        {
+          "step": 150001,
+          "prey": 275,
+          "pred": 32
+        },
+        {
+          "step": 170001,
+          "prey": 118,
+          "pred": 10
+        },
+        {
+          "step": 190001,
+          "prey": 165,
+          "pred": 2
+        },
+        {
+          "step": 210001,
+          "prey": 420,
+          "pred": 0
+        },
+        {
+          "step": 230001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 250001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 270001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 290001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 310001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 330001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 350001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 370001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 390001,
+          "prey": 450,
+          "pred": 0
+        },
+        {
+          "step": 410001,
+          "prey": 450,
+          "pred": 0
+        }
+      ]
+    }
+  ]
+}

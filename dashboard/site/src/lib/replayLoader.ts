@@ -152,6 +152,41 @@ export async function fetchIndex(): Promise<ReplayIndex> {
   return (await res.json()) as ReplayIndex;
 }
 
+export interface ArchiveTrajectoryPoint {
+  step: number;
+  prey: number;
+  pred: number;
+}
+
+export interface ArchiveRunSummary {
+  exp: string;
+  seed: number;
+  run_tag: string;
+  final_step: number | null;
+  n_checkpoints: number;
+  extinct: boolean;
+  extinction_step: number | null;
+  extinct_species: "prey" | "pred" | "none";
+  peak_prey: number;
+  peak_pred: number;
+  trajectory: ArchiveTrajectoryPoint[];
+}
+
+export interface ArchiveSummary {
+  runs: ArchiveRunSummary[];
+}
+
+// Fetches the per-run archive roll-up — population trajectories + extinction
+// stats for runs whose replay binaries may have been pruned to save GCS
+// storage. Resolves to null if the bucket has no summary.json yet (i.e. the
+// archive script hasn't been run + uploaded).
+export async function fetchArchiveSummary(): Promise<ArchiveSummary | null> {
+  const base = replaysBaseUrl();
+  const res = await fetch(base + "summary.json", { cache: "no-cache" });
+  if (!res.ok) return null;
+  return (await res.json()) as ArchiveSummary;
+}
+
 export async function fetchReplay(entry: ReplayIndexEntry): Promise<ReplayData> {
   const base = replaysBaseUrl();
   const dir = base + entry.path.replace(/\\/g, "/") + "/";

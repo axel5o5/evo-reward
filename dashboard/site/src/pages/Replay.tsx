@@ -6,6 +6,7 @@ import AgentInspector from "../components/AgentInspector";
 import EventChips from "../components/EventChips";
 import WeightHistogram from "../components/WeightHistogram";
 import WeightTrajectoryStrip from "../components/WeightTrajectoryStrip";
+import ArchivedRunsPanel from "../components/ArchivedRunsPanel";
 import {
   ReplayData,
   ReplayIndex,
@@ -545,6 +546,12 @@ export default function Replay() {
               </div>
             )}
           </section>
+        </div>
+      )}
+
+      {index && index.replays.length > 0 && (
+        <div className="mt-8">
+          <ArchivedRunsPanel liveReplays={index.replays} />
         </div>
       )}
     </div>

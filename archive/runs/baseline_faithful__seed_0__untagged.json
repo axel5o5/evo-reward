@@ -1,0 +1,31 @@
+{
+  "exp": "baseline_faithful",
+  "seed": 0,
+  "run_tag": "",
+  "summary": {
+    "final_step": 100000,
+    "n_checkpoints": 1,
+    "extinct": false,
+    "extinction_step": null,
+    "extinct_species": "none",
+    "peak_prey": 450,
+    "peak_pred": 50
+  },
+  "checkpoints": [
+    {
+      "start_step": 90001,
+      "end_step": 100000,
+      "n_frames": 10000,
+      "prey_first": 450,
+      "prey_last": 450,
+      "prey_min": 450,
+      "prey_max": 450,
+      "pred_first": 50,
+      "pred_last": 50,
+      "pred_min": 50,
+      "pred_max": 50,
+      "births": 0,
+      "deaths": 0
+    }
+  ]
+}
