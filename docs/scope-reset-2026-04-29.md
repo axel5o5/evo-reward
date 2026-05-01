@@ -1,5 +1,15 @@
 # Scope reset — what's changed and why (2026-04-29)
 
+> **⚠ ADDENDUM 2026-05-01 — what's changed since this document was written:**
+>
+> The scaffold design has gone through four more iterations since this doc was authored (§15.11-§15.14 of [findings.md](findings.md)):
+> - **§15.11**: Strong scaffolds (floor=0, max_boost=50) added — extinction at N≤3 effectively impossible
+> - **§15.12**: Threshold bumped 4→8 — first axis-1 run lost diversity because scaffolds engaged too late
+> - **§15.13**: Threshold bumped 8→10, scale bumped to med-large (cap=40) — preserves diversity but blunts selection
+> - **§15.14**: **DDM dropped, DDB rate boost is now energy-weighted by within-species energy share** — selection pressure preserved at the *individual* level inside the scaffold envelope. **This is the current framing.** Bad hunters at low energy don't get rescued; high-energy individuals carry population recovery. Total breeding pressure preserved at the species level; allocated by fitness.
+>
+> The [DDB + DDM](#ddb--ddm--the-stability-scaffolds) section below describes the older uniform-boost design. It's preserved for historical context but **the live system uses the energy-weighted design from §15.14**. See [CURRENT_STATE.md](CURRENT_STATE.md) for the up-to-date mental model.
+
 > **TL;DR.** We've narrowed scope to two axes (1 and 2), redesigned both around their actual failure modes from earlier runs, added a single "stability scaffold" mechanism to prevent extinctions, and shrunk the world geometry to iterate faster. Three experiments queue up over the next ~3 days. Axis-3 and axis-4 are deferred indefinitely.
 >
 > This document is the handoff for anyone joining the project mid-stream. For deeper rationale see `docs/findings.md` §11–§15.

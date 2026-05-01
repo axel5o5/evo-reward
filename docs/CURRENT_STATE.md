@@ -28,13 +28,25 @@ and going directly to axis-1.
 
 GCP infra: `evo-reward-gpu` VM (single L4), runs in tmux sessions.
 
-## The two scaffolds in play
+## ⭐ The current scaffold framing (2026-05-01) — energy-weighted DDB
 
 The K&D paper has a known stability problem: with eta=0.5 (paper baseline),
 predators tend to over-pressure prey, then crash. To get long enough
-co-evolution for ablations to be meaningful, we add two non-paper scaffolds.
-Both are explicitly documented as scaffolds, not biological claims, and we
-disclose them in findings.
+co-evolution for ablations to be meaningful, we use a single scaffold —
+**Density-Dependent Breeding with energy-weighted rate boost** — explicitly
+documented as a scaffold (not a biological claim) and disclosed in findings.
+
+**Core idea:** at low predator population, scaffolds activate to prevent
+extinction. But the breeding-rate scaffold is allocated by within-species
+energy share — so the *total* species-level breeding pressure scales with
+population (rescue function preserved) while the *individual* selection
+pressure stays sharp (high-energy hunters carry recovery, not random
+survivors). This is the result of four iterations of tuning; earlier
+designs uniformly rescued all individuals which diluted selection. See
+[findings.md §15.11-§15.14](findings.md) for the full journey, especially
+**§15.14** for the current design.
+
+If you're tuning scaffolds for a future run, this is the framing:
 
 ### DDB — Density-Dependent Breeding (the only scaffold currently active)
 
@@ -175,3 +187,35 @@ gcloud compute ssh evo-reward-gpu --command "tmux capture-pane -t axis1 -p | tai
   feature branches and PRs.
 - **Replays go to `evo-reward-replays-public` GCS bucket.** All axis configs
   have `replay_bucket` set; if you add a new config it needs that line.
+
+## How to think about scaffolds going forward
+
+If a future run still shows extinction or selection issues, the toolbox now is:
+
+| Knob | What it does | When to change it |
+|---|---|---|
+| `ddb_pred_threshold` (currently 10) | Where the scaffold curve hits 50% (factor=0.5 at N=T) | Lower if extinction happens at deep bottlenecks; raise if selection is too blunted at healthy peak |
+| `ddb_floor` (currently 0.0) | Minimum factor — pins the curve at extreme low N | Raise toward 0.1-0.3 if you want baseline selection-pressure relief always present |
+| `ddb_max_boost` (currently 50) | Cap on the inverse factor in the rate formula | Lower (e.g., 20) if breeding is too aggressive at deep bottlenecks |
+| `ddb_boost_distribution` (currently `"energy_weighted"`) | How the rate boost is allocated | Switch to `"uniform"` only if energy_weighted causes weird dynamics (it shouldn't) |
+| `stability_mechanism` (currently `"ddb"`) | Which scaffolds are active | Add `"ddb_ddm"` if a *true* extinction emergency occurs that DDB-rate-boost alone can't rescue |
+
+**Diagnosis playbook:**
+
+- **Extinction at low N (pred ≤3):** scaffolds aren't strong enough. Check `factor` at the death-point N — if >0.4, lower the threshold or floor.
+- **Mean reward weights drift to zero with high variance:** selection is too weak. With energy_weighted boost this shouldn't happen at healthy populations, but if it does, check that population is actually healthy (factor near 1) — if you're stuck in the N=10-15 range, scaffolds are constantly engaged.
+- **Population locks at low N never recovers:** ddb_max_boost too low, OR all individuals at zero energy (look at energy quartiles). If everyone's starving, the rate boost can't help — population probably doomed.
+- **Bad hunters survive forever:** check that DDM is actually disabled (`stability_mechanism: "ddb"` not `"ddb_ddm"`). DDM is what keeps them alive past starvation.
+
+**The current design philosophy:** scaffold the *population* to prevent extinction, but never the *individual fitness signal*. Energy-weighted boost is the operationalization of this. If you find yourself wanting to add a scaffold that protects low-energy individuals, ask first whether you're protecting them from an extinction event (legitimate use of DDM in emergency mode) or from selection (illegitimate — that's the bug we just fixed).
+
+## Run history snapshot
+
+| Run | Config | Outcome |
+|---|---|---|
+| baseline_smol_ddb | small + DDB floor=0.3 | Extinct ~80K |
+| baseline_med_ddb | medium + DDB floor=0.3 | Lone-survivor starvation ~100K |
+| baseline_med_ddb_ddm | medium + DDB+DDM floor=0.3 | 1.35M then trophic-collapse-via-herd |
+| axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (lessons → §15.12) |
+| axis1_residual v3 | med-large T=10 + DDB+DDM uniform boost | 230K, healthy LV but selection diluted (lessons → §15.14) |
+| **axis1_residual v4 (running)** | **med-large T=10 + DDB only + energy-weighted boost** | **TBD** |
