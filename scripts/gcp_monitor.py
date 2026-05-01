@@ -61,6 +61,11 @@ class TrainingState:
     reward_weights: dict            # {prey: {eat/act/prey/pred: [m, s]}, pred: ...}
     progress_file_age_hours: float  # how stale the file is on disk
     evolution_detected: bool        # max|mean| > 0.2 (init std × 2)
+    # Live system telemetry — populated by _sample_system_metrics in
+    # run_experiment_jax.py at every log interval. Either may be None if the
+    # probe failed (e.g. CPU-only dev box, psutil not installed).
+    gpu: dict | None = None         # {util_pct, mem_util_pct, mem_used_mb, mem_total_mb}
+    host: dict | None = None        # {cpu_pct, ram_pct, ram_used_mb, ram_total_mb}
 
 
 @dataclasses.dataclass
@@ -315,6 +320,8 @@ def probe_training(
         reward_weights=rw,
         progress_file_age_hours=age_h if age_h is not None else 0.0,
         evolution_detected=evolution_detected,
+        gpu=data.get("gpu"),
+        host=data.get("host"),
     )
 
 

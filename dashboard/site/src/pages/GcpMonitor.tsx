@@ -35,6 +35,20 @@ type Costs = {
 
 type WeightPair = [number, number];  // [mean, std]
 
+type Gpu = {
+  util_pct: number;
+  mem_util_pct: number;
+  mem_used_mb: number;
+  mem_total_mb: number;
+};
+
+type Host = {
+  cpu_pct: number;
+  ram_pct: number;
+  ram_used_mb: number;
+  ram_total_mb: number;
+};
+
 type Training = {
   experiment_name: string;
   seed: number;
@@ -52,6 +66,11 @@ type Training = {
   };
   progress_file_age_hours: number;
   evolution_detected: boolean;
+  // Live system telemetry — sampled by run_experiment_jax.py at every log
+  // interval. Either may be null on older runs / CPU-only dev / when
+  // psutil isn't installed. Lag matches the gcs-sync cadence (≤5 min).
+  gpu: Gpu | null;
+  host: Host | null;
 };
 
 type WorkerError = { stage: string; message: string };
@@ -360,6 +379,109 @@ function HeroCard({ vm, t, costs }: { vm: VM; t: Training | null; costs: Costs }
         />
       </div>
     </div>
+  );
+}
+
+// Pick a tailwind text color for a 0-100 utilization value. Matches the
+// VM status palette so the dashboard reads consistently.
+function utilClasses(pct: number): string {
+  if (pct >= 90) return "text-red-600 dark:text-red-400";
+  if (pct >= 70) return "text-amber-600 dark:text-amber-400";
+  if (pct >= 30) return "text-green-600 dark:text-green-400";
+  return "text-gray-700 dark:text-gray-300";
+}
+
+// Compact horizontal bar — one-shot sparkline for a percentage. No JS,
+// pure tailwind. Used for GPU/CPU/RAM at-a-glance bars.
+function MeterBar({ pct, tone = "blue" }: { pct: number; tone?: "blue" | "green" | "amber" | "red" }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  // Pick fill color from the same util thresholds so high values pop red
+  // regardless of which metric this bar is showing.
+  const fill =
+    clamped >= 90 ? "bg-red-500" :
+    clamped >= 70 ? "bg-amber-500" :
+    clamped >= 30 ? (tone === "green" ? "bg-green-500" : "bg-blue-500") :
+    "bg-gray-400 dark:bg-gray-600";
+  return (
+    <div className="w-full h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+      <div className={`h-full ${fill}`} style={{ width: `${clamped}%` }} />
+    </div>
+  );
+}
+
+// Live system telemetry — GPU + host CPU/RAM. Sampled at every log interval
+// inside _log_progress (run_experiment_jax.py), serialized into progress.json,
+// and surfaced here. Lag matches the gcs-sync cadence (≤5 min, see footer).
+function SystemCard({ t }: { t: Training }) {
+  const gpu = t.gpu;
+  const host = t.host;
+  const fresh = t.progress_file_age_hours < 0.2;
+  if (!gpu && !host) {
+    return (
+      <Card
+        title="Live system"
+        footer={`progress.json age: ${hoursToDuration(t.progress_file_age_hours)}${fresh ? "" : " — may be stale"}`}
+      >
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          No telemetry yet. The runner samples <code>nvidia-smi</code> (and{" "}
+          <code>psutil</code> if installed) at every log interval; check the
+          VM has both available.
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card
+      title="Live system"
+      footer={`progress.json age: ${hoursToDuration(t.progress_file_age_hours)}${fresh ? "" : " — may be stale"}`}
+    >
+      {gpu && (
+        <div className="space-y-2">
+          <Row
+            label="GPU util"
+            value={<span className={`font-mono ${utilClasses(gpu.util_pct)}`}>{gpu.util_pct}%</span>}
+            tip={<>SM utilization from <code>nvidia-smi</code>. Below 40% means the GPU is mostly idle waiting on host or memory — there's headroom to run more parallel seeds via <code>jax.vmap</code> over a seed axis. Above 90% the GPU is saturated and parallel seeds will cost wall time per seed roughly proportionally.</>}
+          />
+          <MeterBar pct={gpu.util_pct} />
+          <Row
+            label="GPU memory"
+            value={
+              <span className="font-mono">
+                {(gpu.mem_used_mb / 1024).toFixed(1)} / {(gpu.mem_total_mb / 1024).toFixed(1)} GB
+                <span className={`ml-2 ${utilClasses(100 * gpu.mem_used_mb / Math.max(gpu.mem_total_mb, 1))}`}>
+                  ({Math.round(100 * gpu.mem_used_mb / Math.max(gpu.mem_total_mb, 1))}%)
+                </span>
+              </span>
+            }
+            tip={<>VRAM used by all CUDA processes on the device. JAX preallocates ~75% of total VRAM by default — that's why this often pegs near 75% even at low compute util. Override via <code>XLA_PYTHON_CLIENT_PREALLOCATE=false</code> if running multiple JAX processes.</>}
+          />
+          <MeterBar pct={Math.round(100 * gpu.mem_used_mb / Math.max(gpu.mem_total_mb, 1))} />
+        </div>
+      )}
+      {host && (
+        <div className={`${gpu ? "mt-3 pt-3 border-t border-gray-100 dark:border-gray-800" : ""} space-y-2`}>
+          <Row
+            label="Host CPU"
+            value={<span className={`font-mono ${utilClasses(host.cpu_pct)}`}>{host.cpu_pct.toFixed(0)}%</span>}
+            tip={<>Average CPU% across all cores since the previous log interval. If this is consistently &gt;80% while GPU util is low, the host is the bottleneck (replay encoding, Python loop overhead, host-device transfers) and adding more parallel seeds won't help until that's fixed.</>}
+          />
+          <MeterBar pct={host.cpu_pct} tone="green" />
+          <Row
+            label="Host RAM"
+            value={
+              <span className="font-mono">
+                {(host.ram_used_mb / 1024).toFixed(1)} / {(host.ram_total_mb / 1024).toFixed(1)} GB
+                <span className={`ml-2 ${utilClasses(host.ram_pct)}`}>
+                  ({host.ram_pct.toFixed(0)}%)
+                </span>
+              </span>
+            }
+            tip={<>Resident memory used on the host (not the GPU). High values + spot VM = OOMKill risk; the runner stores per-step replay buffers and PPO rollouts in host memory, so RAM grows with rollout_steps × max_agents.</>}
+          />
+          <MeterBar pct={host.ram_pct} tone="green" />
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -800,6 +922,7 @@ function TargetSection({ target }: { target: Target }) {
         </div>
 
         <div className="space-y-4">
+          {target.training && <SystemCard t={target.training} />}
           <VMCard vm={target.vm} />
           <CheckpointsCard c={target.checkpoints} />
           <CostsCard costs={target.costs} />

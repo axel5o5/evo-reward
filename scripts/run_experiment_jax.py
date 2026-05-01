@@ -16,6 +16,7 @@ import argparse
 import datetime
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -53,6 +54,61 @@ from scripts.replay_recorder import ReplayRecorder
 
 
 CHECKPOINTS_TO_KEEP = 3
+
+
+# psutil is optional — present on most envs but not in requirements.txt. If
+# it's missing, we just skip host-side metrics (gpu still works on its own).
+try:
+    import psutil as _psutil
+except ImportError:
+    _psutil = None
+
+
+def _sample_system_metrics():
+    """Probe nvidia-smi + (optional) psutil for live GPU/host telemetry.
+
+    Returns (gpu, host) where each is a dict or None. Called at every log
+    interval, not per step — subprocess latency (~30ms) is fine at that
+    cadence and the values get serialized into progress.json so the
+    dashboard can show GPU saturation without SSHing the VM.
+    """
+    gpu = None
+    try:
+        out = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu,utilization.memory,memory.used,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True, text=True, timeout=2.0,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            row = out.stdout.strip().splitlines()[0].split(",")
+            gpu = {
+                "util_pct": int(row[0]),
+                "mem_util_pct": int(row[1]),
+                "mem_used_mb": int(row[2]),
+                "mem_total_mb": int(row[3]),
+            }
+    except (FileNotFoundError, subprocess.TimeoutExpired, IndexError, ValueError):
+        gpu = None
+
+    host = None
+    if _psutil is not None:
+        try:
+            # interval=None reads since last call — non-blocking, but the first
+            # call returns 0.0 by definition. Acceptable for log-interval cadence.
+            cpu_pct = _psutil.cpu_percent(interval=None)
+            vm = _psutil.virtual_memory()
+            host = {
+                "cpu_pct": float(cpu_pct),
+                "ram_pct": float(vm.percent),
+                "ram_used_mb": int(vm.used / 1e6),
+                "ram_total_mb": int(vm.total / 1e6),
+            }
+        except Exception:
+            host = None
+    return gpu, host
 
 
 def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
@@ -308,6 +364,10 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
                 f"predators may be eating without metabolic cost"
             )
 
+        # Live GPU/host telemetry — populated when nvidia-smi (and optionally
+        # psutil) are available on the VM. Either or both may be None on dev.
+        gpu_metrics, host_metrics = _sample_system_metrics()
+
         # Mirror the same values to progress.json. Atomic replace (write +
         # rename) so the gcs-sync sidecar never catches a half-written file.
         progress_payload = {
@@ -357,6 +417,8 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
                     "pred": [float(pd_pred_m), float(pd_pred_s)],
                 },
             },
+            "gpu": gpu_metrics,
+            "host": host_metrics,
         }
         os.makedirs(os.path.dirname(progress_file), exist_ok=True)
         tmp = progress_file + ".tmp"
