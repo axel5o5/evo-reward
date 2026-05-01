@@ -68,7 +68,7 @@ max_motor_norm:     114.0
 n_proximity_sensors:    32
 n_proximity_channels:   8                # 8 channels with distance_and_heading encoding
 proximity_fov_deg:      120.0
-proximity_max_range:    200.0
+proximity_max_range:    120.0   # paper Appendix A; emevo TOML uses 200 but paper text takes precedence (D27)
 n_tactile_sensors:      18
 n_tactile_channels:     4
 tactile_spacing_deg:    20.0
@@ -76,7 +76,10 @@ tactile_spacing_deg:    20.0
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
 food_max:               525
 food_initial:           35
-food_growth_rate:       0.5
+# Scale-relative: 0.5 food/step at the paper's 960² world; resolver scales
+# by area ratio so density per unit area matches paper. At world=880 →
+# effective rate 0.5 × (880/960)² ≈ 0.420.
+food_growth_rate_at_960sq: 0.5
 food_max_regen_per_step: 9
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
