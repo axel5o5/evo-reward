@@ -226,12 +226,16 @@ class TestPPOUpdate:
         ptrs = ptrs[:n_slots]
         state = state.replace(rollout_ptrs=ptrs)
 
+        # Snapshot old ptrs to host before the call — donate_argnums on the
+        # PPO update invalidates state.rollout_ptrs (same buffer as `ptrs`).
+        ptrs_old = np.asarray(ptrs)
+
         _, _, new_ptrs = self._apply(config, state)
         # Active slot 0 with full buffer → reset to 0
         assert int(new_ptrs[0]) == 0
         # Slots with partial buffers → unchanged
         for i in range(1, n_slots):
-            assert int(new_ptrs[i]) == int(ptrs[i])
+            assert int(new_ptrs[i]) == int(ptrs_old[i])
 
     def test_params_change_for_updating_agent(self, config):
         """Running a PPO update must change the updating agent's params."""
@@ -240,18 +244,20 @@ class TestPPOUpdate:
         ptrs = jnp.zeros(n_slots, dtype=jnp.int32).at[0].set(config["rollout_steps"])
         state = state.replace(rollout_ptrs=ptrs)
 
-        old_params = state.policy_params
+        # Snapshot to numpy before the call — donation deletes
+        # state.policy_params after the update returns.
+        old_params_np = jtu.tree_map(lambda p: np.asarray(p), state.policy_params)
         new_params, _, _ = self._apply(config, state)
 
         # Slot 0: params must differ.
-        slot0_old = jtu.tree_map(lambda p: p[0], old_params)
+        slot0_old = jtu.tree_map(lambda p: p[0], old_params_np)
         slot0_new = jtu.tree_map(lambda p: p[0], new_params)
         assert not _params_equal(slot0_old, slot0_new), (
             "PPO update ran but slot-0 params are unchanged"
         )
 
         # Slot 1 (not updating): params must be unchanged.
-        slot1_old = jtu.tree_map(lambda p: p[1], old_params)
+        slot1_old = jtu.tree_map(lambda p: p[1], old_params_np)
         slot1_new = jtu.tree_map(lambda p: p[1], new_params)
         assert _params_equal(slot1_old, slot1_new), (
             "Non-updating slot's params mutated"
@@ -270,10 +276,11 @@ class TestPPOUpdate:
         )
         state = state.replace(rollout_ptrs=ptrs)
 
-        old_params = state.policy_params
+        # Snapshot before call — donation invalidates state.policy_params.
+        old_params_np = jtu.tree_map(lambda p: np.asarray(p), state.policy_params)
         new_params, _, new_ptrs = self._apply(config, state)
 
-        inactive_old = jtu.tree_map(lambda p: p[inactive_slot], old_params)
+        inactive_old = jtu.tree_map(lambda p: p[inactive_slot], old_params_np)
         inactive_new = jtu.tree_map(lambda p: p[inactive_slot], new_params)
         assert _params_equal(inactive_old, inactive_new)
         # ptr for inactive slot stays at the sentinel value
@@ -297,11 +304,147 @@ class TestPPOUpdate:
 
     def test_update_is_deterministic(self, config):
         """Same inputs + same RNG → same output."""
-        state = self._setup(config)
-        n_slots = state.rollout_obs.shape[0]
-        ptrs = jnp.full(n_slots, config["rollout_steps"], dtype=jnp.int32)
-        state = state.replace(rollout_ptrs=ptrs)
+        # Build two independent states — donation on the first call would
+        # invalidate the shared state's params/opt/ptrs, breaking the
+        # second call. Setup is deterministic (same RNG seed) so the two
+        # initial states are identical.
+        def _full_state():
+            s = self._setup(config)
+            n_slots = s.rollout_obs.shape[0]
+            full_ptrs = jnp.full(n_slots, config["rollout_steps"], dtype=jnp.int32)
+            return s.replace(rollout_ptrs=full_ptrs)
 
-        p1, _, _ = self._apply(config, state, rng_seed=42)
-        p2, _, _ = self._apply(config, state, rng_seed=42)
+        p1, _, _ = self._apply(config, _full_state(), rng_seed=42)
+        p2, _, _ = self._apply(config, _full_state(), rng_seed=42)
         assert _params_equal(p1, p2), "PPO update is non-deterministic with fixed RNG"
+
+
+# ─── donate_argnums on the PPO update ──────────────────────────────────────────
+
+@pytest.mark.slow
+class TestPPODonation:
+    """Coverage for donate_argnums=(0, 1, 8) on maybe_ppo_update_all.
+
+    Numerical correctness under donation is already covered transitively:
+    every test in TestPPOUpdate above (ptr reset, params change, inactive
+    not updated, no NaN, determinism) re-runs against the donation-enabled
+    function and would fail if donation broke anything. These two tests
+    add the donation-specific properties:
+      1. The runner's call pattern (state.replace after the call) is safe —
+         non-donated state fields remain readable.
+      2. Donation actually engaged — donated input buffers become
+         unreadable post-call (proves the donate_argnums config wasn't a
+         silent no-op or applied to the wrong indices).
+    """
+
+    def _setup_full_buffer(self, config):
+        """SimState with synthetic rollouts and all-full buffers, ready to fire."""
+        state = init_simstate(config, jax.random.PRNGKey(0))
+        rng = jax.random.PRNGKey(1)
+        # Reuse the helper from module scope.
+        rollout_steps = config["rollout_steps"]
+        obs_dim = config["obs_dim"]
+        n_slots = state.rollout_obs.shape[0]
+        k_obs, k_act, k_lp, k_rew, k_val = jax.random.split(rng, 5)
+        obs = jax.random.normal(k_obs, (n_slots, rollout_steps, obs_dim)) * 0.1
+        raw = jax.random.normal(k_act, (n_slots, rollout_steps, 2))
+        actions = 100.0 * jax.nn.sigmoid(raw) - 20.0
+        log_probs = -0.5 * jax.random.normal(k_lp, (n_slots, rollout_steps)) ** 2
+        rewards = jax.random.normal(k_rew, (n_slots, rollout_steps)) * 0.1
+        values = jax.random.normal(k_val, (n_slots, rollout_steps)) * 0.1
+        dones = jnp.zeros((n_slots, rollout_steps), dtype=bool)
+        ptrs = jnp.full(n_slots, rollout_steps, dtype=jnp.int32)
+        return state.replace(
+            rollout_obs=obs, rollout_actions=actions, rollout_log_probs=log_probs,
+            rollout_rewards=rewards, rollout_values=values, rollout_dones=dones,
+            rollout_ptrs=ptrs,
+        )
+
+    def test_runner_call_pattern_safe(self, config):
+        """Mimic _maybe_fire_ppo: call the donation-enabled update_fn, then
+        do state.replace(...) and read every non-donated field. None of the
+        rollout buffers (idx 2-7) or is_active (idx 9) are donated, so they
+        must remain readable in the new state."""
+        state = self._setup_full_buffer(config)
+        n_slots = state.rollout_obs.shape[0]
+        update_fn = build_ppo_update_fn(config)
+        rng_keys = jax.random.split(jax.random.PRNGKey(0), n_slots)
+
+        new_params, new_opt, new_ptrs = update_fn(
+            state.policy_params, state.policy_opt_states,
+            state.rollout_obs, state.rollout_actions,
+            state.rollout_log_probs, state.rollout_rewards,
+            state.rollout_values, state.rollout_dones,
+            state.rollout_ptrs, state.is_active, rng_keys,
+        )
+
+        new_state = state.replace(
+            policy_params=new_params,
+            policy_opt_states=new_opt,
+            rollout_ptrs=new_ptrs,
+        )
+
+        # The non-donated fields are kept by state.replace. They must still
+        # be readable — donation should not have invalidated them.
+        for name in (
+            "rollout_obs", "rollout_actions", "rollout_log_probs",
+            "rollout_rewards", "rollout_values", "rollout_dones",
+            "is_active",
+        ):
+            arr = getattr(new_state, name)
+            # Forcing a read raises BufferError / RuntimeError if invalidated.
+            float(jnp.sum(arr.astype(jnp.float32)))
+
+        # And the donated outputs are valid post-call.
+        for leaf in jtu.tree_leaves(new_params):
+            float(jnp.sum(leaf))
+        for leaf in jtu.tree_leaves(new_opt):
+            arr = jnp.asarray(leaf)
+            if jnp.issubdtype(arr.dtype, jnp.floating):
+                float(jnp.sum(arr))
+        int(jnp.sum(new_ptrs))
+
+    def test_donation_engaged(self, config):
+        """The donated input buffers must be unreadable after the call.
+
+        If donate_argnums silently failed (wrong index, shape mismatch,
+        XLA aliasing rejection), the inputs would still be readable and
+        we'd never know donation didn't happen. This test pins it.
+        """
+        state = self._setup_full_buffer(config)
+        n_slots = state.rollout_obs.shape[0]
+        update_fn = build_ppo_update_fn(config)
+        rng_keys = jax.random.split(jax.random.PRNGKey(0), n_slots)
+
+        # Capture references to the donated leaves *before* the call.
+        old_param_leaves = jtu.tree_leaves(state.policy_params)
+        old_ptrs = state.rollout_ptrs
+
+        new_params, new_opt, new_ptrs = update_fn(
+            state.policy_params, state.policy_opt_states,
+            state.rollout_obs, state.rollout_actions,
+            state.rollout_log_probs, state.rollout_rewards,
+            state.rollout_values, state.rollout_dones,
+            state.rollout_ptrs, state.is_active, rng_keys,
+        )
+        # Force outputs to materialize so the donation actually completes.
+        jax.block_until_ready(jtu.tree_leaves(new_params)[0])
+
+        # At least one donated leaf must now raise on access. JAX's exact
+        # error class varies across versions (RuntimeError / BufferError /
+        # custom XlaRuntimeError) so we catch broadly.
+        def _is_invalidated(leaf):
+            try:
+                float(jnp.sum(leaf))
+                return False
+            except Exception:
+                return True
+
+        assert any(_is_invalidated(leaf) for leaf in old_param_leaves), (
+            "donate_argnums=(0,...) did not engage on policy_params — "
+            "old buffer still readable post-call"
+        )
+        assert _is_invalidated(old_ptrs), (
+            "donate_argnums=(...,8) did not engage on rollout_ptrs — "
+            "old buffer still readable post-call"
+        )

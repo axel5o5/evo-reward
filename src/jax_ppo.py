@@ -156,7 +156,14 @@ def build_ppo_update_fn(config):
     # vmap over all agent slots
     batched_ppo = jax.vmap(single_agent_ppo)
 
-    @jax.jit
+    # donate_argnums=(0, 1, 8): policy_params, opt_states, and rollout_ptrs
+    # each have an output of identical shape/dtype that semantically replaces
+    # them at the call site (state.replace in _maybe_fire_ppo). Donation lets
+    # XLA reuse the input buffers in-place instead of allocating fresh ones,
+    # cutting peak HBM during the PPO update by ~policy+opt-state size. The
+    # rollout_* buffers (idx 2-7) are NOT donated — they're carried forward in
+    # the new SimState and read by the next sim_step.
+    @functools.partial(jax.jit, donate_argnums=(0, 1, 8))
     def maybe_ppo_update_all(policy_params, opt_states, rollout_obs, rollout_actions,
                              rollout_log_probs, rollout_rewards, rollout_values,
                              rollout_dones, rollout_ptrs, is_active, rng_keys):
@@ -329,7 +336,10 @@ def build_ppo_update_fn_lstm(config):
 
     batched_ppo_lstm = jax.vmap(single_agent_ppo_lstm)
 
-    @jax.jit
+    # Same donation rationale as the MLP variant: indices 0, 1, 8 each have
+    # an output replacing them at the call site. init_hiddens (idx 11) is
+    # NOT donated — it's read elsewhere on agent reset.
+    @functools.partial(jax.jit, donate_argnums=(0, 1, 8))
     def maybe_ppo_update_all_lstm(policy_params, opt_states, rollout_obs, rollout_actions,
                                   rollout_log_probs, rollout_rewards, rollout_values,
                                   rollout_dones, rollout_ptrs, is_active, rng_keys,
