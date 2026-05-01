@@ -118,13 +118,38 @@ def policy_logarithmic(
     return [r for r in ordered if r.start_step not in keep]
 
 
+def policy_evenly_spaced(
+    refs: list[ReplayRef],
+    *,
+    n_keep: int = 10,
+    **_,
+) -> list[ReplayRef]:
+    """Keep ~N evenly-spaced replays across the run, always including the
+    first and last. Delete everything else.
+
+    For a 50-replay run with n_keep=10, you get checkpoints at indices
+    {0, 6, 11, 16, 22, 27, 33, 38, 44, 49} — a uniform thinning that
+    preserves scrubbability without committing to a per-decade or last-N
+    bias.
+    """
+    ordered = sorted(refs, key=lambda r: r.start_step)
+    if len(ordered) <= n_keep:
+        return []
+    keep_idx: set[int] = set()
+    for i in range(n_keep):
+        idx = round(i * (len(ordered) - 1) / (n_keep - 1))
+        keep_idx.add(idx)
+    return [r for i, r in enumerate(ordered) if i not in keep_idx]
+
+
 # ----------------------------- registry ---------------------------------------
 
 
 POLICIES: dict[str, Callable[..., list[ReplayRef]]] = {
-    "last_n":       policy_last_n,
-    "milestones":   policy_milestones,
-    "logarithmic":  policy_logarithmic,
+    "last_n":          policy_last_n,
+    "milestones":      policy_milestones,
+    "logarithmic":     policy_logarithmic,
+    "evenly_spaced":   policy_evenly_spaced,
 }
 
 
