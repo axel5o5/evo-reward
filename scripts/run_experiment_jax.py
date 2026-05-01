@@ -41,6 +41,7 @@ from src.jax_state import SimState, init_simstate
 from src.jax_sim import build_sim_step
 from src.jax_ppo import build_ppo_update_fn
 from src.jax_checkpoint import (
+    AsyncCheckpointWriter,
     save_simstate,
     load_simstate,
     find_latest_checkpoint,
@@ -205,6 +206,16 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
               f"bucket={replay_bucket or '(local only)'}, "
               f"retention={recorder.retention_policy}")
         print()
+
+    # Async checkpoint writer overlaps disk I/O with GPU compute. The host
+    # snapshot still happens on the caller thread (np.asarray forces the
+    # device→host barrier) but savez_compressed + atomic rename + rotation
+    # run on a single background worker. Set EVO_SYNC_CHECKPOINT=1 to fall
+    # back to the old inline sync path for A/B comparison.
+    sync_ckpt = os.environ.get("EVO_SYNC_CHECKPOINT", "0") == "1"
+    ckpt_writer = None if sync_ckpt else AsyncCheckpointWriter()
+    print(f"Checkpoint writer: {'sync (legacy)' if sync_ckpt else 'async (background)'}")
+    print()
 
     start_time = time.time()
     start_step = int(sim_state.step)
@@ -426,39 +437,49 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             json.dump(progress_payload, f, indent=2)
         os.replace(tmp, progress_file)
 
-    for step in range(start_step, total_steps):
-        # --- Steps 1-9: JIT-compiled core ---
-        sim_state = sim_step_core(sim_state)
+    try:
+        for step in range(start_step, total_steps):
+            # --- Steps 1-9: JIT-compiled core ---
+            sim_state = sim_step_core(sim_state)
 
-        # --- Replay recording (zero-cost outside the window) ---
-        # Pass step+1 as a plain Python int so the recorder's boundary check
-        # doesn't force a host sync on sim_state.step every tick.
-        recorder.step(sim_state, step + 1)
+            # --- Replay recording (zero-cost outside the window) ---
+            # Pass step+1 as a plain Python int so the recorder's boundary check
+            # doesn't force a host sync on sim_state.step every tick.
+            recorder.step(sim_state, step + 1)
 
-        # --- Step 10: PPO update (batched) ---
-        if (step + 1) % PPO_CHECK_EVERY == 0:
-            sim_state = _maybe_fire_ppo(sim_state)
+            # --- Step 10: PPO update (batched) ---
+            if (step + 1) % PPO_CHECK_EVERY == 0:
+                sim_state = _maybe_fire_ppo(sim_state)
 
-        # --- Logging ---
-        if (step + 1) % log_interval == 0:
-            _log_progress(sim_state, step)
+            # --- Logging ---
+            if (step + 1) % log_interval == 0:
+                _log_progress(sim_state, step)
 
-        # --- Checkpointing ---
-        if (step + 1) % ckpt_interval == 0:
-            # Fire any pending PPO so the checkpoint reflects the correct
-            # post-update state (ptrs reset etc.) rather than a mid-batch
-            # stale view.
-            sim_state = _maybe_fire_ppo(sim_state)
-            _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag)
-            os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
-            jax_metrics.save(metrics_log, metrics_file)
+            # --- Checkpointing ---
+            if (step + 1) % ckpt_interval == 0:
+                # Fire any pending PPO so the checkpoint reflects the correct
+                # post-update state (ptrs reset etc.) rather than a mid-batch
+                # stale view.
+                sim_state = _maybe_fire_ppo(sim_state)
+                _save_checkpoint_jax(
+                    sim_state, out_dir, exp_name, seed, run_tag, ckpt_writer,
+                )
+                os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+                jax_metrics.save(metrics_log, metrics_file)
 
-    # Final flush: fire any pending PPO, then save
-    sim_state = _maybe_fire_ppo(sim_state)
-    jax.block_until_ready(sim_state.step)
-    _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag)
-    os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
-    jax_metrics.save(metrics_log, metrics_file)
+        # Final flush: fire any pending PPO, then save
+        sim_state = _maybe_fire_ppo(sim_state)
+        jax.block_until_ready(sim_state.step)
+        _save_checkpoint_jax(
+            sim_state, out_dir, exp_name, seed, run_tag, ckpt_writer,
+        )
+        os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+        jax_metrics.save(metrics_log, metrics_file)
+    finally:
+        # Block on any in-flight async write before returning. Surfaces
+        # disk errors that the worker would otherwise swallow.
+        if ckpt_writer is not None:
+            ckpt_writer.close()
 
     elapsed = time.time() - start_time
     steps_done = total_steps - start_step
@@ -468,13 +489,25 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     return sim_state
 
 
-def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag=""):
-    """Save full SimState and rotate old checkpoints."""
+def _save_checkpoint_jax(sim_state, out_dir, exp_name, seed, run_tag="", writer=None):
+    """Save full SimState and rotate old checkpoints.
+
+    When `writer` is an AsyncCheckpointWriter, the host snapshot is taken
+    synchronously and the disk write + rotation runs on a background
+    thread. When `writer` is None, falls back to the inline sync path
+    (preserves the old behavior under EVO_SYNC_CHECKPOINT=1).
+    """
     step = int(sim_state.step)
     path = checkpoint_path(out_dir, exp_name, seed, step, run_tag)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    save_simstate(sim_state, path)
-    rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
+    if writer is not None:
+        writer.submit(
+            sim_state, path,
+            rotate_dir=os.path.dirname(path), rotate_keep=CHECKPOINTS_TO_KEEP,
+        )
+    else:
+        save_simstate(sim_state, path)
+        rotate_checkpoints(os.path.dirname(path), keep=CHECKPOINTS_TO_KEEP)
 
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -521,6 +554,9 @@ def main():
     config = _load_yaml(args.config)
     runtime = _load_yaml(args.runtime)
     config.update(runtime)
+
+    from src.config_utils import resolve_scale_dependent_params
+    resolve_scale_dependent_params(config)
 
     if args.checkpoint_interval is not None:
         config["checkpoint_interval_steps"] = args.checkpoint_interval

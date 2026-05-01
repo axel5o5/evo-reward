@@ -25,6 +25,8 @@ without that signature are rejected with a clear error.
 
 import os
 import re
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import Optional
 
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -108,6 +110,98 @@ def rotate_checkpoints(ckpt_dir: str, keep: int = 3) -> None:
     candidates.sort(key=lambda x: x[0])
     for _, path in candidates[:-keep]:
         os.unlink(path)
+
+
+def _write_npz_atomic(
+    arrays: dict, path: str, rotate_dir: Optional[str], rotate_keep: int,
+) -> None:
+    """Worker-thread payload: compress + atomic rename + rotation.
+
+    Mirrors the on-disk contract of save_simstate exactly — same .tmp +
+    os.replace, same rotation semantics. Crucially this touches no JAX
+    objects: by the time it runs, `arrays` is already a dict of pure
+    numpy arrays in CPU memory.
+    """
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "wb") as f:
+        np.savez_compressed(f, **arrays)
+    os.replace(tmp_path, path)
+    if rotate_dir is not None:
+        rotate_checkpoints(rotate_dir, keep=rotate_keep)
+
+
+class AsyncCheckpointWriter:
+    """Background-thread checkpoint writer that overlaps disk I/O with GPU compute.
+
+    The expensive part of save_simstate is np.savez_compressed: ~500MB
+    through GCE persistent disk takes seconds, and the runtime profile
+    flags it as ~5-7% of wall clock at the configured 10k-step cadence.
+
+    The host snapshot itself (np.asarray on each pytree leaf) is the
+    GPU→host barrier and stays on the caller thread — JAX device buffers
+    must not be touched off the main thread, and once asarray returns
+    we have an independent numpy copy that's safe to hand off.
+
+    Snapshot semantics: by the time submit() returns, the saved state is
+    decoupled from sim_state. The simulation loop is free to mutate
+    sim_state immediately. Test coverage in test_checkpoint_jax.py
+    asserts this property (test_async_snapshot_decoupled).
+
+    Concurrency: max_workers=1 with explicit wait-on-previous before
+    queuing the next submit. Bounds memory at one in-flight 500MB
+    snapshot and applies natural backpressure if disk gets slow rather
+    than letting writes pile up.
+
+    Crash safety: identical to the sync path. SIGTERM mid-write leaves a
+    .tmp file (ignored by find_latest_checkpoint, which only matches
+    step_*.npz), and the previous successful checkpoint is intact.
+    """
+
+    def __init__(self) -> None:
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="ckpt-writer"
+        )
+        self._pending: Optional[Future] = None
+
+    def submit(
+        self,
+        sim_state,
+        path: str,
+        rotate_dir: Optional[str] = None,
+        rotate_keep: int = 3,
+    ) -> None:
+        """Snapshot to host arrays sync, then queue the disk write.
+
+        Blocks if a previous write is still in flight — keeps at most
+        one outstanding write so we never accumulate queued snapshots.
+        """
+        # Sync GPU→host transfer. After this loop, `arrays` is pure CPU
+        # memory and JAX is free to mutate or donate the device buffers.
+        leaves, _ = jtu.tree_flatten(sim_state)
+        arrays = {f"leaf_{i}": np.asarray(leaf) for i, leaf in enumerate(leaves)}
+        arrays[SIGNATURE_KEY] = np.array(1, dtype=np.int32)
+
+        # Wait for the previous write before queuing the next. .result()
+        # surfaces any exception raised on the worker thread.
+        if self._pending is not None:
+            self._pending.result()
+
+        self._pending = self._executor.submit(
+            _write_npz_atomic, arrays, path, rotate_dir, rotate_keep,
+        )
+
+    def wait(self) -> None:
+        """Block until any in-flight write completes."""
+        if self._pending is not None:
+            self._pending.result()
+            self._pending = None
+
+    def close(self) -> None:
+        """Flush pending write and shut down the worker thread."""
+        try:
+            self.wait()
+        finally:
+            self._executor.shutdown(wait=True)
 
 
 def list_run_tags(out_dir: str, experiment_name: str, seed: int) -> list[str]:

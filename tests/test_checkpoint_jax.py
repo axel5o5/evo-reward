@@ -22,6 +22,7 @@ import pytest
 
 from src.environment import _build_physics
 from src.jax_checkpoint import (
+    AsyncCheckpointWriter,
     checkpoint_path,
     find_latest_checkpoint,
     load_simstate,
@@ -244,3 +245,160 @@ class TestLegacyFormatRejected:
         template = init_simstate(config, jax.random.PRNGKey(0))
         with pytest.raises(ValueError, match="legacy partial checkpoint"):
             load_simstate(npz_path, template)
+
+
+class TestAsyncCheckpointWriter:
+    """Coverage for the background-thread checkpoint writer.
+
+    These tests pin the safety properties that make async checkpoints
+    behavior-equivalent to sync save_simstate:
+      1. After close(), every requested file is on disk and bit-equal.
+      2. No .tmp leftovers (atomic visibility).
+      3. The snapshot is decoupled at submit() time — mutating sim_state
+         after submit cannot affect the saved file.
+      4. Rotation runs after each write, never deletes a successor first.
+      5. Resume from an async-saved checkpoint reproduces a continuous
+         trajectory bit-identically.
+      6. Worker exceptions surface to the caller (no silent disk errors).
+    """
+
+    def test_writes_complete_after_close(self, config, tmp_path):
+        states = []
+        writer = AsyncCheckpointWriter()
+        try:
+            for n in range(3):
+                state = init_simstate(config, jax.random.PRNGKey(n))
+                path = str(tmp_path / f"step_{n*10:08d}.npz")
+                writer.submit(state, path)
+                states.append((state, path))
+        finally:
+            writer.close()
+
+        template = init_simstate(config, jax.random.PRNGKey(99))
+        for state, path in states:
+            assert os.path.exists(path), f"Async write didn't land: {path}"
+            loaded = load_simstate(path, template)
+            assert _tree_arrays_equal(state, loaded), (
+                f"Async-saved checkpoint at {path} doesn't roundtrip"
+            )
+
+    def test_no_temp_files_after_close(self, config, tmp_path):
+        writer = AsyncCheckpointWriter()
+        try:
+            for n in range(3):
+                state = init_simstate(config, jax.random.PRNGKey(n))
+                path = str(tmp_path / f"step_{n*10:08d}.npz")
+                writer.submit(state, path)
+        finally:
+            writer.close()
+
+        leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert leftovers == [], f"Atomic write left stray temp files: {leftovers}"
+
+    def test_snapshot_decoupled_from_caller_state(self, config, tmp_path):
+        """The safety-critical test for async checkpoints.
+
+        After submit() returns, the simulation loop must be free to keep
+        stepping sim_state without affecting the file that gets written.
+        We submit at step=0, then step the sim 50× more, then close. The
+        file must reflect step=0, never step=50.
+        """
+        space, _ = _build_physics(config)
+        sim_step, _ = build_sim_step(config, space)
+        state = init_simstate(config, jax.random.PRNGKey(0))
+
+        path = str(tmp_path / "step_00000000.npz")
+        writer = AsyncCheckpointWriter()
+        try:
+            writer.submit(state, path)
+
+            # Mutate sim_state aggressively while the write may still be
+            # in flight — proves the worker is operating on its own snapshot.
+            for _ in range(50):
+                state = sim_step(state)
+            jax.block_until_ready(state.step)
+        finally:
+            writer.close()
+
+        template = init_simstate(config, jax.random.PRNGKey(999))
+        loaded = load_simstate(path, template)
+        assert int(loaded.step) == 0, (
+            f"Async writer captured a stale or post-step state: "
+            f"got step={int(loaded.step)}, expected 0"
+        )
+
+    def test_rotation_runs_after_write(self, config, tmp_path):
+        """With rotate_keep=3 and 5 submits, the 3 highest-step files survive."""
+        writer = AsyncCheckpointWriter()
+        try:
+            for n in range(5):
+                state = init_simstate(config, jax.random.PRNGKey(n))
+                path = str(tmp_path / f"step_{n*10:08d}.npz")
+                writer.submit(
+                    state, path, rotate_dir=str(tmp_path), rotate_keep=3,
+                )
+        finally:
+            writer.close()
+
+        remaining = sorted(p.name for p in tmp_path.iterdir() if p.suffix == ".npz")
+        assert remaining == [
+            "step_00000020.npz",
+            "step_00000030.npz",
+            "step_00000040.npz",
+        ], f"Rotation kept wrong files: {remaining}"
+
+    def test_resume_after_async_save_matches_uninterrupted(self, config, tmp_path):
+        """End-to-end: async-saved checkpoint resumes bit-equal to continuous run.
+
+        Mirrors test_resume_matches_uninterrupted in TestResumeDeterminism,
+        but routes the save through AsyncCheckpointWriter.
+        """
+        N = 30
+        M = 30
+
+        space_a, _ = _build_physics(config)
+        sim_step_a, _ = build_sim_step(config, space_a)
+        state_a = init_simstate(config, jax.random.PRNGKey(0))
+        for _ in range(N + M):
+            state_a = sim_step_a(state_a)
+        jax.block_until_ready(state_a.step)
+
+        space_b, _ = _build_physics(config)
+        sim_step_b, _ = build_sim_step(config, space_b)
+        state_b = init_simstate(config, jax.random.PRNGKey(0))
+        for _ in range(N):
+            state_b = sim_step_b(state_b)
+
+        path = str(tmp_path / f"step_{N:08d}.npz")
+        writer = AsyncCheckpointWriter()
+        try:
+            writer.submit(state_b, path)
+        finally:
+            writer.close()
+
+        template = init_simstate(config, jax.random.PRNGKey(12345))
+        state_b = load_simstate(path, template)
+
+        for _ in range(M):
+            state_b = sim_step_b(state_b)
+        jax.block_until_ready(state_b.step)
+
+        assert int(state_a.step) == int(state_b.step) == N + M
+        assert _tree_arrays_equal(state_a, state_b), (
+            "Async-saved + resumed trajectory diverges from uninterrupted run"
+        )
+
+    def test_propagates_worker_exceptions(self, config, tmp_path):
+        """Disk errors on the worker thread must surface, not be swallowed.
+
+        Submitting to a non-existent directory triggers a FileNotFoundError
+        inside _write_npz_atomic; the next submit() (or close()) must raise.
+        """
+        bad_path = str(tmp_path / "does_not_exist" / "step_00000000.npz")
+        state = init_simstate(config, jax.random.PRNGKey(0))
+
+        writer = AsyncCheckpointWriter()
+        writer.submit(state, bad_path)
+        # The worker raises asynchronously; close() flushes and re-raises.
+        with pytest.raises(FileNotFoundError):
+            writer.close()
