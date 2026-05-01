@@ -4,6 +4,7 @@ import {
   describeReplay,
   displayExperimentName,
   displayRunTag,
+  parseRunTagDate,
   variantForExp,
 } from "../lib/replayNaming";
 
@@ -215,18 +216,11 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
       )}
 
       {tags.length > 1 && (
-        <Row label="Run">
-          {tags.map((t) => (
-            <button
-              key={t}
-              onClick={() => pickTag(t)}
-              className={chipClass(t === activeTag)}
-              title={t}
-            >
-              {displayRunTag(t === "current" ? undefined : t)}
-            </button>
-          ))}
-        </Row>
+        <RunPicker
+          tags={tags}
+          activeTag={activeTag}
+          onSelect={pickTag}
+        />
       )}
 
       {variantsInTag.length > 1 && (
@@ -325,6 +319,190 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Date-banded run picker. Replaces the previous wrap-on-overflow chip row
+// because tag length varies (e.g. `2026-04-22T2328Z_phase1a-v7-seed1-sensor120`
+// vs `2026-04-21`), which produced ugly inconsistent wrapping. Vertical list
+// + date prefix column gives consistent layout AND makes "what's old vs new"
+// obvious at a glance.
+type DateBand =
+  | "today"
+  | "yesterday"
+  | "this week"
+  | "this month"
+  | "older"
+  | "undated";
+
+const RECENT_BANDS: DateBand[] = ["today", "yesterday", "this week"];
+const OLDER_BANDS: DateBand[] = ["this month", "older", "undated"];
+
+function bandOf(date: Date | null, now: Date): DateBand {
+  if (!date) return "undated";
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((startOfToday.getTime() - date.getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days <= 7) return "this week";
+  if (days <= 30) return "this month";
+  return "older";
+}
+
+function RunPicker({
+  tags,
+  activeTag,
+  onSelect,
+}: {
+  tags: string[];
+  activeTag: string;
+  onSelect: (tag: string) => void;
+}) {
+  const [showOlder, setShowOlder] = useState(false);
+
+  const banded = useMemo(() => {
+    const now = new Date();
+    const buckets: Record<DateBand, string[]> = {
+      today: [], yesterday: [], "this week": [],
+      "this month": [], older: [], undated: [],
+    };
+    for (const t of tags) {
+      const date = t === "current" ? null : parseRunTagDate(t);
+      buckets[bandOf(date, now)].push(t);
+    }
+    // Within a band: most recent first (lexical works because date prefix is ISO).
+    for (const k of Object.keys(buckets) as DateBand[]) {
+      buckets[k].sort((a, b) => {
+        if (a === "current") return -1;
+        if (b === "current") return 1;
+        return b.localeCompare(a);
+      });
+    }
+    return buckets;
+  }, [tags]);
+
+  // If the active tag falls in an "older" band, auto-expand so the user sees
+  // their selection rather than a hidden state.
+  const activeIsOlder = useMemo(
+    () => OLDER_BANDS.some((b) => banded[b].includes(activeTag)),
+    [banded, activeTag],
+  );
+  const olderOpen = showOlder || activeIsOlder;
+
+  const olderCount = OLDER_BANDS.reduce((n, b) => n + banded[b].length, 0);
+
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+        Run
+      </div>
+      <div className="flex flex-col gap-1">
+        {RECENT_BANDS.map((band) =>
+          banded[band].length > 0 ? (
+            <RunBand
+              key={band}
+              label={band}
+              tags={banded[band]}
+              activeTag={activeTag}
+              onSelect={onSelect}
+            />
+          ) : null,
+        )}
+
+        {olderCount > 0 && (
+          <button
+            onClick={() => setShowOlder((v) => !v)}
+            className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:underline self-start mt-1"
+          >
+            {olderOpen ? "▾ Hide" : "▸ Show"} older ({olderCount})
+          </button>
+        )}
+
+        {olderOpen &&
+          OLDER_BANDS.map((band) =>
+            banded[band].length > 0 ? (
+              <RunBand
+                key={band}
+                label={band}
+                tags={banded[band]}
+                activeTag={activeTag}
+                onSelect={onSelect}
+              />
+            ) : null,
+          )}
+      </div>
+    </div>
+  );
+}
+
+function RunBand({
+  label,
+  tags,
+  activeTag,
+  onSelect,
+}: {
+  label: DateBand;
+  tags: string[];
+  activeTag: string;
+  onSelect: (tag: string) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5 mt-1">
+        {label}
+      </div>
+      <div className="flex flex-col">
+        {tags.map((t) => (
+          <RunRow
+            key={t}
+            tag={t}
+            active={t === activeTag}
+            onSelect={() => onSelect(t)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RunRow({
+  tag,
+  active,
+  onSelect,
+}: {
+  tag: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const date = tag === "current" ? null : parseRunTagDate(tag);
+  const dateLabel = date
+    ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+    : "—";
+  // displayRunTag returns "Apr 21 · D19", "Apr 21", or just "Current". Since
+  // we render the date in its own column, strip the "Mon DD" prefix from the
+  // label. Date-only tags (no descriptor) fall through to an em-dash.
+  const display = displayRunTag(tag === "current" ? undefined : tag);
+  const stripped = display.replace(/^[A-Z][a-z]{2} \d{1,2}(?: · )?/, "");
+  const label = stripped || (date ? "—" : display);
+  return (
+    <button
+      onClick={onSelect}
+      className={`flex items-baseline gap-2 px-2 py-1 rounded text-left text-xs transition ${
+        active
+          ? "bg-blue-600 text-white"
+          : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+      }`}
+      title={tag}
+    >
+      <span
+        className={`font-mono text-[10px] tabular-nums ${
+          active ? "text-blue-100" : "text-gray-400 dark:text-gray-500"
+        }`}
+      >
+        {dateLabel}
+      </span>
+      <span className="truncate flex-1">{label}</span>
+    </button>
   );
 }
 

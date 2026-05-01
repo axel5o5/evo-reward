@@ -1646,6 +1646,78 @@
       "author": "Axel Browne",
       "phase": null,
       "session": null
+    },
+    {
+      "hash": "295efbc1",
+      "message": "[Archive] Document GCS replay runs + add Archived Runs panel",
+      "body": "scripts/archive_summary.py walks gs://evo-reward-replays-public/ and\nemits per-run population/extinction stats so we can prune storage\nwithout losing what each run showed. Output: archive/SUMMARY.md +\narchive/SUMMARY.json + archive/runs/<key>.json (full per-checkpoint\ndetail). Config-free \u2014 derives everything from the alive/species\nslices of frames.bin, no per-run config archaeology needed.\n\nFrontend: ArchivedRunsPanel on the Replay page fetches summary.json\nfrom the bucket root and renders a sortable table + per-run trajectory\nsparkline, with a \"live\" / \"pruned\" status pill against index.json so\nruns whose binaries are later removed read as documented rather than\nmysteriously missing.\n\nInitial sweep: 34 runs, 23 extinct \u2014 all predator-first.",
+      "date": "2026-05-01 13:35:30 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "cde13543",
+      "message": "[Archive] Prune 2026-05-01 \u2014 drop 47.5 GB of superseded replays",
+      "body": "scripts/archive_prune.py applies a per-run keep_all / keep_sparse /\nkeep_last_only policy to gs://evo-reward-replays-public/. Every run\non the bucket has to be assigned a category (or appear in\nEXCLUDED_PREFIXES) or the script aborts \u2014 no silent guesses. Default\nis dry-run; --execute deletes via `gsutil -m rm` and rebuilds\nindex.json from a fresh listing.\n\nscripts/replay_retention.py: new policy_evenly_spaced(n_keep=10)\nthat thins long runs to ~10 evenly-spaced checkpoints, used as the\nkeep_sparse engine.\n\ndocs/replay-archive-and-pruning.md captures the archive\u2192prune flow\nso the next round can reuse the same categories + reasoning instead\nof redoing the judgment calls from scratch.\n\nThis pass: 786 blobs (393 step dirs) deleted, bucket dropped from\n93 GB to ~44 GB. dashboard/site/public/replays/index.json synced\nfrom the rebuilt remote so local dev reflects the new state.",
+      "date": "2026-05-01 13:51:17 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "5b1932f3",
+      "message": "[Stability v5] Bump scaffold thresholds 4\u21928 (pred), 40\u219280 (prey)",
+      "body": "First axis-1 run (T=4 thresholds) revealed scaffolds engage too late:\nthey prevent extinction at N\u22644 but lose population diversity from\npeak-pred=18 down to pred=2 across the LV crash. Per-genome inspection\nat step 120K showed the 2 surviving predators were ancestral lineage\n(alive since step 0/6K) with near-init random weights \u2014 one had\neat\u2248+0.00 (no reward signal from catches, surviving by physical luck).\n\nPhenotypically interesting predators (pred=+1.27 cooperative, prey=-1.44\nprey-avoidant, act=+0.80 high-motor) all died across N=8 \u2192 N=2. With T=4\nthe squared-saturation factor at N=10-15 is 0.86-0.93 \u2014 scaffolds\nessentially off in the regime where the diversity battle is happening.\nRandom death dominated genuine selection.\n\nT=8 keeps the same scaffold *shape* but engages earlier:\n  N=10: factor 0.86 \u2192 0.61 (decay 61% normal, breed rate 1.6\u00d7 normal)\n  N=12: factor 0.90 \u2192 0.69\n  N=15: factor 0.93 \u2192 0.78\n  N=20+: \u22650.86 \u2014 healthy regime essentially unchanged\n\nSelection on hunting/herding intact at N\u226520; scaffolds preserve diversity\nacross N=8-15 instead of only rescuing from N=2-4.\n\nFiles:\n  - configs/axis1_residual.yaml: ddb_pred 4\u21928, ddm_pred 4\u21928, prey 40\u219280\n  - configs/axis2_aligned_smol.yaml: same\n  - docs/findings.md \u00a715.12: diversity-loss diagnosis + bump rationale",
+      "date": "2026-05-01 13:55:19 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "ed428c8e",
+      "message": "[Docs] Add scale caveat to \u00a715.12 \u2014 diversity loss is partly a small-scale artifact",
+      "body": "Acknowledge that population size (cap=30 \u2192 peak ~18 genomes) is structurally\nworse for diversity preservation than paper baseline (cap=50 \u2192 peak ~25-30),\nindependent of scaffold timing. Middle-scale trades diversity for iteration\nspeed; scaffolds partially compensate but don't fully replace the larger-pop\neffect. Worth noting for a future paper-scale validation run.",
+      "date": "2026-05-01 13:55:41 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "516b674f",
+      "message": "[Stability v6] Med-large scale + T=10 scaffolds \u2014 diversity-preservation tune",
+      "body": "Two changes from v5 (T=8 + middle scale):\n\n1. Scale up to med-large (halfway between middle and paper):\n     world_size:    800 \u2192 880\n     prey_cap:      300 \u2192 375\n     pred_cap:      30  \u2192 40   (key knob: ~33% more genome diversity at peak)\n     prey_initial:  100 \u2192 125\n     pred_initial:  7   \u2192 9\n     food_max:      450 \u2192 525\n\n   Bigger pred_cap carries more genomes through LV crashes structurally,\n   independent of scaffold timing. Iteration cost ~25% (32 \u2192 26 sps).\n\n2. Threshold T=8 \u2192 T=10 (pred), T=80 \u2192 T=100 (prey):\n     N=8:  0.50 \u2192 0.39  (rescue/transition)\n     N=10: 0.61 \u2192 0.50  (LV-crash inflection \u2014 scaffold engages here now)\n     N=15: 0.78 \u2192 0.69  (early crash)\n     N=24: 0.90 \u2192 0.85  (~peak with cap=40 \u2014 selection mostly intact)\n     N=30: 0.94 \u2192 0.90  (healthy regime \u2014 essentially unscaffolded)\n\n   T=12 was rejected as too engaged at peak (0.80 factor would visibly\n   blunt selection in the regime where we want it sharp).\n\nDocumented in findings.md \u00a715.13 with full curve comparison. CURRENT_STATE\nupdated to point future agents at the new tuning.",
+      "date": "2026-05-01 13:59:53 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "0976fac7",
+      "message": "[Dashboard] Regenerate data indexes \u2014 pick up recent commits + module changes",
+      "body": "Routine refresh of the static data dashboards read from. git-timeline\nshrank because dashboard/extract_data.py now compresses git log entries;\nmodule-deps reflects the current import graph.",
+      "date": "2026-05-01 14:06:08 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "10bc6646",
+      "message": "[Archive] Three-state status panel + new live-run prefix",
+      "body": "Panel: archived runs now render as live / thinned N/M / pruned based\non per-run checkpoint counts in index.json vs the archived total. After\na thin-only prune every row used to read \"live,\" hiding the actual\nstate \u2014 the new badge surfaces it directly and the header summary\nbreaks out the counts.\n\nLive-run prefix swap: 2026-05-01T1646Z (T=4 v3, killed) \u2192 2026-05-01T1800Z\n(axis-1 v3, med-large scale + T=10 scaffolds, currently running). The\nT=4 run is now archived (keep_sparse, diversity-loss case study) and\nwill get thinned in the next prune pass.",
+      "date": "2026-05-01 14:06:20 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
+    },
+    {
+      "hash": "dc1348d5",
+      "message": "[Archive] Rename non-date-prefixed run_tags to YYYY-MM-DD_<orig>",
+      "body": "Run tags accumulated three conventions over the project \u2014 d19,\nphase1a-v5, ISO-with-time \u2014 and you couldn't tell what was old vs new\nfrom the path. scripts/archive_rename.py prefixes every non-date tag\nwith the ISO date of the earliest blob's GCS create_time, leaving the\nexp/seed structure intact.\n\n24 runs renamed via `gsutil -m mv -r`. Local archive/runs/<key>.json\nfiles renamed in lockstep (with the embedded run_tag rewritten) so\nSUMMARY.json regenerates correctly. ARCHIVE_POLICY in archive_prune.py\nupdated to the new tag names \u2014 re-running --dry-run reports no\nunmatched runs.\n\nCaveat: old `?tag=tune_eta_050&...` URLs now 404. Documented in\ndocs/replay-archive-and-pruning.md alongside the recipe.\n\nSide state: index.json + summary.json regenerated and re-uploaded\nto gs://evo-reward-replays-public/. Local mirrors synced.",
+      "date": "2026-05-01 16:05:05 -0400",
+      "author": "Axel Browne",
+      "phase": null,
+      "session": null
     }
   ]
 }

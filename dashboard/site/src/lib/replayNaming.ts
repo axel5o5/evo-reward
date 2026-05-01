@@ -64,9 +64,13 @@ export function variantForExp(exp: string): string {
   return "Custom";
 }
 
+// Matches both legacy ISO-with-time tags (`2026-04-21T1447Z_*`) and the
+// post-rename date-only / date-prefixed form (`2026-04-21`, `2026-04-21_*`).
+const DATE_PREFIX_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})(\d{2})Z)?(?:[_-](.+))?$/;
+
 function parseRunTagTimestamp(runTag: string): string | null {
-  // 2026-04-21T1447Z_post-d19 -> Apr 21
-  const m = runTag.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})Z(?:[_-].+)?$/);
+  const m = runTag.match(DATE_PREFIX_RE);
   if (!m) return null;
   const month = Number(m[2]);
   const day = Number(m[3]);
@@ -76,12 +80,34 @@ function parseRunTagTimestamp(runTag: string): string | null {
   return `${MONTHS[month - 1]} ${day}`;
 }
 
+// Returns a Date for the run's date prefix, or null for tags that don't
+// start with YYYY-MM-DD. Used for date-banded grouping in the run picker.
+export function parseRunTagDate(runTag?: string): Date | null {
+  if (!runTag) return null;
+  const m = runTag.match(DATE_PREFIX_RE);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 || month > 12 || day < 1 || day > 31
+  ) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
 export function displayRunTag(runTag?: string): string {
   if (!runTag || runTag.length === 0) return "Current";
-  const ts = parseRunTagTimestamp(runTag);
-  if (ts) {
-    const suffix = runTag.replace(/^\d{4}-\d{2}-\d{2}T\d{4}Z[_-]?/, "");
-    return suffix.length > 0 ? `${ts} · ${prettyId(suffix)}` : ts;
+  const m = runTag.match(DATE_PREFIX_RE);
+  if (m) {
+    const ts = parseRunTagTimestamp(runTag);
+    const suffix = m[6] ?? "";
+    if (ts && suffix.length > 0) return `${ts} · ${prettyId(suffix)}`;
+    if (ts) return ts;
   }
   return prettyId(runTag);
 }
