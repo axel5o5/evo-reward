@@ -48,6 +48,21 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
     return sortDir === "asc" ? sorted : sorted.reverse();
   }, [summary, sortKey, sortDir]);
 
+  // All hooks must run on every render — keep this above the early returns
+  // below or React throws "Rendered more hooks than during previous render".
+  const stateCounts = useMemo(() => {
+    let live = 0, thinned = 0, pruned = 0;
+    if (!summary) return { live, thinned, pruned };
+    for (const r of summary.runs) {
+      const key = `${r.exp}::${r.seed}::${r.run_tag || ""}`;
+      const n = liveCounts.get(key) ?? 0;
+      if (n === 0) pruned++;
+      else if (n < r.n_checkpoints) thinned++;
+      else live++;
+    }
+    return { live, thinned, pruned };
+  }, [summary, liveCounts]);
+
   if (error) {
     return (
       <div className="text-xs text-amber-700 dark:text-amber-400">
@@ -64,17 +79,6 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
 
   const total = summary.runs.length;
   const extinctCount = summary.runs.filter((r) => r.extinct).length;
-  const stateCounts = useMemo(() => {
-    let live = 0, thinned = 0, pruned = 0;
-    for (const r of summary.runs) {
-      const key = `${r.exp}::${r.seed}::${r.run_tag || ""}`;
-      const n = liveCounts.get(key) ?? 0;
-      if (n === 0) pruned++;
-      else if (n < r.n_checkpoints) thinned++;
-      else live++;
-    }
-    return { live, thinned, pruned };
-  }, [summary, liveCounts]);
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
