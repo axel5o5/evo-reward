@@ -63,6 +63,25 @@ def build_ppo_update_fn(config):
     minibatch_size = config["minibatch_size"]
     n_minibatches = rollout_steps // minibatch_size
 
+    # v10 age-keyed LR: per-agent linear ramp from `lr_initial` down to
+    # `lr_final` over `lr_decay_steps`, then flat. Implemented by scaling
+    # the optimizer's update tree per-agent before apply_updates. Adam's
+    # base LR stays at config["lr"]; the schedule multiplies the resulting
+    # update by lr_at(age) / lr. Disabled when lr_schedule_enable is false
+    # (or absent) — in that case scale_at(age) ≡ 1.0 for any age.
+    lr_sched_enable = bool(config.get("lr_schedule_enable", False))
+    lr_initial = float(config.get("lr_schedule_initial", lr))
+    lr_final = float(config.get("lr_schedule_final", lr))
+    lr_decay_steps = float(config.get("lr_schedule_decay_steps", 1.0))
+
+    def _lr_scale_for_age(age):
+        if not lr_sched_enable:
+            return jnp.float32(1.0)
+        a = age.astype(jnp.float32)
+        frac = jnp.minimum(a / lr_decay_steps, 1.0)
+        lr_at_age = lr_initial + (lr_final - lr_initial) * frac
+        return lr_at_age / lr
+
     net = PolicyNetwork(hidden_size=hidden_size, action_dim=2)
     optimizer = optax.adam(learning_rate=lr, eps=adam_eps)
 
@@ -99,13 +118,14 @@ def build_ppo_update_fn(config):
         return loss, grads
 
     def single_agent_ppo(params, opt_state, obs, actions, log_probs,
-                         rewards, values, dones, ptr, is_active, rng_key):
+                         rewards, values, dones, ptr, is_active, rng_key, age):
         """PPO update for one agent. Called via vmap over all slots.
 
         If ptr < rollout_steps or agent is inactive, returns inputs unchanged.
         Otherwise, runs full PPO and resets ptr to 0.
         """
         should_update = is_active & (ptr >= rollout_steps)
+        lr_scale = _lr_scale_for_age(age)
 
         def do_update(_):
             # GAE
@@ -134,6 +154,10 @@ def build_ppo_update_fn(config):
 
                     _, grads = ppo_loss_and_grad(p2, mb_obs, mb_actions, mb_old_lp, mb_adv, mb_ret)
                     updates, new_os = optimizer.update(grads, os2, p2)
+                    # v10 age-keyed LR: scale the per-step update by the
+                    # age-dependent factor. lr_scale ≡ 1.0 when the schedule
+                    # is disabled, so this is a no-op for L3 runs.
+                    updates = jax.tree_util.tree_map(lambda u: u * lr_scale, updates)
                     new_p = optax.apply_updates(p2, updates)
                     return new_p, new_os
 
@@ -166,7 +190,7 @@ def build_ppo_update_fn(config):
     @functools.partial(jax.jit, donate_argnums=(0, 1, 8))
     def maybe_ppo_update_all(policy_params, opt_states, rollout_obs, rollout_actions,
                              rollout_log_probs, rollout_rewards, rollout_values,
-                             rollout_dones, rollout_ptrs, is_active, rng_keys):
+                             rollout_dones, rollout_ptrs, is_active, rng_keys, ages):
         """Run conditional PPO update on all agent slots.
 
         Returns: (new_params, new_opt_states, new_ptrs)
@@ -175,7 +199,7 @@ def build_ppo_update_fn(config):
             policy_params, opt_states,
             rollout_obs, rollout_actions, rollout_log_probs,
             rollout_rewards, rollout_values, rollout_dones,
-            rollout_ptrs, is_active, rng_keys,
+            rollout_ptrs, is_active, rng_keys, ages,
         )
 
     return maybe_ppo_update_all
@@ -211,6 +235,20 @@ def build_ppo_update_fn_lstm(config):
     ppo_epochs = config["ppo_epochs"]
     chunk_length = config.get("lstm_chunk_length", 128)
     n_chunks = rollout_steps // chunk_length
+
+    # v10 age-keyed LR (mirror of the MLP path).
+    lr_sched_enable = bool(config.get("lr_schedule_enable", False))
+    lr_initial = float(config.get("lr_schedule_initial", lr))
+    lr_final = float(config.get("lr_schedule_final", lr))
+    lr_decay_steps = float(config.get("lr_schedule_decay_steps", 1.0))
+
+    def _lr_scale_for_age(age):
+        if not lr_sched_enable:
+            return jnp.float32(1.0)
+        a = age.astype(jnp.float32)
+        frac = jnp.minimum(a / lr_decay_steps, 1.0)
+        lr_at_age = lr_initial + (lr_final - lr_initial) * frac
+        return lr_at_age / lr
 
     net = LSTMPolicyNetwork(
         lstm_hidden_size=lstm_hidden_size,
@@ -259,9 +297,10 @@ def build_ppo_update_fn_lstm(config):
 
     def single_agent_ppo_lstm(params, opt_state, obs, actions, log_probs,
                               rewards, values, dones, ptr, is_active,
-                              rng_key, init_hidden_packed):
+                              rng_key, init_hidden_packed, age):
         """PPO update for one LSTM agent. Called via vmap."""
         should_update = is_active & (ptr >= rollout_steps)
+        lr_scale = _lr_scale_for_age(age)
 
         def do_update(_):
             # GAE (same as MLP — computed from stored values)
@@ -312,6 +351,7 @@ def build_ppo_update_fn_lstm(config):
                     )
 
                     updates, new_os = optimizer.update(grads, os2, p2)
+                    updates = jax.tree_util.tree_map(lambda u: u * lr_scale, updates)
                     new_p = optax.apply_updates(p2, updates)
 
                     return new_p, new_os, final_h
@@ -343,7 +383,7 @@ def build_ppo_update_fn_lstm(config):
     def maybe_ppo_update_all_lstm(policy_params, opt_states, rollout_obs, rollout_actions,
                                   rollout_log_probs, rollout_rewards, rollout_values,
                                   rollout_dones, rollout_ptrs, is_active, rng_keys,
-                                  init_hiddens):
+                                  init_hiddens, ages):
         """Run conditional LSTM PPO update on all agent slots.
 
         Returns: (new_params, new_opt_states, new_ptrs)
@@ -353,7 +393,7 @@ def build_ppo_update_fn_lstm(config):
             rollout_obs, rollout_actions, rollout_log_probs,
             rollout_rewards, rollout_values, rollout_dones,
             rollout_ptrs, is_active, rng_keys,
-            init_hiddens,
+            init_hiddens, ages,
         )
 
     return maybe_ppo_update_all_lstm

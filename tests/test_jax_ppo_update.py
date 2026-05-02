@@ -213,6 +213,7 @@ class TestPPOUpdate:
             state.rollout_ptrs,
             state.is_active,
             rng_keys,
+            state.ages,
         )
 
     def test_ptr_resets_after_update(self, config):
@@ -376,6 +377,7 @@ class TestPPODonation:
             state.rollout_log_probs, state.rollout_rewards,
             state.rollout_values, state.rollout_dones,
             state.rollout_ptrs, state.is_active, rng_keys,
+            state.ages,
         )
 
         new_state = state.replace(
@@ -426,6 +428,7 @@ class TestPPODonation:
             state.rollout_log_probs, state.rollout_rewards,
             state.rollout_values, state.rollout_dones,
             state.rollout_ptrs, state.is_active, rng_keys,
+            state.ages,
         )
         # Force outputs to materialize so the donation actually completes.
         jax.block_until_ready(jtu.tree_leaves(new_params)[0])

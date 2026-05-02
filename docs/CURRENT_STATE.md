@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-01 (axis-1 v8 running on GCP; v9 config tweaks landed mid-run — paper-faithful proximity range + per-area food density; configs/ reorganized into active vs archive — see findings §15.17 and `configs/README.md`).
+**Last updated:** 2026-05-02 (v8 still running on GCP at step ~2.35M / 22.9%, predator weights showing strong K&D-aligned fear signal; v10 framework landed — three-tier L1/L2/L3 ladder + mouth widening + age-keyed LR + death-age ring buffer; ready to launch L1 for cheap iteration. See findings §15.20).
 
 ## Where we are in the project
 
@@ -19,13 +19,22 @@ and going directly to axis-1.
 
 ## What's running / queued
 
-- **Axis-1 v8 (residual reward genome):** running on GCP since 2026-05-01
-  22:03 UTC, run_tag `2026-05-01T2203Z`. Last checked at step ~180K of
-  10.24M (~28 sps), prey at cap 375, predator dipped to 9 around step
-  100K and recovered to 14 by step 180K — scaffolds engaged and
-  population recovered as designed. Config:
+- **Axis-1 v8 (residual reward genome) on L3:** running on GCP since
+  2026-05-01 22:03 UTC, run_tag `2026-05-01T2203Z`. **At step 2.35M / 10.24M
+  (22.9% complete, ~22h elapsed at 29.7 sps).** Predator weights showing
+  the strongest K&D-aligned signal:
+  `pred_w_pred = −2.97 ± 0.96` (avoid other predators) and
+  `pred_w_prey = +4.37 ± 0.76` (chase prey). Population currently
+  prey=260, pred=12 (mid-LV-cycle dip from 372/14). 72 catches/10K steps
+  is healthy. Config:
   [configs/axis1_residual.yaml](../configs/axis1_residual.yaml).
-- **Axis-2 (bin-aligned heading obs):** queued. Config:
+- **Axis-1 v10-L1 (queued for launch):** v10 mechanism additions on the
+  cheapest iteration tier (~7.8h/1M CPU, ~2.5× faster than L3). Config:
+  [configs/axis1_residual_mini.yaml](../configs/axis1_residual_mini.yaml).
+- **Axis-1 v10-L2 (queued):** v10 mechanisms on the middle tier
+  (~13.3h/1M CPU, ~1.5× faster than L3). Config:
+  [configs/axis1_residual_fast.yaml](../configs/axis1_residual_fast.yaml).
+- **Axis-2 (bin-aligned heading obs):** still queued. Config:
   [configs/axis2_aligned_smol.yaml](../configs/axis2_aligned_smol.yaml)
   (filename is stale; `experiment_name: axis2_aligned`, med-large scale).
 - **Axis-3 / axis-4:** deferred (see findings.md §15.4). Configs moved
@@ -62,6 +71,62 @@ affect the running v8 process; they apply on the next launch.
    configs moved into `configs/archive/`. See [configs/README.md](../configs/README.md)
    and [configs/archive/README.md](../configs/archive/README.md) for
    per-file status.
+
+## ⭐ v10 framework (2026-05-02) — three-tier ladder + mouth/age-LR/death-age
+
+The v8 run revealed three observations that motivated a config revision (findings §15.19):
+
+1. Predator mouth `[0]` is below K&D's smallest mouth `[0, 1, 17]` — predators visibly missing prey passing close-but-off-center.
+2. Median predator lives ~6,103 steps = ~6 PPO updates. Within-lifetime training mismatch.
+3. We don't capture death-age distributions; live ages are inspection-paradox-biased.
+
+These are addressed in v10 (findings §15.19, §15.20):
+
+- **`predator_mouth_tactile_bins: [0, 1, 17]`** — paper-faithful "small" mouth (60° front arc).
+- **Per-agent age-keyed LR schedule** (`lr_schedule_initial=1e-3` → `lr_schedule_final=3e-4` over 30K steps; new fields in `src/jax_ppo.py`). Boosts young agents' learning, decays linearly to base LR. Disabled when `lr_schedule_enable: false`.
+- **Death-age ring buffer** (per-species 256-entry; new SimState fields populated in `process_births_and_deaths_jax`; logged in `progress.json` as `death_age_stats`).
+
+### Three-tier ladder (L1 / L2 / L3)
+
+Verified by three diagnostic analyses against the v8 step-2.26M checkpoint (findings §15.20). The headline finding: **population (max_agents²) is the dominant compute lever**; PPO is only 1-3% of CPU wall, so PPO cuts barely move total wall-clock. Hidden-size cuts also costly per SVD finding (top-32 SVs only capture 77.6% of the policy variance; eff. rank @95% ≈ 53 of 64).
+
+| Tier | Config | max_agents | h/1M (CPU) | speedup | use case |
+|------|--------|------------|------------|---------|----------|
+| **L3** | `axis1_residual.yaml` (live v8) | 415 | 19.8h | 1.00× | paper-comparable; intentional fixes only |
+| **L2** | `axis1_residual_fast.yaml` | 335 | 13.3h | **1.49×** | overnight directional answers, hidden=48 |
+| **L1** | `axis1_residual_mini.yaml` | 220 | 7.8h | **2.54×** | cheap iteration on v10 mechanisms |
+
+All three carry the v10 changes (mouth, age-LR, death-age). L2 keeps `n_physics_iter=4` (one substep cut), `policy_hidden_size=48` (SVD-defensible compromise). L1 takes `n_physics_iter=3`, `hidden_size=32`, smaller world, and stronger anti-extinction scaffolds (`ddb_max_boost=100`, `α=0.3`) to compensate for the small pop.
+
+### v10 scaffold-tuning principle for sub-paper scales
+
+When `max_agents` shrinks below paper geometry, do NOT scale DDB/DDM thresholds proportionally down. The cost of an LV crash at small pop is *higher*, so the safety net should engage *more* aggressively — not in proportion to cap. Use `ddb_max_boost` as the lever instead (only fires at low pop, safe at healthy pop). At L1 we also reduce `α` from 0.5 to 0.3 (more uniform breeding share) since per-agent variance is harsher when there are only ~10 active predators.
+
+| Knob | L3 | L2 | L1 |
+|------|----|----|----|
+| `ddb_pred_threshold` | 10 | 10 | 8 |
+| `ddb_prey_threshold` | 100 | 100 | 60 |
+| `ddm_pred_threshold` | 10 | 10 | 8 |
+| `ddb_max_boost` | 50 | **75** | **100** |
+| `ddb_boost_distribution_alpha` | 0.5 | 0.5 | **0.3** |
+
+### Implementation map (v10)
+
+| File | Change |
+|---|---|
+| `configs/axis1_residual_fast.yaml` | NEW — v10-L2 config |
+| `configs/axis1_residual_mini.yaml` | NEW — v10-L1 config |
+| `src/jax_state.py` | Added `death_age_ring_prey/pred` and indices to `SimState` |
+| `src/jax_lifecycle.py` | `_write_death_ages_jax` helper + integration in `process_births_and_deaths_jax` |
+| `src/jax_ppo.py` | `_lr_scale_for_age` + per-agent update scaling in MLP and LSTM PPO paths |
+| `src/jax_sim.py` | `n_physics_iter` plumbed via config (was hardcoded constant) |
+| `scripts/run_experiment_jax.py` | `state.ages` passed to PPO; death-age stats in `progress.json`; one-line death-age summary in tail logs |
+| `scripts/bench_l2_vs_l3.py` | NEW — wall-clock A/B benchmark for any of L1/L2/L3 |
+| `tests/test_jax_ppo_update.py` | Updated PPO call signature (`state.ages` arg) |
+
+### Deferred features (post-launch)
+
+- **Rate-based α** (alternative to energy-share). Would distribute DDB boost on per-agent catch-rate (predators) or feed-rate (prey). Real fitness signal but requires new SimState fields and checkpoint format bump. Considered, scoped, and deferred — only revisit if v10 results show energy-share α is the bottleneck.
 
 ## ⭐ The current scaffold framing (2026-05-01) — DDB+DDM, energy-weighted DDB
 
@@ -294,5 +359,7 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 | axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (→ §15.12) |
 | axis1_residual v3 (uniform boost) | med-large T=10 + DDB+DDM uniform | 230K, healthy LV but selection diluted (→ §15.14) |
 | axis1_residual v7 (no DDM) | med-large T=10 + DDB only + α=0.5 | **Extinct at 88K** — DDM not optional (→ §15.15) |
-| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **At step 180K: prey at cap 375, pred bottomed at 9 ≈ step 100K, recovered to 14 by 180K. Pred mean E healthy (~85). 1.76% complete. No extinction signal.** |
-| axis1_residual v9 (next launch) | v8 settings + paper-faithful proximity (200→120) + scale-relative food_growth_rate (per-area density) | Config-only diffs vs v8; takes effect on next launch (§15.17) |
+| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **At step 2.35M (22.9%): prey=260, pred=12. Predator weights showing strong K&D-aligned signal: w_pred=−2.97±0.96, w_prey=+4.37±0.76. 72 catches/10K steps healthy. Mid-LV-cycle dip from previous 372/14 — scaffolds expected to engage on rebound.** |
+| axis1_residual v9 (config-only diff) | v8 settings + paper-faithful proximity (200→120) + scale-relative food_growth_rate (per-area density) | §15.17; takes effect on next launch |
+| **axis1_residual_mini v10-L1 (queued)** | **600² / cap 200/20 / hidden=32 / n_phys_iter=3 / ddb_max_boost=100 / α=0.3 / mouth=[0,1,17] / age-LR / death-age ring** | **2.54× faster than L3 on CPU. Cheap iteration tier. §15.20.** |
+| **axis1_residual_fast v10-L2 (queued)** | **750² / cap 300/35 / hidden=48 / n_phys_iter=4 / ddb_max_boost=75 / α=0.5 / mouth=[0,1,17] / age-LR / death-age ring** | **1.49× faster than L3 on CPU. Middle tier. §15.20.** |

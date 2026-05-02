@@ -816,3 +816,89 @@ All three tiers carry the v10 changes (mouth widening, age-keyed LR, death-age l
 We considered an L1 "super fast" (600²/200/25 with hidden=16, epochs=3) but rejected it: at that scale the policy is so degraded that results may not transfer up the ladder, defeating the iteration purpose. The "smol" 600² scaffold was never validated for DDB+DDM stability either. **Cheaper than L2 should be done via shorter `total_steps` on L2, not a degraded geometry.**
 
 **Next action: launch L2 (v10-fast).** The "appropriately telling, appropriately fast" tier — gives directional answers on the v10 changes within a single overnight cycle, which is the right cadence for early validation before committing to the L3 paper-comparable run.
+
+### 15.20 v10 — three diagnostic analyses + revised L1/L2/L3 ladder + final knobs (2026-05-02)
+
+Before locking the v10-L2 config from §15.19, ran three checkpoint-based analyses against v8 step-2.26M to validate the proposed knob cuts. Two of the original L2 cuts turned out to be wrong; one of the "knobs we didn't pull" turned out to be the most useful lever. The L2 spec was revised; an L1 tier was added.
+
+Analysis script: `/tmp/v8_analysis/analysis.py` and `analysis_2_3.py` (one-shot, not committed). Methodology summarized below.
+
+**Analysis #1 — counterfactual PPO.** Loaded the saved rollout buffer for the 5 oldest active predators. Ran one PPO update under L3 hyperparams (epochs=10, mb=256) and L2 hyperparams (epochs=5, mb=512). Compared resulting policies via symmetric KL on the same observations.
+
+| Metric | Value | Interpretation |
+|---|---|---|
+| AVG KL(pre, L3) | 0.0030 | One full L3 PPO update is small (already-converged agents) |
+| AVG KL(pre, L2) | 0.0019 | L2 update is ~64% the magnitude of L3 |
+| AVG sym-KL(L3, L2) | 0.0010 | After both updates, policies are ~34% of L3-update-distance apart |
+
+**Conclusion:** the L2 PPO cuts are *borderline* — at the cusp of "safe" (<25%) and "risky" (>50%). Acceptable for mature agents; can't bound effect on early-life agents (where it matters most for v10).
+
+**Analysis #2 — SVD of policy W_in.** Decomposed the (205, 64) input layer of 10 active mature predators (top-aged) and 10 prey. Question: would `hidden=32` retain the meaningful capacity?
+
+| | Predators | Prey |
+|---|---|---|
+| Effective rank @ 95% energy (median) | **53** | **52** |
+| Top-32 SVs energy | 77.6% | 80.4% |
+| Top-48 SVs energy | 92.4% | 93.3% |
+
+The spectrum decays *smoothly* — there is no knee at any rank. Cutting to hidden=32 throws away ~22% of the policy's variance.
+
+**Conclusion:** **hidden=32 is too aggressive for L2. Use hidden=48 (92% capacity preserved) or keep hidden=64.** This was the most surprising finding — directly contradicted §15.19's L2 spec.
+
+**Analysis #3 — recent reward-rate vs age.** For each active agent, computed mean reward in their rollout buffer (last ~1024 steps of life). Plotted vs age.
+
+- Pearson r(age, mean_reward) = **−0.08** (predators), **+0.02** (prey) — essentially zero.
+- Predators in 5–20K age band: mean_r=0.31 → 100K+ band: mean_r=0.16. Older predators do *worse* on average.
+
+**Conclusion:** within-lifetime PPO does not measurably improve hunt rate over the observed lifespan distribution. The within-lifetime training mismatch (§15.19 motivation #2) exists, but PPO updates aren't the rate-limiter. **Cuts to ppo_epochs/mb are *empirically* low-stakes** even though analysis #1 was borderline.
+
+**Implications for v10-L2 spec:**
+- Keep `policy_hidden_size = 48` (was 32 in §15.19) — analysis #2 forced this.
+- Keep `ppo_epochs = 5` and `minibatch_size = 256` (instead of 512) — gives 20 grad-steps/fire (vs L3's 40) for safer middle ground.
+- Surrender the speedup expectation from policy/PPO knobs; focus on population.
+
+**Population is the dominant lever (CPU bench, scripts/bench_l2_vs_l3.py).** The `sim_step_core` cost scales as max_agents² for the contact matrix; PPO is only 1-3% of CPU wall-clock. So PPO cuts barely move the needle on total speed. The big lever is `prey_cap × predator_cap` — i.e., max_agents.
+
+| Tier | max_agents | sim_step | eff sps | h/1M (CPU) | speedup vs L3 |
+|---|---|---|---|---|---|
+| L3 | 415 | 69ms | 14.0 | 19.8h | 1.00× |
+| L2 | 335 | 47ms | 20.9 | 13.3h | **1.49×** |
+| L1 | 220 | 28ms | 35.6 | 7.8h | **2.54×** |
+
+**Revised tier ladder (final v10 spec):**
+
+| Knob | L3 (axis1_residual) | **L2 (axis1_residual_fast)** | **L1 (axis1_residual_mini)** |
+|---|---|---|---|
+| `world_size` | 880 | **750** | 600 |
+| `prey_cap` | 375 | **300** | 200 |
+| `predator_cap` | 40 | **35** | 20 |
+| `prey_initial` | 125 | 90 | 60 |
+| `predator_initial` | 9 | 7 | 4 |
+| `policy_hidden_size` | 64 | **48** | 32 |
+| `n_physics_iter` | 5 | **4** (config-driven) | 3 |
+| `rollout_steps` | 1024 | **1024** | 1024 |
+| `minibatch_size` | 256 | **256** | 256 |
+| `ppo_epochs` | 10 | **5** | 5 |
+| `ddb_pred_threshold` | 10 | **10** | 8 |
+| `ddb_prey_threshold` | 100 | **100** | 60 |
+| `ddm_pred_threshold` | 10 | **10** | 8 |
+| `ddb_max_boost` | 50 | **75** | 100 |
+| `ddb_boost_distribution_alpha` | 0.5 | 0.5 | **0.3** |
+| Mouth widening | flag-controlled | yes | yes |
+| Age-keyed LR | flag-controlled | yes | yes |
+| Death-age ring | flag-controlled | yes | yes |
+
+**Threshold philosophy at smaller pop**: keep T values *high* (don't scale down proportionally with cap). The cost of an LV crash at small pop is *higher*, so the safety net should fire more aggressively, not less. Lever the breeding *rate* (`ddb_max_boost`) instead, which only fires at low pop and is safe at healthy pop.
+
+**Why we stopped at L1 even though L2 only gives 49% speedup**: max_agents = 220 is already below the paper's natural-selection floor (~550 paper). Going smaller would produce dynamics that don't transfer up the ladder at all. L1 is the deepest defensible tier; L2 is the sweet spot of "real speedup + paper-shaped dynamics + intact policy/physics fidelity."
+
+**Implementation work delivered alongside the configs:**
+- `configs/axis1_residual_fast.yaml` (L2), `configs/axis1_residual_mini.yaml` (L1)
+- `n_physics_iter` plumbed through config (was hardcoded constant) — `src/jax_sim.py:142`
+- `policy_hidden_size = 48` validated to compile cleanly (Flax's Dense layer is shape-agnostic, no test changes needed)
+- v10 mechanism additions (mouth widening flag-only, age-keyed LR, death-age ring buffer in SimState + lifecycle + progress logging)
+- `scripts/bench_l2_vs_l3.py` for one-shot wall-clock A/B benchmarking on any device
+
+**Deferred features (post-launch):** "rate-based alpha" — distributing the breeding boost on per-agent catch-rate or feed-rate instead of instantaneous energy. Real fitness signal but requires new SimState fields (`agent_lifetime_catches`, `agent_lifetime_feedings`) and checkpoint format bump. Will only revisit if v10 results show the energy-share alpha is the bottleneck.
+
+**Next action:** check on v8/L3 (still running, currently ~22.9% complete with predator weights showing strong K&D-aligned signal: `pred_w_pred=−2.97, pred_w_prey=+4.37`); then launch L1 for cheap iteration on v10 mechanism wins.

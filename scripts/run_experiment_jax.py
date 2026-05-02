@@ -269,6 +269,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             state.rollout_log_probs, state.rollout_rewards,
             state.rollout_values, state.rollout_dones,
             state.rollout_ptrs, state.is_active, ppo_rngs,
+            state.ages,
         )
         return state.replace(
             policy_params=new_params,
@@ -324,6 +325,25 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
         prey_e_band = _band(is_active_np & (species_np == 0))
         pred_e_band = _band(is_active_np & (species_np == 1))
 
+        # v10: death-age percentiles from per-species ring buffers. Skipped
+        # cleanly when the ring is the (1,) sentinel "disabled" shape.
+        def _death_age_stats(ring):
+            ring_np = np.asarray(ring)
+            if ring_np.size <= 1:
+                return None
+            valid = ring_np[ring_np >= 0]
+            if valid.size == 0:
+                return None
+            return {
+                "n": int(valid.size),
+                "p25": float(np.percentile(valid, 25)),
+                "p50": float(np.percentile(valid, 50)),
+                "p75": float(np.percentile(valid, 75)),
+                "max": int(valid.max()),
+            }
+        prey_death_ages = _death_age_stats(state.death_age_ring_prey)
+        pred_death_ages = _death_age_stats(state.death_age_ring_pred)
+
         _prev_log_state["step"] = step + 1
         _prev_log_state["cum_catches"] = cum_catches
         _prev_log_state["cum_deaths"] = cum_deaths
@@ -356,6 +376,17 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             f"{sps:.1f} sps | "
             f"{elapsed:.0f}s"
         )
+
+        # v10: one-line death-age summary (median is the headline; p25/p75
+        # show spread). Only print when the ring has at least one entry.
+        if pred_death_ages is not None or prey_death_ages is not None:
+            def _fmt(d, name):
+                if d is None:
+                    return f"{name}=n/a"
+                return (f"{name} p25/50/75={d['p25']:.0f}/{d['p50']:.0f}/{d['p75']:.0f} "
+                        f"(n={d['n']})")
+            print(f"  death-age: {_fmt(prey_death_ages, 'prey')} | "
+                  f"{_fmt(pred_death_ages, 'pred')}")
 
         # D21: warning lines — only print on transitions so logs don't spam.
         cap = float(config.get("energy_capacity", 1000.0))
@@ -421,6 +452,12 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             "energy_stats": {
                 "prey": {"min": prey_e_band[0], "mean": prey_e_band[1], "max": prey_e_band[2]},
                 "pred": {"min": pred_e_band[0], "mean": pred_e_band[1], "max": pred_e_band[2]},
+            },
+            # v10: death-age distribution (per-species ring of recent death ages).
+            # null when the ring buffer is disabled or empty.
+            "death_age_stats": {
+                "prey": prey_death_ages,
+                "pred": pred_death_ages,
             },
             "reward_weights": {
                 "prey": {

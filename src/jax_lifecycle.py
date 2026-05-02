@@ -240,6 +240,46 @@ def _batch_birth_prob_jax(energies, species, config,
     return kappa_b_eff_all / (1.0 + jnp.exp(exponent))
 
 
+def _write_death_ages_jax(ring_prey, ring_pred, idx_prey, idx_pred,
+                           dead_mask, species, ages):
+    """Append ages of just-died agents into per-species ring buffers (v10).
+
+    Pure JAX. Iterates over agent slots via lax.scan; for each dying
+    slot, writes age into the appropriate species ring at idx % ring_size
+    and advances that species' index. Slots that aren't dying contribute
+    a no-op (the ring is rewritten with its own value at the same index).
+    """
+    ring_size = ring_prey.shape[0]
+    n_slots = dead_mask.shape[0]
+
+    def step_fn(carry, slot):
+        rp, rd, ip, id_ = carry
+        died = dead_mask[slot]
+        is_prey = species[slot] == 0
+        is_pred = species[slot] == 1
+        age = ages[slot]
+        write_prey = died & is_prey
+        write_pred = died & is_pred
+
+        wi_prey = ip % ring_size
+        wi_pred = id_ % ring_size
+
+        # No-op write: replace target cell with itself when not writing.
+        new_prey_val = jnp.where(write_prey, age, rp[wi_prey])
+        new_pred_val = jnp.where(write_pred, age, rd[wi_pred])
+
+        rp = rp.at[wi_prey].set(new_prey_val)
+        rd = rd.at[wi_pred].set(new_pred_val)
+        ip = ip + jnp.where(write_prey, 1, 0)
+        id_ = id_ + jnp.where(write_pred, 1, 0)
+        return (rp, rd, ip, id_), None
+
+    (rp, rd, ip, id_), _ = jax.lax.scan(
+        step_fn, (ring_prey, ring_pred, idx_prey, idx_pred), jnp.arange(n_slots),
+    )
+    return rp, rd, ip, id_
+
+
 def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None):
     """Process deaths and births for all agents. Pure JAX, JIT-compatible.
 
@@ -292,6 +332,29 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
     # (D20 catch-deaths are counted separately in sim_step_core.)
     deaths_this_step = jnp.sum(dead_mask.astype(jnp.int32))
 
+    # v10 death-age ring: capture ages of just-died agents into per-species
+    # ring buffers BEFORE deactivation. Reading live ages has inspection
+    # bias (survivors skew long); this gives a true window of death-age
+    # distribution to log against. Skipped when ring_size==1 (sentinel
+    # for "disabled" since we still need a tracked field for checkpoint
+    # shape compatibility).
+    ring_size = int(sim_state.death_age_ring_prey.shape[0])
+    if ring_size > 1:
+        ring_prey, ring_pred, idx_prey, idx_pred = _write_death_ages_jax(
+            sim_state.death_age_ring_prey,
+            sim_state.death_age_ring_pred,
+            sim_state.death_age_idx_prey,
+            sim_state.death_age_idx_pred,
+            dead_mask,
+            sim_state.species,
+            sim_state.ages,
+        )
+    else:
+        ring_prey = sim_state.death_age_ring_prey
+        ring_pred = sim_state.death_age_ring_pred
+        idx_prey = sim_state.death_age_idx_prey
+        idx_pred = sim_state.death_age_idx_pred
+
     # D23: mark hazard-dead agents' last rollout slot as terminal. The caller
     # (sim_step_core) passes safe_ptrs from the pre-step write, which is the
     # position where this dying agent's last obs/action/reward landed. We
@@ -311,6 +374,10 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
         phyjax_stated=new_stated,
         cum_deaths=sim_state.cum_deaths + deaths_this_step,
         rollout_dones=new_rollout_dones,
+        death_age_ring_prey=ring_prey,
+        death_age_ring_pred=ring_pred,
+        death_age_idx_prey=idx_prey,
+        death_age_idx_pred=idx_pred,
     )
 
     # --- Birth processing ---

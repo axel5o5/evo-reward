@@ -139,6 +139,12 @@ def build_sim_step(config, space):
     # This lets check_eating_jax detect contacts that happened DURING a
     # substep but were separated by the velocity solver before the step end
     # — exactly the catches our old post-step distance check was missing.
+    #
+    # n_physics_iter is config-driven (default = paper-faithful 5). L1 sets
+    # it to 3 for ~30% physics speedup at the cost of solver precision
+    # (more tunneling and overlap). Never override below 5 for paper runs.
+    n_physics_iter = int(config.get("n_physics_iter", N_PHYSICS_ITER))
+
     @jax.jit
     def physics_step(stated, solver, act_p1, act_p2, f1, f2):
         circle = stated.get("circle")
@@ -152,7 +158,7 @@ def build_sim_step(config, space):
             return (st, sol), contact.penetration >= 0.0
 
         (stated, solver), nstep_contacts = jax.lax.scan(
-            body, (stated, solver), None, length=N_PHYSICS_ITER
+            body, (stated, solver), None, length=n_physics_iter
         )
         contacts = jnp.max(nstep_contacts, axis=0)  # (n_pair,) bool
         return stated, solver, contacts

@@ -100,6 +100,18 @@ class SimState:
     cum_deaths: jnp.ndarray         # scalar int32: all deaths (catches + hazard + starvation)
     cum_feedings: jnp.ndarray       # scalar int32: prey×food contact events
 
+    # --- Death-age ring buffers (v10 — true lifespan distribution) ---
+    # Per-species ring buffer of recent death ages. Reading live ages
+    # has inspection-paradox bias (survivors skew long); these capture
+    # each agent's age at the moment of death so we can compute true
+    # median lifespan from a recent sliding window. Sized via
+    # config["death_age_ring_size"]; writes happen in
+    # process_births_and_deaths_jax. Slots are -1 until first written.
+    death_age_ring_prey: jnp.ndarray   # (ring_size,) int32
+    death_age_ring_pred: jnp.ndarray   # (ring_size,) int32
+    death_age_idx_prey:  jnp.ndarray   # scalar int32 (monotonic; mod ring_size at write)
+    death_age_idx_pred:  jnp.ndarray   # scalar int32
+
 
 # ---------------------------------------------------------------------------
 # Initialization (pure JAX, no old WorldState dependency)
@@ -313,6 +325,11 @@ def init_simstate(config: dict, rng_key) -> SimState:
     # predators can catch on step 0 (matches emevo's reset value).
     predator_eat_timer = jnp.zeros(max_agents, dtype=jnp.int32)
 
+    # Death-age ring buffer: configurable per-species size. The shape is
+    # static; (1,) when disabled (size=0 in config) so the field still
+    # exists for checkpoint compatibility but holds no real data.
+    ring_size = max(1, int(config.get("death_age_ring_size", 256)))
+
     return SimState(
         is_active=is_active,
         species=species_arr,
@@ -351,6 +368,10 @@ def init_simstate(config: dict, rng_key) -> SimState:
         cum_catches=jnp.int32(0),
         cum_deaths=jnp.int32(0),
         cum_feedings=jnp.int32(0),
+        death_age_ring_prey=jnp.full((ring_size,), -1, dtype=jnp.int32),
+        death_age_ring_pred=jnp.full((ring_size,), -1, dtype=jnp.int32),
+        death_age_idx_prey=jnp.int32(0),
+        death_age_idx_pred=jnp.int32(0),
     )
 
 
@@ -503,4 +524,8 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         cum_catches=jnp.int32(0),
         cum_deaths=jnp.int32(0),
         cum_feedings=jnp.int32(0),
+        death_age_ring_prey=jnp.full((max(1, int(config.get("death_age_ring_size", 256))),), -1, dtype=jnp.int32),
+        death_age_ring_pred=jnp.full((max(1, int(config.get("death_age_ring_size", 256))),), -1, dtype=jnp.int32),
+        death_age_idx_prey=jnp.int32(0),
+        death_age_idx_pred=jnp.int32(0),
     )

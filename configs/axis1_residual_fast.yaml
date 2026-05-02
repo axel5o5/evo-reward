@@ -1,0 +1,197 @@
+# Axis 1 v10-L2 (a.k.a. v10-fast): the cheap-iteration variant of v10.
+# ====================================================================
+# Branched off axis1_residual.yaml (v8/v9, the "L3 paper-faithful" track).
+# Goal: validate v10's hypotheses (wider mouth + age-keyed LR + death-age
+# observability) at meaningfully faster wall-clock so we can iterate.
+#
+# All deltas vs L3 (axis1_residual.yaml) were chosen *empirically* against
+# the v8 step-2.26M checkpoint. See findings.md §15.19 for the methodology
+# and the three diagnostics that pinned each knob:
+#
+#   #1 Counterfactual PPO (sym-KL borderline ~34%; cuts acceptable for
+#      mature agents; #3 below confirms the cuts are low-stakes overall).
+#   #2 SVD of policy W_in: median effective rank @ 95% energy is 53/64.
+#      Top-32 captures 77.6%, top-48 captures 92.4%. → L2 picks hidden=48
+#      as a defensible compromise (92% capacity at ~56% compute cost).
+#      L1 takes hidden=32 knowingly (77% capacity, accepts the loss).
+#   #3 r(age, mean reward) ≈ 0 → within-lifetime PPO not the rate-limiter.
+#      → Cuts to ppo_epochs are empirically safe.
+#
+# The big timing finding (CPU bench): population is the dominant lever.
+# sim_step cost scales as max_agents² for the contact matrix; PPO is only
+# ~1-3% of wall. So the L2 strategy is "modestly cut pop + halve PPO
+# epochs + middle hidden_size + one fewer physics substep" — a ~1.5-1.7×
+# speedup with the policy/physics fidelity mostly intact.
+#
+# Diff vs L3 (axis1_residual.yaml):
+#   - world_size:        880    → 750    (~27% area reduction; density-isometric)
+#   - prey_cap:          375    → 300
+#   - predator_cap:      40     → 35
+#   - prey_initial:      125    → 90
+#   - predator_initial:  9      → 7
+#   - policy_hidden_size 64     → 48     (SVD: 92% capacity preserved)
+#   - n_physics_iter:    5      → 4      (config-driven; one substep cut)
+#   - ppo_epochs:        10     → 5
+#   - ddb_max_boost:     50     → 75     (stronger anti-extinction safety)
+#   - predator_mouth_tactile_bins: [0]   → [0, 1, 17]   (v10 mouth)
+#   - lr_schedule_*: NEW (v10 age-keyed LR)
+#   - death_age_ring_size: NEW (v10 lifespan observability)
+#
+# Knobs deliberately UNCHANGED vs L3:
+#   - rollout_steps: 1024 (preserves GAE quality)
+#   - minibatch_size: 256 (n_minibatches=4; grad-step granularity)
+#   - DDB/DDM thresholds (T_pred=10, T_prey=100, T_ddm=10): scaffolds are
+#     supposed to fire in the *danger zone*; smaller pop has higher LV-crash
+#     cost, so we want the safety net to engage *more* aggressively, not
+#     less. Bumped ddb_max_boost instead.
+#   - alpha: 0.5 (linear share)
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis1_residual_fast"   # v10-L2
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear_plus_mlp_residual"
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism ─────────────────────────────────────────────────────
+stability_mechanism:             "ddb_ddm"
+ddb_prey_threshold:              100.0   # unchanged from L3
+ddb_pred_threshold:              10.0    # unchanged from L3
+ddb_floor:                       0.0
+ddb_max_boost:                   75.0    # was 50 in L3 — stronger lone-survivor breeding
+ddb_boost_distribution_alpha:    0.5     # unchanged: linear share
+ddm_pred_threshold:              10.0    # unchanged from L3
+ddm_floor:                       0.0
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── World — L2 cut ──────────────────────────────────────────────────────────
+world_size:         750
+total_steps:        10_240_000
+
+# ─── Population — L2 cuts ────────────────────────────────────────────────────
+prey_initial:       90
+predator_initial:   7
+prey_cap:           300
+predator_cap:       35
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    120.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Physics — L2 cuts one substep (4 vs L3's 5) ────────────────────────────
+n_physics_iter:     4
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               350
+food_initial:           25
+# At world=750 → effective rate 0.5 × (750/960)² ≈ 0.305 food/step.
+food_growth_rate_at_960sq: 0.5
+food_max_regen_per_step: 7
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth — v10 widening (~free perf cost) ────────────────────────
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (linear part) ─────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Reward Genome (residual MLP part) ───────────────────────────────────────
+residual_hidden_size:     4
+residual_mutation_scale:  0.03
+residual_weight_clip:     5.0
+
+# ─── Policy — L2 hidden=48 (SVD-defensible compromise) ──────────────────────
+policy_hidden_size:   48
+policy_n_hidden_layers: 2
+
+# ─── PPO ─────────────────────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024            # unchanged from L3
+minibatch_size:     256             # unchanged from L3
+ppo_epochs:         5               # was 10 in L3
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Per-agent age-keyed LR schedule (v10) ──────────────────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0
