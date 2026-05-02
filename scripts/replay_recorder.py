@@ -65,6 +65,8 @@ from pathlib import Path
 
 import numpy as np
 
+from src.save_schedule import parse_schedule, interval_at
+
 
 class ReplayRecorder:
     def __init__(
@@ -76,11 +78,22 @@ class ReplayRecorder:
         bucket: str | None = None,
         run_tag: str = "",
     ):
-        self.interval = int(config.get("replay_record_interval_steps", 0) or 0)
+        raw_interval = config.get("replay_record_interval_steps", 0) or 0
+        # Treat 0 as "disabled"; otherwise build a schedule (int or list).
+        if isinstance(raw_interval, int) and raw_interval == 0:
+            self.schedule = [(0, 0)]
+            self.enabled = False
+        else:
+            self.schedule = parse_schedule(raw_interval, default_interval=0)
+            self.enabled = self.schedule[0][1] > 0
+        # Legacy attr kept for any external code reading recorder.interval.
+        self.interval = self.schedule[0][1]
         self.length = int(config.get("replay_record_length_steps", 1000) or 0)
-        self.enabled = self.interval > 0 and self.length > 0
+        self.enabled = self.enabled and self.length > 0
         if not self.enabled:
             return
+        # Stateful next-flush boundary. Updated after each flush.
+        self.next_boundary = self.schedule[0][1]
 
         self.exp_name = exp_name
         self.seed = seed
@@ -201,15 +214,21 @@ class ReplayRecorder:
         if not self.enabled:
             return
 
-        # Upcoming boundary we're racing toward — handles the case where
-        # step_after lands exactly on a boundary (which should flush).
-        upcoming = ((step_after - 1) // self.interval + 1) * self.interval
+        # Resume catch-up: if start_step jumped past one or more boundaries
+        # (e.g., resumed from a checkpoint mid-run), fast-forward.
+        while step_after > self.next_boundary:
+            self.next_boundary += interval_at(self.schedule, self.next_boundary)
+
+        # Upcoming boundary we're racing toward. Stored on self so a
+        # tapered schedule (interval changes mid-run) Just Works.
+        upcoming = self.next_boundary
         in_window = (upcoming - step_after) < self.length
 
         if in_window:
             self._capture(sim_state, step_after)
         if step_after == upcoming and self._count > 0:
             self._flush(sim_state)
+            self.next_boundary = step_after + interval_at(self.schedule, step_after)
 
     # ---------------------------- capture ------------------------------------
 

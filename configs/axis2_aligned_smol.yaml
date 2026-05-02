@@ -143,7 +143,11 @@ action_clip_high:   80.0
 action_mapping:     "sigmoid"
 
 # ─── Replay recording ────────────────────────────────────────────────────────
-replay_record_interval_steps: 20_000
+# See axis1_residual.yaml for the cadence rationale.
+replay_record_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
 replay_record_length_steps:   10_000
 replay_quantize: true
 replay_bucket: "evo-reward-replays-public"

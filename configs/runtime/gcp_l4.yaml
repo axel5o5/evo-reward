@@ -1,5 +1,11 @@
 # Runtime profile for GCP L4 GPU runs.
 # L4 runs at ~24-28 steps/s on the full sim -> 20k steps ≈ 12 min between saves.
 
-checkpoint_interval_steps: 20_000
+# Tapered checkpoint cadence — dense early to capture compile-time and early
+# evolution, sparse later for storage discipline. See src/save_schedule.py.
+# A flat int (e.g. `checkpoint_interval_steps: 20_000`) is still accepted.
+checkpoint_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
 log_interval_steps:        10_000

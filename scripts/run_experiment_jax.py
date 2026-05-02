@@ -122,7 +122,10 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
     total_steps = max_steps if max_steps is not None else config["total_steps"]
     rollout_steps = config["rollout_steps"]
     log_interval = config.get("log_interval_steps", 10_000)
-    ckpt_interval = config.get("checkpoint_interval_steps", 100_000)
+    from src.save_schedule import parse_schedule, interval_at
+    ckpt_schedule = parse_schedule(
+        config.get("checkpoint_interval_steps"), default_interval=100_000
+    )
     max_agents = config["prey_cap"] + config["predator_cap"]
     exp_name = config.get("experiment_name", "unnamed")
 
@@ -219,6 +222,11 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
 
     start_time = time.time()
     start_step = int(sim_state.step)
+
+    # Next step at which to fire a checkpoint. Computed from the schedule so
+    # resumed runs land on the same boundaries fresh runs would.
+    next_ckpt_at = start_step + interval_at(ckpt_schedule, start_step)
+    next_ckpt_at -= start_step % interval_at(ckpt_schedule, start_step)
 
     # D21: snapshot of cumulative counters at last log — used to derive
     # per-interval event counts without storing a per-step history.
@@ -456,7 +464,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
                 _log_progress(sim_state, step)
 
             # --- Checkpointing ---
-            if (step + 1) % ckpt_interval == 0:
+            if (step + 1) >= next_ckpt_at:
                 # Fire any pending PPO so the checkpoint reflects the correct
                 # post-update state (ptrs reset etc.) rather than a mid-batch
                 # stale view.
@@ -466,6 +474,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
                 )
                 os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
                 jax_metrics.save(metrics_log, metrics_file)
+                next_ckpt_at = (step + 1) + interval_at(ckpt_schedule, step + 1)
 
         # Final flush: fire any pending PPO, then save
         sim_state = _maybe_fire_ppo(sim_state)
