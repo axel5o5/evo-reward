@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-02T15:29:36+00:00",
+  "updated_at": "2026-05-02T15:54:30+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-04-24T06:19:02.950-07:00",
-        "runtime_hours_current": 194.1739,
+        "runtime_hours_current": 194.5898,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 165.0478,
+        "estimated_current_run_usd": 165.4013,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
-        "count": 565,
+        "count": 567,
         "latest_step": 2000000,
-        "latest_age_hours": 55.164,
-        "total_gb": 166.2099
+        "latest_age_hours": 55.579,
+        "total_gb": 166.6948
       },
       "costs": {
-        "compute_current_run": 165.0478,
-        "nat_since_active": 14.49,
-        "storage_current": 0.1797,
-        "live_estimate_total": 179.72,
+        "compute_current_run": 165.4013,
+        "nat_since_active": 14.5,
+        "storage_current": 0.1821,
+        "live_estimate_total": 180.08,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -37,56 +37,56 @@
       "training": {
         "experiment_name": "axis1_residual",
         "seed": 0,
-        "step": 1870000,
+        "step": 1910000,
         "total_steps": 10240000,
-        "progress_frac": 0.18262,
-        "sps": 29.917,
-        "eta_hours": 77.71,
+        "progress_frac": 0.18652,
+        "sps": 29.925,
+        "eta_hours": 77.32,
         "population": {
-          "prey": 218,
-          "pred": 12,
+          "prey": 343,
+          "pred": 9,
           "food": 525,
-          "mean_energy": 18.764036178588867
+          "mean_energy": 19.731475830078125
         },
         "reward_weights": {
           "prey": {
             "eat": [
-              -2.1670756340026855,
-              6.902903079986572
+              -2.959911823272705,
+              6.996417045593262
             ],
             "act": [
-              -2.6684255599975586,
-              4.084693431854248
+              -2.899117946624756,
+              4.1113762855529785
             ],
             "prey": [
-              -0.007153036072850227,
-              3.659019708633423
+              0.11753024905920029,
+              3.9050650596618652
             ],
             "pred": [
-              -0.3540209233760834,
-              4.228644371032715
+              -0.38483619689941406,
+              3.9694037437438965
             ]
           },
           "pred": {
             "eat": [
-              1.0129780769348145,
-              0.6650342345237732
+              0.9807316660881042,
+              0.8668582439422607
             ],
             "act": [
-              -0.8979573249816895,
-              4.529149532318115
+              0.7229817509651184,
+              3.777179479598999
             ],
             "prey": [
-              4.579802513122559,
-              2.1368539333343506
+              5.584150314331055,
+              3.120304584503174
             ],
             "pred": [
-              -4.280009746551514,
-              2.232363700866699
+              -3.7017223834991455,
+              1.917760968208313
             ]
           }
         },
-        "progress_file_age_hours": 0.051,
+        "progress_file_age_hours": 0.043,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 0,
@@ -95,9 +95,9 @@
           "mem_total_mb": 23034
         },
         "host": {
-          "cpu_pct": 2.3,
+          "cpu_pct": 2.4,
           "ram_pct": 16.8,
-          "ram_used_mb": 5642,
+          "ram_used_mb": 5668,
           "ram_total_mb": 33652
         }
       },
@@ -124,13 +124,13 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 121,
         "latest_step": 2180000,
-        "latest_age_hours": 11.819,
+        "latest_age_hours": 12.234,
         "total_gb": 46.0188
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.0498,
+        "storage_current": 0.0503,
         "live_estimate_total": 0.05,
         "billing_actual_usd": null,
         "billing_as_of": null,
@@ -188,7 +188,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 11.82,
+        "progress_file_age_hours": 12.235,
         "evolution_detected": true,
         "gpu": null,
         "host": null
