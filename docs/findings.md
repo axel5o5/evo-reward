@@ -777,8 +777,13 @@ Post-hoc reconstruction from existing checkpoints is **not** reliable: slots are
 | `ppo_epochs` | 10 | 5 | ~halves PPO update cost | slower per-lifetime fitting |
 | `minibatch_size` | 256 | 512 | small (fewer launch overheads) | none in theory |
 | `policy_hidden_size` | 64 | 32 | 2-4× cheaper forward+backward | lower capacity (likely fine on axis-1's 4-D reward, **not** on axis-2's 333-D obs) |
+| `world_size` | 880 | 800 | smaller pairwise-distance fields, modest | deviates from paper geometry; matches `baseline_med_ddb_ddm` which already ran 1.35M stably |
+| `prey_initial / cap` | 125 / 375 | 100 / 300 | fewer per-step agent ops + fewer PPO updates | smaller gene pool; partially offset by DDB+DDM keeping populations alive |
+| `predator_initial / cap` | 9 / 40 | 7 / 30 | same as above | same as above |
 
-Combined expected wall-clock: ~1.5-2× faster than v10. Quality cost on axis-1 should be small (4-D reward is overprovisioned by the 64-hidden 2-layer MLP), but this is exactly the kind of assumption v10-fast is good for testing.
+Combined expected wall-clock: **~2-3× faster** than v10. The geometry/population reduction reuses the proven `baseline_med_ddb_ddm` scaffold (800²/300/30/100/7) which survived 1.35M steps without extinction — DDB+DDM at the current settings makes extinction effectively impossible at that scale, so reverting from "med-large" to "med" is low-risk. Iteration speed > paper-absolute numbers for v10-fast; we re-validate winning ideas on full v10 afterwards.
+
+Quality cost on axis-1 should be small (4-D reward is overprovisioned by the 64-hidden 2-layer MLP), but this is exactly the kind of assumption v10-fast is good for testing.
 
 **Knobs we did NOT pull even into v10-fast** (recorded so future-us can find them):
 
