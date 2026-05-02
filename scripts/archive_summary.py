@@ -42,7 +42,7 @@ DEFAULT_BUCKET = os.environ.get("EVO_REWARD_REPLAYS_BUCKET", "evo-reward-replays
 # Live runs that must NOT be touched while in progress. Each entry is a path
 # prefix relative to the bucket root.
 LIVE_RUN_PREFIXES = (
-    "axis1_residual/seed_0/2026-05-01T2019Z/",
+    "axis1_residual/seed_0/2026-05-01T2203Z/",
 )
 
 _DTYPE_SIZE = {"float32": 4, "int32": 4, "uint16": 2, "uint8": 1}

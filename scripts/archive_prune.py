@@ -80,7 +80,7 @@ def _anon_list(bucket_name: str) -> list[ReplayRef]:
 # Run identifiers we never touch — currently the live recording in progress.
 # Each entry is a path prefix relative to the bucket root.
 EXCLUDED_PREFIXES = (
-    "axis1_residual/seed_0/2026-05-01T2019Z/",  # axis-1 v7 (live)
+    "axis1_residual/seed_0/2026-05-01T2203Z/",  # axis-1 (live)
 )
 
 
@@ -93,29 +93,23 @@ EXCLUDED_PREFIXES = (
 ARCHIVE_POLICY: dict[str, list[tuple[str, int, str]]] = {
     # Most recent / actively meaningful — full scrubbability.
     "keep_all": [
-        ("axis2_aligned",         0, "2026-04-30T1806Z"),
-        ("axis2_social_obs",      0, "2026-04-28_axis2_mouth_smol_1M"),
-        ("axis2_social_obs",      1, "2026-04-29_axis2_mouth_smol_2M_seed1"),
-        ("baseline_med_ddb",      0, "2026-04-30_baseline_med_ddb_2M"),
-        ("baseline_med_ddb_ddm",  0, "2026-04-30_baseline_med_ddb_ddm_2M"),
-        ("baseline_smol_ddb",     0, "2026-04-29_baseline_smol_ddb_2M"),
+        ("axis2_aligned",         0, "2026-04-30T1806Z"),  # active config (axis2_aligned_smol)
     ],
     # Long runs we still want to scrub through, but thinned to ~10 ckpts.
     "keep_sparse": [
-        ("axis1_mlp_reward",      0, "2026-04-28_axis1_mouth_smol_1M"),
-        ("axis1_residual",        0, "2026-05-01T1646Z"),  # T=4 v3 — diversity-loss case study
-        ("axis1_residual",        0, "2026-05-01T1800Z"),  # v3 uniform-boost DDM — selection started late at pred_w_prey=+0.81 step 230K
-        ("exp_sweep_mouth_smol",  0, "2026-04-27_sweep_mouth_smol_1M"),
-        ("exp_sweep_mouth_smol",  1, "2026-04-27_sweep_mouth_smol_1M_seed1"),
-        ("exp_tune_eta_0.50",     0, "2026-04-25_tune_eta_050"),
-        ("exp_tune_eta_0.55",     0, "2026-04-25_tune_eta_055"),
-        ("exp_v8_no_cooldown",    0, "2026-04-23T1558Z_v8-no-cooldown-seed0"),
+        ("axis1_residual",        0, "2026-05-01T2019Z"),                    # v7 (DDB-only, no DDM) — extinct@88K "publishable failure mode" (findings §15.15); v8 = T2203Z restored DDM
+        ("baseline_med_ddb_ddm",  0, "2026-04-30_baseline_med_ddb_ddm_2M"),  # 1.35M trophic-collapse case — trajectory cited in findings §15.9-10
     ],
     # Historical / superseded — keep just the final checkpoint so the end
     # state is still playable, but drop the trajectory.
     "keep_last_only": [
+        ("axis1_mlp_reward",      0, "2026-04-28_axis1_mouth_smol_1M"),       # bootstrap failure — replaced by axis1_residual (findings §11)
         ("axis1_mlp_reward",      0, "2026-04-29_axis1_mouth_smol_1M_mut03"),
         ("axis1_mlp_reward",      0, "2026-04-28_axis1_mouth_smol_1M_mut08"),
+        ("axis1_residual",        0, "2026-05-01T1646Z"),                     # T=4 v3 diversity-loss — superseded by v7
+        ("axis1_residual",        0, "2026-05-01T1800Z"),                     # v3 uniform-boost DDM — superseded by v7
+        ("axis2_social_obs",      0, "2026-04-28_axis2_mouth_smol_1M"),       # slot-based obs — replaced by bin-aligned (findings §13)
+        ("axis2_social_obs",      1, "2026-04-29_axis2_mouth_smol_2M_seed1"),
         ("baseline_faithful",     0, "2026-04-21"),  # was legacy untagged
         ("baseline_faithful",     0, "2026-04-21T1935Z_post-d19"),
         ("baseline_faithful",     0, "2026-04-21T2159Z_phase1a-v2"),
@@ -135,7 +129,14 @@ ARCHIVE_POLICY: dict[str, list[tuple[str, int, str]]] = {
         ("baseline_faithful",     0, "2026-04-21_pre_d18_fix"),
         ("baseline_faithful",     1, "2026-04-22T2328Z_phase1a-v7-seed1-sensor120"),
         ("baseline_faithful",     1, "2026-04-24_d19"),
+        ("baseline_med_ddb",      0, "2026-04-30_baseline_med_ddb_2M"),       # extincted ~100K, superseded by ddb_ddm (findings §15.7-8)
+        ("baseline_smol_ddb",     0, "2026-04-29_baseline_smol_ddb_2M"),      # extincted ~80K (findings §15.6)
+        ("exp_sweep_mouth_smol",  0, "2026-04-27_sweep_mouth_smol_1M"),
+        ("exp_sweep_mouth_smol",  1, "2026-04-27_sweep_mouth_smol_1M_seed1"),
         ("exp_tune_eta_0.45",     0, "2026-04-24_tune_eta_045"),
+        ("exp_tune_eta_0.50",     0, "2026-04-25_tune_eta_050"),
+        ("exp_tune_eta_0.55",     0, "2026-04-25_tune_eta_055"),
+        ("exp_v8_no_cooldown",    0, "2026-04-23T1558Z_v8-no-cooldown-seed0"),
     ],
 }
 
