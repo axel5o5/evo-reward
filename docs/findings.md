@@ -727,3 +727,53 @@ Mid-run inspection of v8 checkpoints at step 280K and 440K confirms the residual
 **Clip-hit episode at 280K.** One prey lineage saturated a single residual param at the ±5 clip. By 440K that lineage is gone (max param drops to 2.33). Worth tracking the clip-hit rate over time as a pathology signal.
 
 **What this evidence does NOT answer:** whether the residual encodes structure linear cannot, or just makes the linear gradient steeper. That's Q2 of axis-1 — the more interesting question. Designed in [docs/proposals/axis1-residual-analysis.md](proposals/axis1-residual-analysis.md), to be implemented in a future session. The proposal also covers an optional in-loop residual-L1 logging tweak (~10 LOC, sub-microsecond cost) that would expose this trajectory in real time without needing to download 127 MB checkpoints — useful for failure detection on long runs but not load-bearing for the science.
+
+### 15.19 v10 — todo block (within-lifetime training mismatch + mouth narrowness)
+
+Three observations from the v8 run motivate a v10 config revision.
+
+**1. Predator mouth is narrower than even K&D's smallest config.** Active configs run `predator_mouth_tactile_bins: [0]` (a single 20°-wide bin = 20° catch arc). emevo's "small" config and our test-suite reference value is `[0, 1, 17]` (3 bins = 60° arc, the front-center triplet). The K&D paper sweeps 3 mouth sizes (small/medium/large); we are below the smallest. Replay observation suggests predators are visibly missing prey that pass close to the mouth but slightly off-center — consistent with a sub-paper arc.
+
+**Action:** v10 sets `predator_mouth_tactile_bins: [0, 1, 17]` (paper-faithful "small"). Single-line change in `axis1_residual.yaml` and `axis2_aligned_smol.yaml`. Couples with all three other levers (more catches → more energy → longer pred lifespan → more PPO updates → policies fit genomes better).
+
+**2. Within-lifetime PPO training is starved on predators.** Live-age snapshot at step 2.06M:
+
+| | Prey (n=312) | Predator (n=8) |
+|---|---|---|
+| median age | 27,972 | **6,103** |
+| median age in PPO updates (rollout=1024) | 27 | **6** |
+| 95th-pct age | 112,657 | 101,159 |
+
+Median predator dies after ~6 PPO updates — barely enough for a 4-layer 64-hidden MLP to fit the reward genome it's been handed. (Inspection-paradox bias means *actual* mean lifespan-at-death is even lower; live samples skew toward survivors.) Selection thus operates on the rare 95th-pct survivor with ~100 updates, not on the median predator. The mouth-widening above will help indirectly, but a direct lever is also worth a look.
+
+**Action:** add a learning-rate schedule. Current `lr: 3.0e-4` is constant. Two options to evaluate:
+- (a) Higher constant LR (`1e-3`) — fits short lives faster, may destabilize long-lived agents.
+- (b) **Per-agent LR decay** keyed off agent age — start high (`1e-3`), decay to `3e-4` over ~30K steps. Lets young agents learn fast, lets mature agents stabilize. Implementation: optax schedule indexed by `state.ages[i]`. ~20 LOC in `src/jax_ppo.py`. The per-agent angle is critical because pop-level wall-step decay would punish newborns when the run is mature.
+
+Default to (b) for v10 — has the right inductive bias (newborns need fast learning, apex survivors need stable policies) and matches biological intuition (juvenile plasticity → adult specialization).
+
+**3. Death-age logging.** We don't currently capture lifespan distributions; we track per-slot `ages` but never snapshot at the T→F transition of `is_active`. Live-age snapshots are biased by the inspection paradox.
+
+Post-hoc reconstruction from existing checkpoints is **not** reliable: slots are reused across births, and `agent_ids` for dead slots get overwritten at next birth into that slot. So even with consecutive checkpoints, an agent that dies and gets replaced between two saves is undetectable. Death-age must be captured online.
+
+**Action:** in `src/jax_lifecycle.py::process_births_and_deaths_jax`, before the `is_active` mask is updated, accumulate `ages[died_mask]` into a per-species ring buffer (size ~256 most-recent deaths). In progress lines, log percentiles (5/50/95) per species. ~30 LOC. No checkpoint-format change required (ring buffer can live in `SimState` or as a separate metrics struct).
+
+**Combined v10 launch checklist** (one config + small code patches):
+- [ ] `predator_mouth_tactile_bins: [0, 1, 17]` in two configs.
+- [ ] Per-agent age-keyed LR schedule (default 1e-3 → 3e-4 over 30K steps).
+- [ ] Death-age ring buffer + progress-line percentile logging.
+- [ ] Re-validate `tests/test_predator_eating.py` and `tests/test_jax_ppo_update.py` still pass.
+- [ ] Document v10 vs v8 deltas as §15.20 once launched.
+
+**Speed knobs we considered but did NOT pull for v10** (recorded so future-us can find them). All would meaningfully speed up wall-clock at the cost of either paper faithfulness or learning capacity. Worth a one-off speed-vs-quality study (5K-step smoke runs) once v10 has baseline numbers, but not bundled into the v10 config — these are throughput hacks, not paper-aligned improvements, and mixing them with the v10 changes would muddy the attribution.
+
+| Knob | Current | Candidate | Expected speedup | Cost |
+|---|---|---|---|---|
+| `ppo_epochs` | 10 | 5 | ~halves PPO update cost | slower per-lifetime fitting |
+| `minibatch_size` | 256 | 512 | small (fewer launch overheads) | none in theory |
+| `policy_hidden_size` | 64 | 32 | 2-4× cheaper forward+backward | lower capacity (likely fine on axis-1's 4-D reward, **not** on axis-2's 333-D obs) |
+| `policy_n_hidden_layers` | 2 | 1 | similar to hidden-size shrink | similar |
+| `n_proximity_sensors` | 32 | 16 | ~2× cheaper sensor stage | coarser angular resolution; deviates from paper |
+| `n_physics_iter` (hardcoded `5` in [src/environment.py:28](../src/environment.py#L28)) | 5 | 3 | ~40% physics speedup | tunneling risk at high velocity; deviates from emevo |
+
+**Combo most likely to be net-positive on axis-1:** `ppo_epochs: 5` + `minibatch_size: 512` + `policy_hidden_size: 32`. Probably 1.5-2× wall-clock with minimal learning regression on the 4-D linear-reward axis. **Do not** apply to axis-2 without re-validating — the 333-D social-obs setup probably needs the larger policy.
