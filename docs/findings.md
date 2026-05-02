@@ -695,3 +695,17 @@ Computed via stable masked log-softmax: `share_i = softmax(k · log(energy_i))`.
 | 1.0 | 100% | winner-take-all |
 
 A natural follow-up if v8 doesn't immediately show what we want: schedule α as a function of step count (linearly increase from 0.3 → 0.6 over the first 1M steps, simulating a "gradual selection sharpening" as evolution gets going).
+
+### 15.17 v9 — paper-faithful proximity range + per-area food density
+
+While v8 was running on GCP we noticed two scale-correctness slips in the active configs that hadn't tracked our world-size shrink (paper 960² → med-large 880²). Neither is severe enough to abort v8, but we applied them so the *next* launch is on a more defensible config (commit `c7b81e1`).
+
+**1. `proximity_max_range: 200 → 120`.** The paper (Appendix A) specifies 120. emevo's TOML has 200, which we'd silently carried forward in every axis and baseline-stepping-stone config (D27 documented this in `baseline_faithful.yaml` only). At world=880, a 200-unit sensor range covers 22.7% of world width — vs the paper-spec 12.5%. Predators were sensing far farther than they're supposed to, which probably made hunting too easy in the small-world regime. Side benefit: per-step distance checks are cheaper since fewer agents fall inside range (area ratio (120/200)² = 0.36).
+
+**2. Scale-relative food growth.** Every config had `food_growth_rate: 0.5` regardless of world size, so per-unit-area food density was inflated on smaller worlds (at world=880, 17% denser than paper). The fix is structural: a new config key `food_growth_rate_at_960sq` is interpreted as "the rate at the paper's 960² world" and scaled by `(world_size / 960)²` at config-load time. Resolver in `src/config_utils.py`. `baseline_faithful.yaml` keeps the legacy absolute key, which is identical at world=960. `axis1_residual.yaml` and `axis2_aligned_smol.yaml` (world=880) now resolve to 0.5 × (880/960)² ≈ 0.420 effective food/step.
+
+**Why these only apply on next launch.** v8 loaded its config at startup (22:03 UTC); the c7b81e1 commit landed ~90 min later. The running process is unaffected. Editing the config file mid-run is safe (it's not re-read), but means git history diverges from the running process — the v8 run_tag pins the live config snapshot to commit `a05bc0a`.
+
+**Side effect of doing this work: configs/ is now reorganized.** Active runs at top level (`axis1_residual.yaml`, `axis2_aligned_smol.yaml`, `baseline_faithful.yaml`); everything else moved into `configs/archive/` with a per-file README of outcomes. See `configs/README.md` and `configs/archive/README.md`.
+
+**What this means for v9.** No new science; just config hygiene. If v8 finishes cleanly, v9 (or whatever we relaunch with these configs) becomes a slightly cleaner re-run that's more directly comparable to `baseline_faithful.yaml`. If v8 dies, v9 is what we'd restart on.

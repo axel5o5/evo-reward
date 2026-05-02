@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-01 (axis-1 v8 launch — DDB+DDM with α=0.5 boost distribution; α is now a continuous tuning knob in [0,1], see findings §15.16).
+**Last updated:** 2026-05-01 (axis-1 v8 running on GCP; v9 config tweaks landed mid-run — paper-faithful proximity range + per-area food density; configs/ reorganized into active vs archive — see findings §15.17 and `configs/README.md`).
 
 ## Where we are in the project
 
@@ -19,14 +19,49 @@ and going directly to axis-1.
 
 ## What's running / queued
 
-- **Axis-1 (residual reward genome):** to be launched — configs at
+- **Axis-1 v8 (residual reward genome):** running on GCP since 2026-05-01
+  22:03 UTC, run_tag `2026-05-01T2203Z`. Last checked at step ~180K of
+  10.24M (~28 sps), prey at cap 375, predator dipped to 9 around step
+  100K and recovered to 14 by step 180K — scaffolds engaged and
+  population recovered as designed. Config:
   [configs/axis1_residual.yaml](../configs/axis1_residual.yaml).
-- **Axis-2 (bin-aligned heading obs):** queued — configs at
+- **Axis-2 (bin-aligned heading obs):** queued. Config:
   [configs/axis2_aligned_smol.yaml](../configs/axis2_aligned_smol.yaml)
-  (filename is stale; experiment_name is `axis2_aligned`, middle-scale).
-- **Axis-3 / axis-4:** deferred (see findings.md §15.4).
+  (filename is stale; `experiment_name: axis2_aligned`, med-large scale).
+- **Axis-3 / axis-4:** deferred (see findings.md §15.4). Configs moved
+  into `configs/archive/` on 2026-05-01.
 
 GCP infra: `evo-reward-gpu` VM (single L4), runs in tmux sessions.
+
+> **Note on v8 vs v9.** The live v8 process loaded its config at startup,
+> so it's running with the *pre-v9* values: `proximity_max_range: 200` and
+> absolute `food_growth_rate: 0.5`. The v9 config tweaks (paper-faithful
+> 120 + scale-relative food density) live in the same config files now and
+> will take effect on the *next* launch. v8 will continue to completion (or
+> until we kill it) on its frozen config.
+
+## v9 config tweaks (2026-05-01) — paper-faithful proximity + per-area food
+
+Two scale-correctness fixes landed today (commit `c7b81e1`). Neither
+affect the running v8 process; they apply on the next launch.
+
+1. **`proximity_max_range: 200 → 120`** in the active axis configs. The
+   paper (Appendix A) specifies 120; emevo's TOML has 200, which we'd
+   carried forward by accident (D27). At our world=880 the old 200
+   covered 22.7% of world width, vs paper-spec 12.5% — predators were
+   sensing far farther than intended. `baseline_faithful.yaml` was
+   already at 120; v9 brings the axis configs in line. See findings §15.17.
+2. **Scale-relative food growth rate.** New config key
+   `food_growth_rate_at_960sq` (the rate at the paper's 960² world);
+   resolver in [src/config_utils.py](../src/config_utils.py) scales it by
+   `(world_size / 960)²` so per-unit-area food density stays paper-faithful
+   on non-960 worlds. At world=880 → 0.5 × (880/960)² ≈ 0.420.
+   `baseline_faithful.yaml` keeps the absolute key (identical at world=960).
+3. **Configs reorg.** Top-level `configs/` now contains only the actively-
+   running configs + paper reference + runtime/. Superseded and deferred
+   configs moved into `configs/archive/`. See [configs/README.md](../configs/README.md)
+   and [configs/archive/README.md](../configs/archive/README.md) for
+   per-file status.
 
 ## ⭐ The current scaffold framing (2026-05-01) — DDB+DDM, energy-weighted DDB
 
@@ -247,4 +282,5 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 | axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (→ §15.12) |
 | axis1_residual v3 (uniform boost) | med-large T=10 + DDB+DDM uniform | 230K, healthy LV but selection diluted (→ §15.14) |
 | axis1_residual v7 (no DDM) | med-large T=10 + DDB only + α=0.5 | **Extinct at 88K** — DDM not optional (→ §15.15) |
-| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **TBD** |
+| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **At step 180K: prey at cap 375, pred bottomed at 9 ≈ step 100K, recovered to 14 by 180K. Pred mean E healthy (~85). 1.76% complete. No extinction signal.** |
+| axis1_residual v9 (next launch) | v8 settings + paper-faithful proximity (200→120) + scale-relative food_growth_rate (per-area density) | Config-only diffs vs v8; takes effect on next launch (§15.17) |

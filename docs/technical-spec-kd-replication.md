@@ -412,7 +412,7 @@ The authoritative version lives at [`configs/baseline_faithful.yaml`](../configs
 **Key known deviations from paper text (all documented inline in the yaml and in `emevo-diff.md`):**
 
 - `food_max: 600` (paper Appendix A says 100; code uses 600 — we follow code)
-- `proximity_max_range: 200` (paper says 120; code uses 200 — we follow code)
+- ~~`proximity_max_range: 200`~~ — restored to paper-spec 120 in v9 (2026-05-01, findings §15.17). Earlier configs followed emevo's TOML (200); v9 brings axis configs in line with `baseline_faithful.yaml` and paper Appendix A.
 - `prey_c_b: 1.0e-4, prey_c_a: 2.5e-6` (paper Table 2 has these labels reversed; magnitudes match — see §6.2 above)
 - ζ is a birth-only parameter (paper Table 3 groups it with hazard params; implementation puts it only in `b(e)`)
 

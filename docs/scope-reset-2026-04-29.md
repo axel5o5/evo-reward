@@ -2,13 +2,14 @@
 
 > **⚠ ADDENDUM 2026-05-01 — what's changed since this document was written:**
 >
-> The scaffold design has gone through four more iterations since this doc was authored (§15.11-§15.14 of [findings.md](findings.md)):
-> - **§15.11**: Strong scaffolds (floor=0, max_boost=50) added — extinction at N≤3 effectively impossible
-> - **§15.12**: Threshold bumped 4→8 — first axis-1 run lost diversity because scaffolds engaged too late
-> - **§15.13**: Threshold bumped 8→10, scale bumped to med-large (cap=40) — preserves diversity but blunts selection
-> - **§15.14**: **DDM dropped, DDB rate boost is now energy-weighted by within-species energy share** — selection pressure preserved at the *individual* level inside the scaffold envelope. **This is the current framing.** Bad hunters at low energy don't get rescued; high-energy individuals carry population recovery. Total breeding pressure preserved at the species level; allocated by fitness.
+> The scaffold design has gone through several more iterations since this doc was authored (§15.11-§15.17 of [findings.md](findings.md)):
+> - **§15.11-§15.13**: Stronger DDB+DDM (floor=0, max_boost=50, T=10), bumped to med-large geometry (cap=40)
+> - **§15.14**: DDB rate boost made energy-weighted (selection pressure preserved at the individual level)
+> - **§15.15**: v7 (DDM dropped) extincted at step 88K — DDM is *not* optional even with energy-weighted DDB; both restored as v8
+> - **§15.16**: Continuous α∈[0,1] tuning knob — α=0 uniform, α=0.5 linear (v8 default), α=1 winner-take-all
+> - **§15.17**: v9 config tweaks — paper-faithful `proximity_max_range: 120` (was 200) + scale-relative food_growth_rate. Configs reorganized into `configs/{,archive/}` with READMEs.
 >
-> The [DDB + DDM](#ddb--ddm--the-stability-scaffolds) section below describes the older uniform-boost design. It's preserved for historical context but **the live system uses the energy-weighted design from §15.14**. See [CURRENT_STATE.md](CURRENT_STATE.md) for the up-to-date mental model.
+> The [DDB + DDM](#ddb--ddm--the-stability-scaffolds) section below describes the older uniform-boost design. It's preserved for historical context but **the live system uses DDB+DDM with α-tuned energy-weighted boost (§15.16)**. See [CURRENT_STATE.md](CURRENT_STATE.md) for the up-to-date mental model.
 
 > **TL;DR.** We've narrowed scope to two axes (1 and 2), redesigned both around their actual failure modes from earlier runs, added a single "stability scaffold" mechanism to prevent extinctions, and shrunk the world geometry to iterate faster. Three experiments queue up over the next ~3 days. Axis-3 and axis-4 are deferred indefinitely.
 >

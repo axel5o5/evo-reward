@@ -228,7 +228,7 @@ Index   Field                    Shape  Range       Notes
 obs_dim = 215  (205 + 5 × 2)
 ```
 
-**Visibility:** conspecific must be within `proximity_max_range` (200 units) Euclidean distance.
+**Visibility:** conspecific must be within `proximity_max_range` (120 units, paper Appendix A) Euclidean distance.
 **Sorting:** closest first (ascending Euclidean distance from observer center to center).
 **Padding:** zeros for missing neighbors (fewer than `n_social_neighbors` conspecifics visible).
 **Config:** `social_obs: "position_heading_velocity"`, `n_social_neighbors: 5`, `obs_dim: 215`.
@@ -686,14 +686,15 @@ CONFIG_SCHEMA = {
     "n_proximity_sensors":       int,      # 32
     "proximity_fov_deg":         float,    # 120.0
     "n_proximity_channels":      int,      # 4 — CONFIRMED
-    "proximity_max_range":       float,    # 200.0 — CONFIRMED (not 120)
+    "proximity_max_range":       float,    # 120.0 — paper Appendix A (D27, restored across all axis configs in v9)
     "n_tactile_sensors":         int,      # 18
     "n_tactile_channels":        int,      # 4 — CONFIRMED
     "tactile_spacing_deg":       float,    # 20.0
     # Food
     "food_max":                  int,      # 600 — CONFIRMED
     "food_initial":              int,      # 40 — CONFIRMED
-    "food_growth_rate":          float,    # 0.5 — CONFIRMED
+    "food_growth_rate":          float,    # 0.5 — CONFIRMED (absolute key; baseline_faithful uses this)
+    "food_growth_rate_at_960sq": float,    # 0.5 — scale-relative alternative (v9, findings §15.17). Resolver in src/config_utils.py scales by (world_size/960)². Use one or the other, not both.
     # Energy — prey
     "prey_e_food":               float,    # 1.0
     "prey_c_b":                  float,    # 1.0e-4 — CONFIRMED code value

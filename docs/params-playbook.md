@@ -171,6 +171,7 @@ Parameters with strong evidence for adjustment are marked ⭐. Parameters we hav
 
 ### `food_max`, `food_initial`, `food_growth_rate`, `food_max_regen_per_step`
 - All match paper. Paper varies `food_growth_rate` (`n` parameter) across 0.4 / 0.5 / 0.6 conditions; n=0.5 is our default. Paper reports 5/13 survival at n=0.6.
+- **v9 update (2026-05-01).** Active axis configs now express the rate as scale-relative `food_growth_rate_at_960sq: 0.5` (findings §15.17). The resolver in `src/config_utils.py` scales by `(world_size/960)²` so per-unit-area food density stays paper-faithful on non-960 worlds. `baseline_faithful.yaml` keeps the absolute key — identical at world=960. Use one key or the other, not both (resolver errors if both are present).
 
 ---
 
