@@ -902,3 +902,69 @@ The spectrum decays *smoothly* — there is no knee at any rank. Cutting to hidd
 **Deferred features (post-launch):** "rate-based alpha" — distributing the breeding boost on per-agent catch-rate or feed-rate instead of instantaneous energy. Real fitness signal but requires new SimState fields (`agent_lifetime_catches`, `agent_lifetime_feedings`) and checkpoint format bump. Will only revisit if v10 results show the energy-share alpha is the bottleneck.
 
 **Next action:** check on v8/L3 (still running, currently ~22.9% complete with predator weights showing strong K&D-aligned signal: `pred_w_pred=−2.97, pred_w_prey=+4.37`); then launch L1 for cheap iteration on v10 mechanism wins.
+
+### 15.21 v10 — three follow-up analyses on v8 (2026-05-02 evening)
+
+After §15.20 locked the L1/L2/L3 spec, v8 progressed from step 2.26M → 2.40M (140K-step window). Three additional analyses on the v8 checkpoints to test whether v10's two main mechanism interventions (mouth widening, age-keyed LR) are still well-motivated. The headline: **one motivation got weaker, one got stronger, and the L2 spec ended up unchanged.**
+
+Analysis script: `/tmp/v8_analysis/three_analyses.py` (one-shot, not committed).
+
+**Mid-window status update.** Predator macros over the 140K window:
+- Population: 11 → 9 (cap=40, never bound).
+- Max age: **214,026 → 319,897** (same individual; +100K of life — strongly above §15.19's 95th-pct=101K).
+- Cum catches: +1,170 in 140K (= 84/10K, healthy and steady).
+- `w_pred=−2.97, w_prey=+4.37` — clean K&D-aligned signal (was the strongest evidence selection is working).
+
+Prey weights also showed (slow, tail-driven) K&D-aligned drift: prey `mean(w_pred): −1.11 → −1.32` (~19% more avoidance-leaning). Median essentially flat (−1.18 → −1.12). Most-fearful prey doubled in magnitude (min −13 → −28). Consistent with selection pressure being real but slow at L3 timescales.
+
+**Analysis A — Tactile-bin distribution of near-miss prey (one-snapshot proxy for mouth-widening lift).**
+
+For each active predator, found all active prey within `buf × sum_radii`. Computed each prey's tactile-bin assignment (per `src/jax_food.py:149-154`). Question: what fraction sit in the v8 mouth `[0]` vs the v10 widened mouth `[0, 1, 17]`?
+
+| Buffer | Near-pairs | In `[0]` | In `[0, 1, 17]` | Lift | Top bins |
+|---|---|---|---|---|---|
+| 1.5× sum_radii (≈36u, near-contact) | 12 | 0 (0%) | 0 (0%) | none | 7, 4, 8 |
+| 2.5× | 29 | 0 | 0 | none | 7, 12, 14 |
+| 4.0× (≈96u, approach range) | 88 | 3 (3.4%) | 4 (4.5%) | ×1.33 (+1 pair) | 12, 7, 14, 9, 8 |
+
+**Surprise:** prey are **not** in the predator's front arc when close. Top occupied bins are 7-14 (sides + behind). Two possible explanations: (a) prey have learned to avoid the front arc — selection pressure showing up as positional behavior; (b) predators move past prey laterally rather than turning toward them. We can't disentangle from a single snapshot, but the directional read is unambiguous: at this stage of the run, the **mouth size is not the active bottleneck — orientation is**.
+
+**Caveat:** snapshot misses the *moment of approach*. A rollout-buffer version (counting tactile-prey-channel firings in mouth bins vs not at moments of high signal) would be stronger. Deferred — not load-bearing for the L2 launch decision since the conclusion is "mouth widening is cheap, keep it, but expect modest lift," not "drop it."
+
+**Analysis B — Survival by birth-cohort (lower-bound death-age via agent_id diff).**
+
+Compared `agent_ids` between t_old=2.26M and t_new=2.40M. Predators alive only at t_old were dead by t_new; predators alive at both survived the 140K window. Birth-step computed as `step − age` from the t_old checkpoint.
+
+Predator cohort survival rates:
+
+| Birth window | n alive at t_old | survived 140K |
+|---|---|---|
+| 2.0–2.1M (oldest) | 4 | **25%** |
+| 2.1–2.2M | 2 | 50% |
+| 2.2–2.26M (most recent) | 5 | **0%** |
+
+**Recent-birth predators are getting massacred.** 9 of 11 predators alive at t_old died in the 140K window (= 64/M-step death rate). Median lower-bound death-age was 35,907; the long tail (max=214K) is a few survivors carrying the population.
+
+**Why this matters for v10.** §15.20 Analysis #3 (`r(age, mean_reward) = −0.08`) sampled top-aged predators — by definition, the surviving long-tail. The dying-young population was invisible to it. Cohort analysis B shows that population is the modal case, not an outlier. The aggressive age-keyed LR schedule (`1e-3 → 3e-4` over 30K steps) is exactly tuned for predators that die in the 5K–30K age band.
+
+**Implication:** an earlier candidate to relax — "drop age-keyed LR at L2 since §15.20 Analysis #3 showed PPO updates don't drive reward in mature predators" — is **withdrawn**. We can't generalize the mature-predator finding to the dying-young population, which is who the schedule targets. Keep it on at L2.
+
+**Analysis C — Catch-rate vs age (per-predator spike-detection on rollout rewards).**
+
+For each active predator, counted `reward[t] > mean + 3σ` events in their last-rollout window as a proxy for catch events. Pearson r(age, spike_rate) = +0.106; r(age, mean_reward) = −0.168 (cross-checks §15.20's −0.08 directionally, magnitude noisier with n=9).
+
+| Age band | n | mean spike rate /1k step | mean reward |
+|---|---|---|---|
+| 0 – 20K | 4 | 0.49 | +0.068 |
+| 60K – 150K | 3 | 0.65 | +0.113 |
+| 150K – 1M | 2 | 0.49 | −0.008 |
+
+Underpowered with n=9 — spike rate quantizes to {0, 0.98, 1.95}/1k. Directional read: weak hint that mid-age predators catch slightly more but the very-old ones see reward fall (their genome's `w_eat` may have drifted negative — possible explanation for the long-lived predator's mean_reward = -0.19 outlier). Not load-bearing for L2 design; flagged as a possible follow-up if multi-checkpoint catch tracking gets added.
+
+**Net L2 spec update (post-Analysis A/B/C):** **none — keep L2 as locked in §15.20.** The two changes that were on the table to relax were `ddb_max_boost: 75 → 60` and disabling age-keyed LR at L2. Both withdrawn:
+- `ddb_max_boost`: breeding rate is one of the most mechanistically clean LV-stabilizing levers (only fires at low pop) and Analysis B's high turnover (64 predator deaths/M-step) confirms scaffolds are still load-bearing. The 75 vs 50 difference only matters when pred-pop ≤ 10, which is exactly when it should fire harder.
+- Age-keyed LR: motivation was *strengthened* by Analysis B, not weakened.
+
+**The one knob worth tuning *if* L2 results suggest it** (parametrically, not via the boolean flag): the schedule values themselves. The schedule is already dynamic via `lr_schedule_initial` / `lr_schedule_final` / `lr_schedule_decay_steps` — setting initial=final disables it without touching the flag. Gentler variants for future ablation: `5e-4 → 3e-4 over 30K` (1.67× boost vs current 3.3×), or `1e-3 → 3e-4 over 60K` (same magnitude, slower decay). Don't apply these proactively; only if L2 + age-LR shows policy instability.
+
+**Next action:** wait for v8 to reach ~3M steps before launching L2 (gives one more checkpoint diff to validate the cohort survival pattern and confirm `w_pred` keeps deepening). Then launch L1 first as the cheap-iteration tier per §15.20's plan.

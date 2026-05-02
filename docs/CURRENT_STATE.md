@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-02 (v8 still running on GCP at step ~2.35M / 22.9%, predator weights showing strong K&D-aligned fear signal; v10 framework landed — three-tier L1/L2/L3 ladder + mouth widening + age-keyed LR + death-age ring buffer; ready to launch L1 for cheap iteration. See findings §15.20).
+**Last updated:** 2026-05-02 evening (v8 at step ~2.40M / 23.4%, max predator age climbing 214K → 320K; three follow-up analyses on cohort survival flipped one v10 design call — keeping age-keyed LR aggressive at L2. L2 spec now locked. Plan: wait for v8 ≈ 3M, then launch L1. See findings §15.20 + §15.21).
 
 ## Where we are in the project
 
@@ -20,16 +20,21 @@ and going directly to axis-1.
 ## What's running / queued
 
 - **Axis-1 v8 (residual reward genome) on L3:** running on GCP since
-  2026-05-01 22:03 UTC, run_tag `2026-05-01T2203Z`. **At step 2.35M / 10.24M
-  (22.9% complete, ~22h elapsed at 29.7 sps).** Predator weights showing
-  the strongest K&D-aligned signal:
-  `pred_w_pred = −2.97 ± 0.96` (avoid other predators) and
-  `pred_w_prey = +4.37 ± 0.76` (chase prey). Population currently
-  prey=260, pred=12 (mid-LV-cycle dip from 372/14). 72 catches/10K steps
-  is healthy. Config:
+  2026-05-01 22:03 UTC, run_tag `2026-05-01T2203Z`. **At step 2.40M / 10.24M
+  (23.4% complete).** Predator macros: pop=9, prey=344, max predator age
+  319,897 (same individual went 214K → 320K over the last 140K steps).
+  Predator weights still strongest K&D signal seen this project:
+  `pred_w_pred = −2.97, pred_w_prey = +4.37`. Prey w_pred drifting more
+  negative (mean −1.11 → −1.32 over 140K), tail-driven — slow population-
+  wide fear formation. 84 catches/10K steps over the last window, healthy.
+  Cohort survival analysis (findings §15.21 Analysis B): 64 predator
+  deaths/M-step, 0% survival of newborn cohort over 140K — high turnover
+  is the modal case despite long-tail survivors. Config:
   [configs/axis1_residual.yaml](../configs/axis1_residual.yaml).
-- **Axis-1 v10-L1 (queued for launch):** v10 mechanism additions on the
-  cheapest iteration tier (~7.8h/1M CPU, ~2.5× faster than L3). Config:
+- **Axis-1 v10-L1 (queued, hold for v8 ≈ 3M):** v10 mechanism additions on
+  the cheapest iteration tier (~7.8h/1M CPU, ~2.5× faster than L3). Plan
+  is to launch once v8 reaches ~3M to validate the cohort-survival pattern
+  with one more checkpoint diff. Config:
   [configs/axis1_residual_mini.yaml](../configs/axis1_residual_mini.yaml).
 - **Axis-1 v10-L2 (queued):** v10 mechanisms on the middle tier
   (~13.3h/1M CPU, ~1.5× faster than L3). Config:
