@@ -174,6 +174,16 @@ bootstrap failure: t=0 reward is proven-stable K&D linear.
 **Code:** `src/reward.py::ResidualRewardMLP`, `compute_residual_reward`,
 `init_residual_genome`; `src/jax_evolution.py::mutate_residual_genome_jax`.
 
+**Open analysis (designed, not yet implemented):** Q1 (binary "is the
+residual being utilized?") is mostly answered — predator residual L1
+went 0 → ~2.8 by step 440K of the v8 run. Q2 ("does the residual encode
+genuine nonlinear structure, or just reinforce the linear gradient?") is
+the more interesting question and needs an offline analysis script. Full
+design and rationale in
+[docs/proposals/axis1-residual-analysis.md](proposals/axis1-residual-analysis.md).
+Pick this up in a future session — ~150 LOC, runs against any checkpoint
+in `gs://evo-reward-ckpts/`.
+
 ### Axis 2 — bin-aligned heading observation
 
 **Hypothesis:** "Observing other agents' headings (not just positions)
@@ -207,6 +217,8 @@ forward" aliasing bug (both → 0).
   divergences from the upstream emevo reference implementation. D19 (slot
   fix) and D28 (shared-credit catch energy) are the most recent.
 - [docs/experiments-log.md](experiments-log.md) — chronological log of runs.
+- [docs/proposals/](proposals/) — designed-but-not-yet-implemented analyses
+  and follow-ups, structured for a future agent to pick up cold.
 
 ## Common workflows
 

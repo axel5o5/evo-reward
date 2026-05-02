@@ -709,3 +709,21 @@ While v8 was running on GCP we noticed two scale-correctness slips in the active
 **Side effect of doing this work: configs/ is now reorganized.** Active runs at top level (`axis1_residual.yaml`, `axis2_aligned_smol.yaml`, `baseline_faithful.yaml`); everything else moved into `configs/archive/` with a per-file README of outcomes. See `configs/README.md` and `configs/archive/README.md`.
 
 **What this means for v9.** No new science; just config hygiene. If v8 finishes cleanly, v9 (or whatever we relaunch with these configs) becomes a slightly cleaner re-run that's more directly comparable to `baseline_faithful.yaml`. If v8 dies, v9 is what we'd restart on.
+
+### 15.18 v8 — first evidence of MLP residual utilization (axis-1 Q1 partially answered)
+
+Mid-run inspection of v8 checkpoints at step 280K and 440K confirms the residual MLP is being utilized — answering the binary half of axis 1.
+
+**Per-agent residual L1 (sum of |w| over all 25 residual params):**
+
+| step | active preds | pred mean L1 | pred min L1 | prey mean L1 | prey max single param |
+|------|--------------|--------------|-------------|--------------|-----------------------|
+| init | 9            | 0.000        | 0.000       | 0.000        | 0.000 (zero-init)     |
+| 280K | 12           | 1.99         | 0.00        | 2.90         | **5.00 (hit ±5 clip)** |
+| 440K | 8            | 2.81         | **1.78**    | 3.58         | 2.33                  |
+
+**Why this isn't just mutation noise.** At `residual_mutation_scale=0.03` and ~10 generations of inheritance through 440K steps, an unconstrained random walk would predict L1 ~ 0.5. We see ~2.8 on predators — selection is pushing residuals up, not just drifting. By 440K every surviving predator has L1 ≥ 1.78; the "flat-zero residual" lineage is gone from the predator population.
+
+**Clip-hit episode at 280K.** One prey lineage saturated a single residual param at the ±5 clip. By 440K that lineage is gone (max param drops to 2.33). Worth tracking the clip-hit rate over time as a pathology signal.
+
+**What this evidence does NOT answer:** whether the residual encodes structure linear cannot, or just makes the linear gradient steeper. That's Q2 of axis-1 — the more interesting question. Designed in [docs/proposals/axis1-residual-analysis.md](proposals/axis1-residual-analysis.md), to be implemented in a future session. The proposal also covers an optional in-loop residual-L1 logging tweak (~10 LOC, sub-microsecond cost) that would expose this trajectory in real time without needing to download 127 MB checkpoints — useful for failure detection on long runs but not load-bearing for the science.
