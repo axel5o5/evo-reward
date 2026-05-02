@@ -777,11 +777,19 @@ Post-hoc reconstruction from existing checkpoints is **not** reliable: slots are
 | `ppo_epochs` | 10 | 5 | ~halves PPO update cost | slower per-lifetime fitting |
 | `minibatch_size` | 256 | 512 | small (fewer launch overheads) | none in theory |
 | `policy_hidden_size` | 64 | 32 | 2-4× cheaper forward+backward | lower capacity (likely fine on axis-1's 4-D reward, **not** on axis-2's 333-D obs) |
-| `world_size` | 880 | 800 | smaller pairwise-distance fields, modest | deviates from paper geometry; matches `baseline_med_ddb_ddm` which already ran 1.35M stably |
-| `prey_initial / cap` | 125 / 375 | 100 / 300 | fewer per-step agent ops + fewer PPO updates | smaller gene pool; partially offset by DDB+DDM keeping populations alive |
-| `predator_initial / cap` | 9 / 40 | 7 / 30 | same as above | same as above |
+| `world_size` | 880 | 800 | smaller pairwise-distance fields, modest | deviates from paper geometry; close to proven `baseline_med_ddb_ddm` (800²) which ran 1.35M stably |
+| `prey_initial / cap` | 125 / 375 | 125 / **400** | LV peaks unclipped → more representative ecology + more genetic turnover at peaks | density 6.25e-4 = **1.28× paper**; novel territory for stability |
+| `predator_initial / cap` | 9 / 40 | 9 / 40 | unchanged | density 6.25e-5 ≈ 1.15× paper; pred cap rarely binds in any of our runs |
 
-Combined expected wall-clock: **~2-3× faster** than v10. The geometry/population reduction reuses the proven `baseline_med_ddb_ddm` scaffold (800²/300/30/100/7) which survived 1.35M steps without extinction — DDB+DDM at the current settings makes extinction effectively impossible at that scale, so reverting from "med-large" to "med" is low-risk. Iteration speed > paper-absolute numbers for v10-fast; we re-validate winning ideas on full v10 afterwards.
+**Why caps go UP at 800² rather than scaling isometrically down:** v8 progress logs show prey cap binds frequently (~24% of recent windows pinned at or near 375). Cap-binding suppresses births at LV peaks, which is when genetic turnover should be at its highest. For v10-fast we want **uncapped LV cycles** — let prey overshoot equilibrium, observe natural crashes, see the full ecology. The hot-density bet (1.28× paper for prey) trades known-stable scaffolding for richer dynamics; risk-bounded because v10-fast wins must be re-validated on v10 anyway.
+
+The compute cost of a higher prey cap at smaller world is roughly: equilibrium prey at 800² density-isometric ≈ 240; with cap=400 we expect peaks of maybe ~340 vs current v8 peaks pinned at 375. So actual per-step compute is approximately the same as v8 even with the higher cap, just with the cap no longer biting.
+
+**Caveats:**
+- DDB+DDM at the current settings was validated at 0.96-1.00× paper density. 1.28× is novel; extinction risk is low but not zero.
+- If v10-fast crashes early (e.g., extinction at <500K), fall back to density-isometric 300/30 which we know is stable.
+
+Combined expected wall-clock: **~2× faster** than v10. (Less aggressive than my original 2-3× estimate; the higher prey cap eats some of the smaller-world savings.) Iteration speed > paper-absolute numbers for v10-fast; we re-validate winning ideas on full v10 afterwards.
 
 Quality cost on axis-1 should be small (4-D reward is overprovisioned by the 64-hidden 2-layer MLP), but this is exactly the kind of assumption v10-fast is good for testing.
 
