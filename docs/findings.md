@@ -765,15 +765,27 @@ Post-hoc reconstruction from existing checkpoints is **not** reliable: slots are
 - [ ] Re-validate `tests/test_predator_eating.py` and `tests/test_jax_ppo_update.py` still pass.
 - [ ] Document v10 vs v8 deltas as §15.20 once launched.
 
-**Speed knobs we considered but did NOT pull for v10** (recorded so future-us can find them). All would meaningfully speed up wall-clock at the cost of either paper faithfulness or learning capacity. Worth a one-off speed-vs-quality study (5K-step smoke runs) once v10 has baseline numbers, but not bundled into the v10 config — these are throughput hacks, not paper-aligned improvements, and mixing them with the v10 changes would muddy the attribution.
+**Two-track strategy for v10.** We split the v10 work into a paper-faithful track and a rapid-iteration track:
 
-| Knob | Current | Candidate | Expected speedup | Cost |
+- **v10** (paper-faithful): the three changes above (mouth, age-LR, death-age logging) and nothing else. This is the run we'd cite in publications. Comparable directly to v8 because it preserves PPO geometry and policy capacity.
+- **v10-fast** (branched, for cheap iteration): v10 + a **PPO/policy speed combo** that trades paper faithfulness for wall-clock. Used to iterate on design choices that don't need paper-absolute numbers — e.g., "does the age-LR schedule actually help predator convergence?" can be answered directionally in a 12-hour v10-fast run rather than a 4-day v10 run. We then re-validate the winning configuration on a v10 run.
+
+**v10-fast speed combo** (pulled into the branched config; left out of v10):
+
+| Knob | v10 (paper-faithful) | v10-fast | Expected speedup | Cost |
 |---|---|---|---|---|
 | `ppo_epochs` | 10 | 5 | ~halves PPO update cost | slower per-lifetime fitting |
 | `minibatch_size` | 256 | 512 | small (fewer launch overheads) | none in theory |
 | `policy_hidden_size` | 64 | 32 | 2-4× cheaper forward+backward | lower capacity (likely fine on axis-1's 4-D reward, **not** on axis-2's 333-D obs) |
-| `policy_n_hidden_layers` | 2 | 1 | similar to hidden-size shrink | similar |
-| `n_proximity_sensors` | 32 | 16 | ~2× cheaper sensor stage | coarser angular resolution; deviates from paper |
-| `n_physics_iter` (hardcoded `5` in [src/environment.py:28](../src/environment.py#L28)) | 5 | 3 | ~40% physics speedup | tunneling risk at high velocity; deviates from emevo |
 
-**Combo most likely to be net-positive on axis-1:** `ppo_epochs: 5` + `minibatch_size: 512` + `policy_hidden_size: 32`. Probably 1.5-2× wall-clock with minimal learning regression on the 4-D linear-reward axis. **Do not** apply to axis-2 without re-validating — the 333-D social-obs setup probably needs the larger policy.
+Combined expected wall-clock: ~1.5-2× faster than v10. Quality cost on axis-1 should be small (4-D reward is overprovisioned by the 64-hidden 2-layer MLP), but this is exactly the kind of assumption v10-fast is good for testing.
+
+**Knobs we did NOT pull even into v10-fast** (recorded so future-us can find them):
+
+| Knob | Current | Candidate | Why we skipped |
+|---|---|---|---|
+| `policy_n_hidden_layers` | 2 | 1 | already shrinking hidden_size; doubling up risks too-aggressive capacity drop |
+| `n_proximity_sensors` | 32 | 16 | changes observation semantics, not just compute — would need separate sensor-resolution ablation |
+| `n_physics_iter` (hardcoded `5` in [src/environment.py:28](../src/environment.py#L28)) | 5 | 3 | tunneling risk at high velocity; deviates from emevo physics fidelity |
+
+**Do not apply v10-fast knobs to axis-2** without re-validation — the 333-D social-obs setup probably needs the larger policy.
