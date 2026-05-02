@@ -211,11 +211,33 @@ on the dashboard side; this is the cost of doing it.
 The "Archived runs" panel on the Replay page reads
 `/replays/summary.json` (= GCS `summary.json` in prod). It shows every
 run that was archived, sortable by final step / extinction step / peak
-counts, with a per-run trajectory sparkline. Each row carries a `live`
-or `pruned` badge based on whether the run still has at least one
-checkpoint in `index.json`.
+counts, with a per-run trajectory sparkline. Each row carries a `live`,
+`thinned N/M`, or `pruned` badge based on how many of its checkpoints
+still appear in `index.json`. Thinned counts come from a per-run map
+of live checkpoints in `ArchivedRunsPanel.tsx`, so a `keep_sparse`
+prune reads as e.g. `thinned 10/89` rather than collapsing to `live`.
 
-After a prune that thins runs but doesn't fully delete any of them,
-every row reads `live` even though most are now sparser than the
-sparkline shows. That's a UI follow-up if it becomes confusing — for
-now the sparkline density makes the thinning visually obvious.
+## Sidebar grouping: Active vs Archive
+
+The replay selector's run picker is split into two collapsible
+sections that mirror `configs/` vs `configs/archive/`:
+
+- **Active** (default open) — runs whose experiment name appears in
+  `ACTIVE_EXPS` in [`dashboard/site/src/lib/replayNaming.ts`](../dashboard/site/src/lib/replayNaming.ts).
+- **Archive** (default closed) — everything else. Auto-opens when the
+  current selection (URL or default) lives there, so you never see a
+  collapsed section hiding your active row.
+
+Inside each section the existing date bands (today / yesterday / this
+week / older) still apply, so chronological recency is preserved
+*within* the active/archive split rather than mixed across it.
+
+When a config graduates or is shelved, three lists need to move
+together:
+
+1. `configs/` ↔ `configs/archive/` — the config file itself, plus the
+   relevant README rows (see [`configs/README.md`](../configs/README.md)).
+2. `ARCHIVE_POLICY` in `scripts/archive_prune.py` — usually
+   `keep_all` → `keep_last_only` for a demotion.
+3. `ACTIVE_EXPS` in `dashboard/site/src/lib/replayNaming.ts` — so the
+   sidebar grouping reflects the new state on the next deploy.

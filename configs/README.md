@@ -43,3 +43,8 @@ Configs for runs we're launching now or queueing next.
 When a config moves status:
 - **Active → Archive:** `git mv configs/<name>.yaml configs/archive/`, then update [archive/README.md](archive/README.md) with a one-line outcome (extincted, superseded, deferred, etc.).
 - **Archive → Active:** the reverse. Update both READMEs.
+
+Two downstream lists also need to move with it (see [docs/replay-archive-and-pruning.md](../docs/replay-archive-and-pruning.md) §"Sidebar grouping"):
+
+- `ARCHIVE_POLICY` in [scripts/archive_prune.py](../scripts/archive_prune.py) — usually `keep_all` → `keep_last_only` on demotion.
+- `ACTIVE_EXPS` in [dashboard/site/src/lib/replayNaming.ts](../dashboard/site/src/lib/replayNaming.ts) — drives the Active vs Archive split in the replay sidebar.

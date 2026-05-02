@@ -55,6 +55,20 @@ export function displayExperimentName(exp: string): string {
   return TITLE_OVERRIDES[exp] ?? prettyId(exp);
 }
 
+// Mirrors configs/ vs configs/archive/ — keep in sync when an experiment
+// graduates or is shelved (see configs/README.md and configs/archive/README.md).
+const ACTIVE_EXPS = new Set<string>([
+  "axis1_residual",
+  "axis2_aligned",
+  "baseline_faithful",
+]);
+
+export type ExpCategory = "active" | "archive";
+
+export function categoryForExp(exp: string): ExpCategory {
+  return ACTIVE_EXPS.has(exp) ? "active" : "archive";
+}
+
 export function variantForExp(exp: string): string {
   if (VARIANT_OVERRIDES[exp]) return VARIANT_OVERRIDES[exp];
   const axis = exp.match(/^axis(\d+)/i);

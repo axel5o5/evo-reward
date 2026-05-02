@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { ReplayIndexEntry } from "../lib/replayLoader";
 import {
+  ExpCategory,
+  categoryForExp,
   describeReplay,
   displayExperimentName,
   displayRunTag,
@@ -58,6 +60,20 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
       if (b === "current") return 1;
       return a.localeCompare(b);
     });
+  }, [replays]);
+
+  // Tag → category, decided by the exps that show up under that tag. A tag
+  // belongs to "active" iff any of its replays come from an active exp.
+  // Tags map 1:1 to an exp in practice today, but the union semantics keep
+  // the picker correct if that ever stops being true.
+  const tagCategory = useMemo(() => {
+    const m = new Map<string, ExpCategory>();
+    for (const r of replays) {
+      const t = tagOf(r);
+      if (m.get(t) === "active") continue;
+      m.set(t, categoryForExp(r.exp));
+    }
+    return m;
   }, [replays]);
 
   const variantsInTag = useMemo(() => {
@@ -219,6 +235,7 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
         <RunPicker
           tags={tags}
           activeTag={activeTag}
+          tagCategory={tagCategory}
           onSelect={pickTag}
         />
       )}
@@ -352,12 +369,71 @@ function bandOf(date: Date | null, now: Date): DateBand {
 function RunPicker({
   tags,
   activeTag,
+  tagCategory,
   onSelect,
 }: {
   tags: string[];
   activeTag: string;
+  tagCategory: Map<string, ExpCategory>;
   onSelect: (tag: string) => void;
 }) {
+  // Top-level split mirrors configs/ vs configs/archive/. Active is the
+  // collapsed-by-default exception inverted: open by default since that's
+  // where the in-flight runs live; archive starts closed but auto-opens
+  // if the current selection lives there.
+  const activeTags = tags.filter((t) => (tagCategory.get(t) ?? "archive") === "active");
+  const archiveTags = tags.filter((t) => (tagCategory.get(t) ?? "archive") === "archive");
+  const activeCategory: ExpCategory = (tagCategory.get(activeTag) ?? "archive");
+
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+        Run
+      </div>
+      <div className="flex flex-col gap-1">
+        <CategorySection
+          label="Active"
+          hint="from configs/"
+          tags={activeTags}
+          activeTag={activeTag}
+          onSelect={onSelect}
+          defaultOpen={true}
+          forceOpen={activeCategory === "active"}
+        />
+        <CategorySection
+          label="Archive"
+          hint="from configs/archive/"
+          tags={archiveTags}
+          activeTag={activeTag}
+          onSelect={onSelect}
+          defaultOpen={false}
+          forceOpen={activeCategory === "archive"}
+        />
+      </div>
+    </div>
+  );
+}
+
+// One collapsible group (Active or Archive). Inside, the existing date bands
+// still apply — recent ones rendered inline, older ones behind a Show toggle.
+function CategorySection({
+  label,
+  hint,
+  tags,
+  activeTag,
+  onSelect,
+  defaultOpen,
+  forceOpen,
+}: {
+  label: string;
+  hint: string;
+  tags: string[];
+  activeTag: string;
+  onSelect: (tag: string) => void;
+  defaultOpen: boolean;
+  forceOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [showOlder, setShowOlder] = useState(false);
 
   const banded = useMemo(() => {
@@ -370,7 +446,6 @@ function RunPicker({
       const date = t === "current" ? null : parseRunTagDate(t);
       buckets[bandOf(date, now)].push(t);
     }
-    // Within a band: most recent first (lexical works because date prefix is ISO).
     for (const k of Object.keys(buckets) as DateBand[]) {
       buckets[k].sort((a, b) => {
         if (a === "current") return -1;
@@ -381,45 +456,41 @@ function RunPicker({
     return buckets;
   }, [tags]);
 
-  // If the active tag falls in an "older" band, auto-expand so the user sees
-  // their selection rather than a hidden state.
   const activeIsOlder = useMemo(
     () => OLDER_BANDS.some((b) => banded[b].includes(activeTag)),
     [banded, activeTag],
   );
   const olderOpen = showOlder || activeIsOlder;
-
   const olderCount = OLDER_BANDS.reduce((n, b) => n + banded[b].length, 0);
 
+  if (tags.length === 0) return null;
+  const isOpen = open || forceOpen;
+
   return (
-    <div>
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-        Run
-      </div>
-      <div className="flex flex-col gap-1">
-        {RECENT_BANDS.map((band) =>
-          banded[band].length > 0 ? (
-            <RunBand
-              key={band}
-              label={band}
-              tags={banded[band]}
-              activeTag={activeTag}
-              onSelect={onSelect}
-            />
-          ) : null,
-        )}
-
-        {olderCount > 0 && (
-          <button
-            onClick={() => setShowOlder((v) => !v)}
-            className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:underline self-start mt-1"
-          >
-            {olderOpen ? "▾ Hide" : "▸ Show"} older ({olderCount})
-          </button>
-        )}
-
-        {olderOpen &&
-          OLDER_BANDS.map((band) =>
+    <div className="rounded border border-gray-200 dark:border-gray-800">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-gray-900/40"
+        aria-expanded={isOpen}
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+            {label}
+          </span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">
+            {hint}
+          </span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">
+            {tags.length}
+          </span>
+          <span className="text-gray-400 text-xs">{isOpen ? "▾" : "▸"}</span>
+        </span>
+      </button>
+      {isOpen && (
+        <div className="px-2 pb-2 pt-1 flex flex-col gap-1">
+          {RECENT_BANDS.map((band) =>
             banded[band].length > 0 ? (
               <RunBand
                 key={band}
@@ -430,7 +501,28 @@ function RunPicker({
               />
             ) : null,
           )}
-      </div>
+          {olderCount > 0 && (
+            <button
+              onClick={() => setShowOlder((v) => !v)}
+              className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:underline self-start mt-1"
+            >
+              {olderOpen ? "▾ Hide" : "▸ Show"} older ({olderCount})
+            </button>
+          )}
+          {olderOpen &&
+            OLDER_BANDS.map((band) =>
+              banded[band].length > 0 ? (
+                <RunBand
+                  key={band}
+                  label={band}
+                  tags={banded[band]}
+                  activeTag={activeTag}
+                  onSelect={onSelect}
+                />
+              ) : null,
+            )}
+        </div>
+      )}
     </div>
   );
 }
