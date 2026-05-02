@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-02T00:00:39+00:00",
+  "updated_at": "2026-05-02T01:04:50+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-04-24T06:19:02.950-07:00",
-        "runtime_hours_current": 178.6921,
+        "runtime_hours_current": 179.7622,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 151.8883,
+        "estimated_current_run_usd": 152.7979,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 476,
         "latest_step": 2000000,
-        "latest_age_hours": 39.682,
+        "latest_age_hours": 40.752,
         "total_gb": 141.1179
       },
       "costs": {
-        "compute_current_run": 151.8883,
-        "nat_since_active": 13.81,
-        "storage_current": 0.0928,
-        "live_estimate_total": 165.79,
+        "compute_current_run": 152.7979,
+        "nat_since_active": 13.85,
+        "storage_current": 0.0969,
+        "live_estimate_total": 166.74,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 7.266,
+        "progress_file_age_hours": 8.336,
         "evolution_detected": true,
         "gpu": null,
         "host": null
@@ -112,15 +112,15 @@
       },
       "checkpoints": {
         "bucket": "rl-bio-sims-494715-ckpts",
-        "count": 108,
-        "latest_step": 1920000,
-        "latest_age_hours": 0.303,
-        "total_gb": 41.0651
+        "count": 112,
+        "latest_step": 2000000,
+        "latest_age_hours": 0.107,
+        "total_gb": 42.5783
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.027,
+        "storage_current": 0.0292,
         "live_estimate_total": 0.03,
         "billing_actual_usd": null,
         "billing_as_of": null,
@@ -129,16 +129,16 @@
       "training": {
         "experiment_name": "axis2_aligned",
         "seed": 0,
-        "step": 1930000,
+        "step": 2010000,
         "total_steps": 10240000,
-        "progress_frac": 0.18848,
-        "sps": 18.053,
-        "eta_hours": 127.87,
+        "progress_frac": 0.19629,
+        "sps": 18.049,
+        "eta_hours": 126.66,
         "population": {
           "prey": 450,
           "pred": 0,
           "food": 600,
-          "mean_energy": 576.4010620117188
+          "mean_energy": 596.152099609375
         },
         "reward_weights": {
           "prey": {
@@ -178,7 +178,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 0.135,
+        "progress_file_age_hours": 0.023,
         "evolution_detected": true,
         "gpu": null,
         "host": null
