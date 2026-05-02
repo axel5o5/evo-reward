@@ -802,3 +802,17 @@ Quality cost on axis-1 should be small (4-D reward is overprovisioned by the 64-
 | `n_physics_iter` (hardcoded `5` in [src/environment.py:28](../src/environment.py#L28)) | 5 | 3 | tunneling risk at high velocity; deviates from emevo physics fidelity |
 
 **Do not apply v10-fast knobs to axis-2** without re-validation — the 333-D social-obs setup probably needs the larger policy.
+
+**Tier ladder framing (for future organization).** v10/v10-fast naturally extends to a 3-tier ladder of compute-vs-fidelity tradeoffs:
+
+| Tier | Name | World | Caps (prey/pred) | Policy | PPO | Use case | Approx wall-clock for 1M steps |
+|---|---|---|---|---|---|---|---|
+| **L2** | v10-fast | 800² | 400 / 40 | hidden=32 | epochs=5, mb=512 | overnight directional answers | ~10-12h |
+| **L3** | v10 | 880² | 375 / 40 | hidden=64 | epochs=10, mb=256 | paper-comparable with intentional fixes | ~24-36h |
+| **L4** | baseline-faithful | 960² | 450 / 50 | hidden=64 | epochs=10, mb=256 | true K&D reproduction (mouth widening optional flag) | ~36-48h |
+
+All three tiers carry the v10 changes (mouth widening, age-keyed LR, death-age logging) **except** L4-baseline-faithful which keeps the original mouth = `[0]` setting unless we explicitly flag it on for a "true paper but with the catch fix" comparison run.
+
+We considered an L1 "super fast" (600²/200/25 with hidden=16, epochs=3) but rejected it: at that scale the policy is so degraded that results may not transfer up the ladder, defeating the iteration purpose. The "smol" 600² scaffold was never validated for DDB+DDM stability either. **Cheaper than L2 should be done via shorter `total_steps` on L2, not a degraded geometry.**
+
+**Next action: launch L2 (v10-fast).** The "appropriately telling, appropriately fast" tier — gives directional answers on the v10 changes within a single overnight cycle, which is the right cadence for early validation before committing to the L3 paper-comparable run.
