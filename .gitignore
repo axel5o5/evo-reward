@@ -36,3 +36,14 @@ logs/
 
 # Local checkpoints
 ckpts/
+
+# Dashboard — auto-generated data indexes.
+# Regenerated on every build by `npm run extract` (dashboard/extract_data.py).
+# Build now fails hard if extract fails (we removed the `|| true` fallback),
+# so gitignoring these keeps PR diffs clean without leaving deploys exposed.
+dashboard/site/src/data/config-schema.json
+dashboard/site/src/data/deviations.json
+dashboard/site/src/data/git-timeline.json
+dashboard/site/src/data/module-deps.json
+dashboard/site/src/data/obs-layout.json
+dashboard/site/src/data/sim-loop-steps.json
