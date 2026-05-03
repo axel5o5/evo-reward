@@ -8,11 +8,6 @@
 # This is the production control tier you'd cite alongside axis1/2/12 med
 # results in a paper. Replace `axis1/med` minus `baseline/med` for the
 # pure axis-1 effect, and likewise for axis 2 and the combined run.
-#
-# (NOTE: matches axis1/med.yaml exactly, including its predator_mouth_tactile_bins=[0]
-# choice and absence of LR schedule / death-age ring — those are deliberate
-# in axis1/med.yaml for v10/L3 fidelity. Carrying them through to the
-# control keeps "axis1 minus this = reward_type only".)
 
 # ─── Identity ────────────────────────────────────────────────────────────────
 experiment_name:    "baseline_kd_linear_med"
@@ -60,6 +55,9 @@ n_tactile_sensors:      18
 n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
+# ─── Physics (paper-faithful) ───────────────────────────────────────────────
+n_physics_iter:     5
+
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
 food_max:               525
 food_initial:           35
@@ -75,8 +73,8 @@ predator_d_b:           4.0e-3
 predator_d_a:           5.0e-5
 predator_eta:           0.50
 
-# ─── Predator Mouth (matches axis1/med — narrow [0]) ────────────────────────
-predator_mouth_tactile_bins: [0]
+# ─── Predator Mouth — v10 widening ──────────────────────────────────────────
+predator_mouth_tactile_bins: [0, 1, 17]
 predator_eat_interval:       10
 
 # ─── Hazard ──────────────────────────────────────────────────────────────────
@@ -120,6 +118,15 @@ lr:                 3.0e-4
 adam_eps:           1.0e-7
 vf_clip:            true
 vf_coef:            0.5
+
+# ─── Per-agent age-keyed LR schedule (v10) ──────────────────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
 
 # ─── Action Space ────────────────────────────────────────────────────────────
 action_clip_low:    -20.0
