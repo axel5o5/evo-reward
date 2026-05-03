@@ -1,6 +1,6 @@
 # Current state — read this first if you're a new Claude agent
 
-**Last updated:** 2026-05-02 evening (v8 at step ~2.40M / 23.4%, max predator age climbing 214K → 320K; three follow-up analyses on cohort survival flipped one v10 design call — keeping age-keyed LR aggressive at L2. L2 spec now locked. Plan: wait for v8 ≈ 3M, then launch L1. See findings §15.20 + §15.21).
+**Last updated:** 2026-05-03 (v8 went extinct around step 3.7-3.8M; DDB/DDM retuned per §15.22; configs reorganized into per-axis × per-tier layout; axis-2 obs encoding redesigned to approach-angle + speed §15.24. Ready to launch `axis1/tiny.yaml` on GCP. See findings §15.22-§15.24).
 
 ## Where we are in the project
 
@@ -19,40 +19,36 @@ and going directly to axis-1.
 
 ## What's running / queued
 
-- **Axis-1 v8 (residual reward genome) on L3:** running on GCP since
-  2026-05-01 22:03 UTC, run_tag `2026-05-01T2203Z`. **At step 2.40M / 10.24M
-  (23.4% complete).** Predator macros: pop=9, prey=344, max predator age
-  319,897 (same individual went 214K → 320K over the last 140K steps).
-  Predator weights still strongest K&D signal seen this project:
-  `pred_w_pred = −2.97, pred_w_prey = +4.37`. Prey w_pred drifting more
-  negative (mean −1.11 → −1.32 over 140K), tail-driven — slow population-
-  wide fear formation. 84 catches/10K steps over the last window, healthy.
-  Cohort survival analysis (findings §15.21 Analysis B): 64 predator
-  deaths/M-step, 0% survival of newborn cohort over 140K — high turnover
-  is the modal case despite long-tail survivors. Config:
-  [configs/axis1_residual.yaml](../configs/axis1_residual.yaml).
-- **Axis-1 v10-L1 (queued, hold for v8 ≈ 3M):** v10 mechanism additions on
-  the cheapest iteration tier (~7.8h/1M CPU, ~2.5× faster than L3). Plan
-  is to launch once v8 reaches ~3M to validate the cohort-survival pattern
-  with one more checkpoint diff. Config:
-  [configs/axis1_residual_mini.yaml](../configs/axis1_residual_mini.yaml).
-- **Axis-1 v10-L2 (queued):** v10 mechanisms on the middle tier
-  (~13.3h/1M CPU, ~1.5× faster than L3). Config:
-  [configs/axis1_residual_fast.yaml](../configs/axis1_residual_fast.yaml).
-- **Axis-2 (bin-aligned heading obs):** still queued. Config:
-  [configs/axis2_aligned_smol.yaml](../configs/axis2_aligned_smol.yaml)
-  (filename is stale; `experiment_name: axis2_aligned`, med-large scale).
-- **Axis-3 / axis-4:** deferred (see findings.md §15.4). Configs moved
-  into `configs/archive/` on 2026-05-01.
+- **Axis-1 v8 (extincted):** ran on GCP from 2026-05-01 22:03 UTC, run_tag
+  `2026-05-01T2203Z`. **Predator pop went 12 → 6 → 7 → 0 between step
+  3.50M and 3.80M.** System has been frozen since with prey at cap and
+  no predators. Findings §15.22 has the full post-mortem — DDB+DDM
+  scaffolds with T=10 don't engage strongly enough at the death-spiral
+  operating point (pop=7 with median energy 33). The v8 process should
+  be killed to free the GPU before relaunching anything.
+- **Axis-1 (next launch, ready):** [configs/axis1/tiny.yaml](../configs/axis1/tiny.yaml).
+  Carries §15.22 retune (T_pred=12, T_prey=120 at this tier — graduated
+  smaller for the smaller pop), §15.23 config-key rename
+  (`density_breeding_threshold_*`, etc.), and the v10 mechanism additions
+  (mouth widening, age-keyed LR, death-age ring). Tier `tiny` is for
+  cheap iteration (~3-5h/1M GPU). If `tiny` validates the retune,
+  promote to `small`/`med`/`full`.
+- **Axis-2 (ready, holds for axis-1 validation):**
+  [configs/axis2/tiny.yaml](../configs/axis2/tiny.yaml). New approach-angle +
+  speed obs encoding from §15.24 (replaces the indirect "distance_and_heading"
+  variant). Same scaffolds as axis-1 but `reward_type: linear`.
+- **Axis-1 + Axis-2 combined (new):**
+  [configs/axis12/tiny.yaml](../configs/axis12/tiny.yaml). Both axes' mechanisms
+  stacked. New in §15.24.
+- **Axis-3 / axis-4:** deferred (see findings.md §15.4). Configs in
+  `configs/archive/`.
+
+Each axis has all four tiers available: `tiny.yaml`, `small.yaml`,
+`med.yaml`, `full.yaml`. Tier names map to former L1/L2/L3/L4. See
+[`configs/README.md`](../configs/README.md) for the layout, and per-axis
+READMEs for what each axis does mechanistically.
 
 GCP infra: `evo-reward-gpu` VM (single L4), runs in tmux sessions.
-
-> **Note on v8 vs v9.** The live v8 process loaded its config at startup,
-> so it's running with the *pre-v9* values: `proximity_max_range: 200` and
-> absolute `food_growth_rate: 0.5`. The v9 config tweaks (paper-faithful
-> 120 + scale-relative food density) live in the same config files now and
-> will take effect on the *next* launch. v8 will continue to completion (or
-> until we kill it) on its frozen config.
 
 ## v9 config tweaks (2026-05-01) — paper-faithful proximity + per-area food
 
@@ -77,63 +73,75 @@ affect the running v8 process; they apply on the next launch.
    and [configs/archive/README.md](../configs/archive/README.md) for
    per-file status.
 
-## ⭐ v10 framework (2026-05-02) — three-tier ladder + mouth/age-LR/death-age
+## ⭐ Current run framework (post-§15.22-§15.24, 2026-05-03)
 
-The v8 run revealed three observations that motivated a config revision (findings §15.19):
+The v8 extinction (§15.22) plus the axis-2 obs redesign (§15.24) collapsed several earlier framings. What remains is one coherent setup we're going forward with.
 
-1. Predator mouth `[0]` is below K&D's smallest mouth `[0, 1, 17]` — predators visibly missing prey passing close-but-off-center.
-2. Median predator lives ~6,103 steps = ~6 PPO updates. Within-lifetime training mismatch.
-3. We don't capture death-age distributions; live ages are inspection-paradox-biased.
+### v10 mechanism additions (carried into all current configs)
 
-These are addressed in v10 (findings §15.19, §15.20):
-
-- **`predator_mouth_tactile_bins: [0, 1, 17]`** — paper-faithful "small" mouth (60° front arc).
-- **Per-agent age-keyed LR schedule** (`lr_schedule_initial=1e-3` → `lr_schedule_final=3e-4` over 30K steps; new fields in `src/jax_ppo.py`). Boosts young agents' learning, decays linearly to base LR. Disabled when `lr_schedule_enable: false`.
+- **`predator_mouth_tactile_bins: [0, 1, 17]`** — paper-faithful "small" mouth (60° front arc), wider than v8's single-bin `[0]`.
+- **Per-agent age-keyed LR schedule** (`lr_schedule_initial=1e-3` → `lr_schedule_final=3e-4` over 30K steps). Young agents learn faster, mature agents stabilize.
 - **Death-age ring buffer** (per-species 256-entry; new SimState fields populated in `process_births_and_deaths_jax`; logged in `progress.json` as `death_age_stats`).
 
-### Three-tier ladder (L1 / L2 / L3)
+### §15.22 retune (post-extinction fix)
 
-Verified by three diagnostic analyses against the v8 step-2.26M checkpoint (findings §15.20). The headline finding: **population (max_agents²) is the dominant compute lever**; PPO is only 1-3% of CPU wall, so PPO cuts barely move total wall-clock. Hidden-size cuts also costly per SVD finding (top-32 SVs only capture 77.6% of the policy variance; eff. rank @95% ≈ 53 of 64).
+v8's death spiral happened at predator pop 7 with median energy 33 — the breeding sigmoid's cliff edge at that pop was at E=82 (T=10, factor=0.33), so the agents couldn't breed regardless of how strong the rate boost was. **The fix: bump T values so scaffolds engage at the death-spiral operating point, not only after pop ≤ 3.**
 
-| Tier | Config | max_agents | h/1M (CPU) | speedup | use case |
-|------|--------|------------|------------|---------|----------|
-| **L3** | `axis1_residual.yaml` (live v8) | 415 | 19.8h | 1.00× | paper-comparable; intentional fixes only |
-| **L2** | `axis1_residual_fast.yaml` | 335 | 13.3h | **1.49×** | overnight directional answers, hidden=48 |
-| **L1** | `axis1_residual_mini.yaml` | 220 | 7.8h | **2.54×** | cheap iteration on v10 mechanisms |
+Tier-graduated DDB/DDM thresholds:
 
-All three carry the v10 changes (mouth, age-LR, death-age). L2 keeps `n_physics_iter=4` (one substep cut), `policy_hidden_size=48` (SVD-defensible compromise). L1 takes `n_physics_iter=3`, `hidden_size=32`, smaller world, and stronger anti-extinction scaffolds (`ddb_max_boost=100`, `α=0.3`) to compensate for the small pop.
+| Knob | tiny | small | med | full |
+|------|------|-------|-----|------|
+| `density_breeding_threshold_pred` | 12 | 17 | 20 | 22 |
+| `density_breeding_threshold_prey` | 120 | 170 | 200 | 220 |
+| `density_metabolism_threshold_pred` | 12 | 17 | 20 | 22 |
+| `density_metabolism_threshold_prey` (NEW) | 120 | 170 | 200 | 220 |
+| `density_factor_floor` | 0 | 0 | 0 | 0 |
+| `breeding_share_alpha` | **0.3** | 0.5 | 0.5 | 0.5 |
 
-### v10 scaffold-tuning principle for sub-paper scales
+Three structural changes from §15.22-§15.24 alongside the T bumps:
+- **DDM extended to prey symmetrically** (`density_metabolism_threshold_prey` is new). Was predator-only.
+- **`ddb_max_boost` cap removed.** Replaced with the natural floor `factor ≥ kappa_b` — caps `P_birth ≤ 1` without arbitrarily clipping the recovery curve.
+- **§15.23 config-key rename** — `ddb_*`/`ddm_*` → `density_*`. Old names still read as fallback for archived configs.
 
-When `max_agents` shrinks below paper geometry, do NOT scale DDB/DDM thresholds proportionally down. The cost of an LV crash at small pop is *higher*, so the safety net should engage *more* aggressively — not in proportion to cap. Use `ddb_max_boost` as the lever instead (only fires at low pop, safe at healthy pop). At L1 we also reduce `α` from 0.5 to 0.3 (more uniform breeding share) since per-agent variance is harsher when there are only ~10 active predators.
+### Configs are organized by axis × tier
 
-| Knob | L3 | L2 | L1 |
-|------|----|----|----|
-| `ddb_pred_threshold` | 10 | 10 | 8 |
-| `ddb_prey_threshold` | 100 | 100 | 60 |
-| `ddm_pred_threshold` | 10 | 10 | 8 |
-| `ddb_max_boost` | 50 | **75** | **100** |
-| `ddb_boost_distribution_alpha` | 0.5 | 0.5 | **0.3** |
+Tier names progress in size: **tiny / small / med / full**.
 
-### Implementation map (v10)
+| Tier | World | Caps (prey/pred) | Hidden | Wall-clock for 1M | Use case |
+|---|---|---|---|---|---|
+| `tiny` | 600² | 200 / 20 | 32–48 | ~3–5 h GPU | sanity-check + iteration; below paper's selection floor |
+| `small` | 750² | 300 / 35 | 48–64 | ~6–8 h GPU | overnight runs |
+| `med` | 880² | 375 / 40 | 64 | ~12–18 h GPU | production tier; would cite in a paper run |
+| `full` | 960² | 450 / 50 | 64 | ~24–36 h GPU | paper-faithful K&D scale |
+
+Three axes:
+
+| Axis | Folder | Mechanism |
+|---|---|---|
+| Axis 1 | [`configs/axis1/`](../configs/axis1/) | Residual reward MLP (`reward_type: linear_plus_mlp_residual`) |
+| Axis 2 | [`configs/axis2/`](../configs/axis2/) | Approach-angle + speed obs (`proximity_encoding: distance_approach_speed`) |
+| Axis 12 | [`configs/axis12/`](../configs/axis12/) | Both axes' mechanisms stacked |
+
+Each axis directory contains `tiny.yaml`, `small.yaml`, `med.yaml`, `full.yaml`, and a `README.md` explaining the mechanism. Filenames inside the folder are just the tier; `experiment_name` inside each file encodes axis + mechanism + tier explicitly so GCS run paths stay unambiguous.
+
+### Implementation map (cumulative §15.22-§15.24)
 
 | File | Change |
 |---|---|
-| `configs/axis1_residual_fast.yaml` | NEW — v10-L2 config |
-| `configs/axis1_residual_mini.yaml` | NEW — v10-L1 config |
-| `src/jax_state.py` | Added `death_age_ring_prey/pred` and indices to `SimState` |
-| `src/jax_lifecycle.py` | `_write_death_ages_jax` helper + integration in `process_births_and_deaths_jax` |
-| `src/jax_ppo.py` | `_lr_scale_for_age` + per-agent update scaling in MLP and LSTM PPO paths |
-| `src/jax_sim.py` | `n_physics_iter` plumbed via config (was hardcoded constant) |
-| `scripts/run_experiment_jax.py` | `state.ages` passed to PPO; death-age stats in `progress.json`; one-line death-age summary in tail logs |
-| `scripts/bench_l2_vs_l3.py` | NEW — wall-clock A/B benchmark for any of L1/L2/L3 |
-| `tests/test_jax_ppo_update.py` | Updated PPO call signature (`state.ages` arg) |
+| `src/jax_lifecycle.py` | DDB cap removed (§15.22); DDM extended to prey (§15.22); new config-key names with fallback (§15.23) |
+| `src/jax_sim.py` | `prey_count` passed through for symmetric DDM (§15.22) |
+| `src/observations.py` | New `"distance_approach_speed"` encoding: approach-angle math + speed channel (§15.24) |
+| `configs/axis1/{tiny,small,med,full}.yaml` | All four tiers — residual reward MLP (§15.24 reorg) |
+| `configs/axis2/{tiny,small,med,full}.yaml` | All four tiers — new obs encoding (§15.24) |
+| `configs/axis12/{tiny,small,med,full}.yaml` | NEW — combined axes (§15.24) |
+| `tests/test_ddb_ddm.py` | Updated for cap removal + new key fallback test (§15.22, §15.23) |
 
 ### Deferred features (post-launch)
 
-- **Rate-based α** (alternative to energy-share). Would distribute DDB boost on per-agent catch-rate (predators) or feed-rate (prey). Real fitness signal but requires new SimState fields and checkpoint format bump. Considered, scoped, and deferred — only revisit if v10 results show energy-share α is the bottleneck.
+- **Rate-based α** (alternative to energy-share). Would distribute DDB boost on per-agent catch-rate (predators) or feed-rate (prey). Real fitness signal but requires new SimState fields and checkpoint format bump. Defer until results show energy-share α is the bottleneck.
+- **Approach-angle vs body-orientation ablation** (§15.24). Compare `distance_approach_speed` against the legacy `distance_and_heading` to isolate "did the approach-angle math actually help, or just the speed channel?" Optional follow-up.
 
-## ⭐ The current scaffold framing (2026-05-01) — DDB+DDM, energy-weighted DDB
+## The scaffold framing (2026-05-01, retuned in §15.22-§15.24) — DDB+DDM
 
 The K&D paper has a known stability problem: with eta=0.5 (paper baseline),
 predators tend to over-pressure prey, then crash. To get long enough
@@ -159,22 +167,28 @@ designs uniformly rescued all individuals which diluted selection. See
 
 If you're tuning scaffolds for a future run, this is the framing:
 
-### DDB — Density-Dependent Breeding (the only scaffold currently active)
+### DDB — Density-Dependent Breeding
 
-When predator population is low, breeding becomes easier in two ways:
+When species population is low, breeding becomes easier in two ways:
 
 1. **Threshold drop.** `zeta_b_eff = zeta_b * factor`, where `factor` follows
-   a squared-saturation curve `f(N) = max(floor, N²/(N²+T²))`. With current
-   knobs (pred T=10, prey T=100, floor=0): N=4 → 0.14, N=10 → 0.50,
-   N=15 → 0.69, N=24 (peak with cap=40) → 0.85, N=30+ → ~0.90+ (off).
-2. **Rate boost with continuous distribution `α ∈ [0, 1]`** (`ddb_boost_distribution_alpha`).
-   Total species-level breeding budget = `N / max(factor, 1/max_boost)`.
-   The budget is redistributed among individuals by `share_i ∝ energy_i^k`
-   where `k = α / max(1−α, ε)`. **Total budget preserved at all α**;
-   the parameter only changes *how concentrated* the budget is.
+   a squared-saturation curve `f(N) = max(floor, N²/(N²+T²))`. With the
+   §15.22 retune at `tier = med` (T_pred=20, T_prey=200, floor=0):
+   N_pred=7 → 0.11, N_pred=15 → 0.36, N_pred=20 → 0.50, N_pred=40 (cap)
+   → 0.80. The §15.22 lesson is that the engagement window must reach
+   the *operating-point* pop (e.g., pop=7 during a crash) — earlier
+   T=10 had the cliff edge at E=82 at pop=7, which was unreachable
+   given typical post-crash energies of E≈33.
+2. **Rate boost with continuous distribution `breeding_share_alpha ∈ [0, 1]`.**
+   Boost = `1 / max(factor, kappa_b)` (the kappa_b floor mathematically
+   guarantees `P_birth ≤ 1` — replaces the §15.22-removed `ddb_max_boost`
+   cap). The budget is redistributed by `share_i ∝ energy_i^k` where
+   `k = α / max(1−α, ε)`. **Total budget preserved at all α**; only the
+   *concentration* changes.
 
    - **α = 0.0**: uniform (every agent gets the same boost). K&D-faithful.
-   - **α = 0.5** (current default for axis runs): linear — share ∝ energy. Top agent at energies [800, 100, 100] gets 80% of budget.
+   - **α = 0.3** (default for `tiny` tier): more uniform — small-pop variance protection.
+   - **α = 0.5** (default for `small`/`med`/`full`): linear — share ∝ energy. Top agent at energies [800, 100, 100] gets 80% of budget.
    - **α = 1.0**: winner-take-all. Only the top-energy agent breeds.
 
    Top-agent share at energies [800, 100, 100] for various α:
@@ -183,23 +197,26 @@ When predator population is low, breeding becomes easier in two ways:
    |---|---|
    | 0.0 | 33% |
    | 0.3 | 67% |
-   | 0.5 | 80% (v8) |
+   | 0.5 | 80% |
    | 0.7 | 92% |
    | 0.9 | 99% |
 
-### DDM — Density-Dependent Metabolism (RESTORED, 2026-05-01 — see §15.15)
+### DDM — Density-Dependent Metabolism (now symmetric across species, §15.22)
 
-`d_b_eff = d_b * factor(N)` — predator passive decay scaled by the same
-squared-saturation curve as DDB. At low predator pop, the decay rate
-drops, giving low-energy individuals more time. Action cost (`alpha_e *
-action_norm`) stays unscaled, so they still pay for moving — DDM only
-extends the floor of survival, doesn't make them immortal.
+`d_b_eff = d_b * factor(N_pred)` for predators and `c_b_eff = c_b * factor(N_prey)`
+for prey, both using the same squared-saturation curve. At low own-species
+pop, passive decay drops, giving low-energy individuals more time to recover.
+Action cost (`alpha_e * action_norm`) stays unscaled. DDM extends the
+survival floor; it doesn't make agents immortal.
 
 **Why DDM is needed even with energy-weighted DDB:** in deep LV crashes,
-ALL predators lose energy simultaneously. Without DDM, full-cost decay
-finishes them off before any individual can recover, regardless of how
-the breeding boost is allocated. v7 (DDM dropped) went extinct at step
+all agents of a species lose energy simultaneously. Without DDM, full-cost
+decay finishes them off before any individual can recover, regardless of
+how the breeding boost is allocated. v7 (DDM dropped) went extinct at step
 88K to validate this lesson empirically.
+
+**Pre-§15.22, DDM applied only to predators.** The current code applies
+it symmetrically — same factor function, separate threshold per species.
 
 ### Why this design
 
@@ -295,7 +312,7 @@ forward" aliasing bug (both → 0).
 ### Smoke test locally
 ```sh
 python3 scripts/run_experiment_jax.py \
-    --config configs/axis1_residual.yaml \
+    --config configs/axis1/tiny.yaml \
     --runtime configs/runtime/mac.yaml \
     --max-steps 5000
 ```
@@ -309,7 +326,7 @@ python3 scripts/run_experiment_jax.py \
 ```sh
 gcloud compute ssh evo-reward-gpu --command "tmux new -d -s axis1 \
     'cd ~/evo-reward && python3 scripts/run_experiment_jax.py \
-     --config configs/axis1_residual.yaml --runtime configs/runtime/gcp.yaml'"
+     --config configs/axis1/tiny.yaml --runtime configs/runtime/gcp_l4.yaml'"
 ```
 
 ### Tail logs
@@ -337,18 +354,20 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 
 | Knob | What it does | When to change it |
 |---|---|---|
-| `ddb_pred_threshold` (currently 10) | Where the scaffold curve hits 50% (factor=0.5 at N=T) | Lower if extinction happens at deep bottlenecks; raise if selection is too blunted at healthy peak |
-| `ddb_floor` (currently 0.0) | Minimum factor — pins the curve at extreme low N | Raise toward 0.1-0.3 if you want baseline selection-pressure relief always present |
-| `ddb_max_boost` (currently 50) | Cap on the inverse factor in the rate formula | Lower (e.g., 20) if breeding is too aggressive at deep bottlenecks |
-| `ddb_boost_distribution_alpha` (currently 0.5) | How concentrated the rate boost is on high-energy agents | Lower (0.3) if extinction risk during LV crashes; raise (0.7) if selection seems too weak. **Don't go to 0.95+ unless deep bottlenecks are impossible** — see v7 lesson |
-| `stability_mechanism` (currently `"ddb"`) | Which scaffolds are active | Add `"ddb_ddm"` if a *true* extinction emergency occurs that DDB-rate-boost alone can't rescue |
+| `density_breeding_threshold_pred` (tier-graduated 12/17/20/22) | Where the scaffold curve hits 50% (factor=0.5 at N=T) | **Raise** if extinction happens at moderate pop (the §15.22 lesson — death spiral fired at pop=7 with T=10 because cliff edge stayed at E=82). Lower if scaffolds are over-engaged at healthy peak. |
+| `density_breeding_threshold_prey` (tier-graduated 120/170/200/220) | Same as above, prey side | Should track `pred` knob × ~10 to match the equilibrium pop ratio |
+| `density_metabolism_threshold_pred/prey` | DDM threshold per species | Same logic; usually mirrors the breeding threshold |
+| `density_factor_floor` (currently 0.0) | Minimum factor at extinction | Stay at 0.0 — any positive floor *weakens* the scaffold |
+| `breeding_share_alpha` (0.3 at tiny, 0.5 elsewhere) | How concentrated the rate boost is on high-energy agents | Lower (0.3) at tiny pop or if extinction risk during LV crashes; raise (0.7) if selection seems too weak. **Don't go to 0.95+ unless deep bottlenecks are impossible** — see v7 lesson (§15.15) |
+| `stability_mechanism` (currently `"ddb_ddm"`) | Which scaffolds are active | Both are needed — see §15.15 |
 
 **Diagnosis playbook:**
 
-- **Extinction at low N (pred ≤3):** scaffolds aren't strong enough. Check `factor` at the death-point N — if >0.4, lower the threshold or floor.
-- **Mean reward weights drift to zero with high variance:** selection is too weak. With energy_weighted boost this shouldn't happen at healthy populations, but if it does, check that population is actually healthy (factor near 1) — if you're stuck in the N=10-15 range, scaffolds are constantly engaged.
-- **Population locks at low N never recovers:** ddb_max_boost too low, OR all individuals at zero energy (look at energy quartiles). If everyone's starving, the rate boost can't help — population probably doomed.
-- **Bad hunters survive forever:** check that DDM is actually disabled (`stability_mechanism: "ddb"` not `"ddb_ddm"`). DDM is what keeps them alive past starvation.
+- **Extinction at moderate N (pred 5-12):** This is what killed v8 (§15.22). Check `factor` at the death-point — if >0.3, **raise T** (engage the scaffold earlier). Don't expect rate-boost magnitude to save you; the limiter is the breeding sigmoid's cliff edge `zeta_eff/β`.
+- **Extinction at deep low N (pred ≤2):** scaffolds aren't strong enough at extremes. With `factor → 0`, rate boost goes to its natural ceiling `1/kappa_b ≈ 1000×`. If still failing, energies have collapsed below survival regardless — DDM may need a higher T too.
+- **Mean reward weights drift to zero with high variance:** selection is too weak. With energy-weighted boost this shouldn't happen at healthy populations, but if it does, check that population is actually healthy (factor near 1) — if you're stuck in the engagement zone (N near T), scaffolds are constantly engaged.
+- **Population locks at low N never recovers:** check predator energies — if median < `zeta_b_pred / β_b ≈ 250`, the breeding sigmoid is saturated regardless of factor. The lever is T, not max-boost.
+- **Bad hunters survive forever:** unlikely with the current symmetric DDM but possible if DDM threshold is set too high; lower if needed.
 
 **The current design philosophy:** scaffold the *population* to prevent extinction (DDM), but allocate the *breeding budget* to high-fitness individuals (DDB with α > 0). The two scaffolds work in different dimensions: DDM keeps low-energy agents alive; α-controlled DDB ensures they don't reproduce. Bad hunters survive temporarily, fail to propagate, eventually starve out. Population stable, selection aligned.
 
@@ -364,7 +383,6 @@ If a future run still shows extinction or selection issues, the toolbox now is:
 | axis1_residual_T4_run1 | medium + DDB+DDM strong floor=0 max_boost=50 | Diversity collapse by 120K (→ §15.12) |
 | axis1_residual v3 (uniform boost) | med-large T=10 + DDB+DDM uniform | 230K, healthy LV but selection diluted (→ §15.14) |
 | axis1_residual v7 (no DDM) | med-large T=10 + DDB only + α=0.5 | **Extinct at 88K** — DDM not optional (→ §15.15) |
-| **axis1_residual v8 (running)** | **med-large T=10 + DDB+DDM + α=0.5** | **At step 2.35M (22.9%): prey=260, pred=12. Predator weights showing strong K&D-aligned signal: w_pred=−2.97±0.96, w_prey=+4.37±0.76. 72 catches/10K steps healthy. Mid-LV-cycle dip from previous 372/14 — scaffolds expected to engage on rebound.** |
-| axis1_residual v9 (config-only diff) | v8 settings + paper-faithful proximity (200→120) + scale-relative food_growth_rate (per-area density) | §15.17; takes effect on next launch |
-| **axis1_residual_mini v10-L1 (queued)** | **600² / cap 200/20 / hidden=32 / n_phys_iter=3 / ddb_max_boost=100 / α=0.3 / mouth=[0,1,17] / age-LR / death-age ring** | **2.54× faster than L3 on CPU. Cheap iteration tier. §15.20.** |
-| **axis1_residual_fast v10-L2 (queued)** | **750² / cap 300/35 / hidden=48 / n_phys_iter=4 / ddb_max_boost=75 / α=0.5 / mouth=[0,1,17] / age-LR / death-age ring** | **1.49× faster than L3 on CPU. Middle tier. §15.20.** |
+| axis1_residual v8 | med-large T=10 + DDB+DDM + α=0.5 | **Extincted at step ~3.7M.** DDB+DDM with T=10 didn't engage at the operating-point pop (7) — breeding sigmoid cliff at E=82 was unreachable given typical post-crash energies. (§15.22 post-mortem) |
+| axis1_residual v9 (config-only diff) | v8 settings + paper-faithful proximity (200→120) + scale-relative food_growth_rate | §15.17; never launched on its own (rolled into v10/post-§15.22 configs) |
+| **axis1/tiny (next launch)** | 600² / cap 200/20 / hidden=32 / `density_breeding_threshold_pred=12` / α=0.3 / mouth=[0,1,17] / age-LR / death-age ring / new approach-angle obs encoding (axis2/axis12 only) | Carries §15.22 retune + §15.24 obs redesign. Cheap iteration tier (~3-5h GPU per 1M). |
