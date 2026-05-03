@@ -1,0 +1,163 @@
+# Axis 2 — Bin-aligned heading observation (v10) — L1 mini
+# ===================================================================
+# Tier L1: cheapest iteration tier (~2.5× faster than L3 on CPU). Smallest
+# scale (600² world, caps 200/20). Below paper's natural-selection floor —
+# use only for "does the v10 / axis-2 mechanism produce any signal" checks.
+# Promote to L2/L3 to validate magnitude.
+#
+# Diff vs axis1_residual_mini (L1):
+#   - reward_type: linear (axis 2 keeps K&D reward; axis 12 combines with
+#                          axis 1's residual MLP)
+#   - obs_dim: 333 (vs axis1's 205)
+#   - proximity_encoding: distance_and_heading
+#   - n_proximity_channels: 8
+#   - policy_hidden_size: 48 (vs axis1 L1's 32 — bigger obs needs more
+#                             capacity; SVD analysis was on 205-D, can't
+#                             extrapolate down to 32 hidden for 333-D)
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "axis2_social_heading_tiny"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism (§15.22 retune; §15.23 rename; tier L1) ────────────
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           12.0
+density_breeding_threshold_prey:           120.0
+density_metabolism_threshold_pred:         12.0
+density_metabolism_threshold_prey:         120.0
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.3   # more uniform share at tiny pop
+
+# ─── Observation (§15.24 — approach-angle + speed) ──────────────────────────
+# Per proximity bin per species: distance, sin(approach), cos(approach), speed.
+# cos_approach = +1 → moving directly toward me; -1 → directly away. Speed
+# normalized by max_motor_norm. obs_dim = 32 × 10 + 72 + 5 = 397.
+obs_dim:                397
+proximity_encoding:     "distance_approach_speed"
+
+# ─── World — L1 cut to 600² ─────────────────────────────────────────────────
+world_size:         600
+total_steps:        10_240_000
+
+# ─── Population — L1 cuts ───────────────────────────────────────────────────
+prey_initial:       60
+predator_initial:   4
+prey_cap:           200
+predator_cap:       20
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   10            # §15.24 — 4 prey + 4 pred + 1 food + 1 wall
+proximity_fov_deg:      120.0
+proximity_max_range:    120.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Physics — L1 cut ────────────────────────────────────────────────────────
+n_physics_iter:     3
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               250
+food_initial:           18
+food_growth_rate_at_960sq: 0.5
+food_max_regen_per_step: 5
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth — v10 widening ──────────────────────────────────────────
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (linear) ─────────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy — L1 axis2 keeps hidden=48 (bigger obs than axis1) ───────────────
+policy_hidden_size:   48
+policy_n_hidden_layers: 2
+
+# ─── PPO — L1 cuts ──────────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         5
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Per-agent age-keyed LR schedule (v10) ──────────────────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

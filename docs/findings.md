@@ -1068,3 +1068,60 @@ The `ddb_*` and `ddm_*` config-key prefixes are project-internal acronyms that a
 **What this enables.** Reading a fresh config (e.g., when handing off to a collaborator) no longer requires the §15.x history to understand. `density_breeding_threshold_pred: 20` is interpretable on its own; `ddb_pred_threshold: 20` is not.
 
 **Configs updated:** L1/L2/L3 (axis1_residual_mini, axis1_residual_fast, axis1_residual). Other configs in `configs/` and `configs/archive/` keep the legacy names and continue to work. Tests in `tests/test_ddb_ddm.py` keep using legacy names (validates fallback path).
+
+### 15.24 Axis-2 obs redesign — approach-angle + speed; configs reorg (2026-05-03)
+
+While propagating §15.22 to axis 2 we caught the axis-2 observation encoding doing something less direct than we'd thought. Replacing it with a more direct encoding, plus reorganizing the configs into a per-axis × per-tier layout while we were at it.
+
+**The encoding problem.** Old `proximity_encoding: "distance_and_heading"` reported `sin(α), cos(α)` per bin per species where `α = other_heading − my_heading` — i.e., the egocentric *body orientation* of the closest agent in that bin. To answer "is this thing moving toward me or away from me," the policy had to *combine* (bin position) + (body orientation in my frame). The information was there, but indirectly. Walking through it concretely: I face east, a prey sits east of me. If they face west, that's "approaching me" — represented as `(sin, cos) = (0, −1)`. If I rotate to face north and they're still east of me but still facing west, the encoding changes to `(1, 0)` — same physical scenario, different signature. The agent has to learn the joint compositional rule.
+
+**The new encoding.** `proximity_encoding: "distance_approach_speed"` (default for all axis-2 configs from now on):
+
+```
+α = other_heading − bearing_from_other_to_me     # NOT − my_heading
+sin_approach, cos_approach = sin(α), cos(α)
+speed = |velocity_xy| of the closest agent
+```
+
+Now `cos_approach = +1` directly encodes "moving toward me" regardless of my own orientation; `cos_approach = −1` directly encodes "moving away from me"; `sin_approach = ±1` directly encodes "moving perpendicular to the bearing line." No policy composition needed. Plus the speed channel disambiguates "stationary fearful prey" from "fleeing-fast prey" — they were identical in the old encoding (both have whatever heading they're holding).
+
+Per bin per species: 4 channels (was 3). Total per bin including food + wall: **10** (was 8). With 32 bins + 72 tactile + 5 self-state, `obs_dim = 397` (was 333). About 19% growth, manageable at our current `policy_hidden_size = 64`.
+
+The legacy `"distance_and_heading"` encoding is preserved in the code path for backward compat with archived configs/runs. Only new axis-2 + axis-12 configs use the new default.
+
+**Configs reorg.** Took the opportunity to reorganize `configs/` while making changes anyway. Old layout was inconsistent (mini/fast/(none) suffix for axis1, `_smol` for axis2, no axis12). New layout:
+
+```
+configs/
+    axis1/{tiny,small,med,full}.yaml
+    axis2/{tiny,small,med,full}.yaml
+    axis12/{tiny,small,med,full}.yaml
+    archive/...
+    runtime/...
+    baseline_faithful.yaml
+```
+
+Tier names are size-progression (`tiny`/`small`/`med`/`full` map roughly to L1/L2/L3/L4 from prior notation). Each axis directory has a `README.md` explaining the mechanism and tier table. Existing runs that referenced old paths (e.g., `axis1_residual.yaml` for v8) were renamed via `git mv` so blame/history is preserved.
+
+Naming also tightened in `experiment_name` field:
+- `axis1` modifier was `residual` → now `residual_reward_mlp` (clearer that it's the reward genome, not the policy)
+- `axis2` modifier was `aligned` → now `social_heading` (clearer that it's the social/proximity obs)
+- `axis12` modifier is `residual_reward_mlp_social_heading` (verbose but explicit; the GCS run path encodes both axes)
+
+Folder names stay `axis1`/`axis2`/`axis12` since "axis" vocabulary is established throughout findings.md and project conversations.
+
+**What stayed the same:**
+- The DDB+DDM scaffolds and their `density_*` config keys (§15.22 / §15.23 unchanged).
+- The v10 mechanism additions (mouth widening, age-keyed LR, death-age ring) — all carry through to every tier of every axis.
+- `baseline_faithful.yaml` — kept untouched as the K&D-pure reference.
+
+**Implementation:**
+- `src/observations.py` adds `_per_channel_encoding_with_speed` and extends `_single_proximity_agents_with_heading` with `use_approach_angle`/`include_speed` static booleans. `compute_all_observations` parses the new encoding name and routes through the right path.
+- All 12 new/updated tier configs use `proximity_encoding: "distance_approach_speed"` (axis 2 + axis 12) or omit (axis 1 keeps default `"distance_only"`).
+- 267 fast tests pass; backward compat with `"distance_and_heading"` exercised by archived configs that still use it.
+
+**What is *not* validated yet:**
+- Whether the more-direct encoding actually accelerates evolution vs the indirect one. That's the empirical question axis 2 answers. We'd need a controlled comparison — same seed, same scaffolds, only `proximity_encoding` differs. Could be a follow-up axis-2 ablation.
+- Whether the speed channel matters independently of the approach-angle math. Could split the `distance_approach_speed` encoding into two for the ablation: approach without speed, and full. Deferred.
+
+**Next action:** launch axis1/tiny on GCP (the v8-extinction-driven retune wants empirical validation) and pair with axis2/tiny and axis12/tiny if there's GPU budget. Don't relaunch v8.

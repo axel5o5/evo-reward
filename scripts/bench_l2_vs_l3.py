@@ -162,17 +162,17 @@ def main():
     args = parser.parse_args()
 
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    L1 = os.path.join(repo, "configs", "axis1_residual_mini.yaml")
-    L2 = os.path.join(repo, "configs", "axis1_residual_fast.yaml")
-    L3 = os.path.join(repo, "configs", "axis1_residual.yaml")
+    L1 = os.path.join(repo, "configs", "axis1", "tiny.yaml")
+    L2 = os.path.join(repo, "configs", "axis1", "small.yaml")
+    L3 = os.path.join(repo, "configs", "axis1", "med.yaml")
 
     print(f"Backend: {jax.default_backend()}")
     print(f"Devices: {jax.devices()}")
     print(f"Steps per measurement: {args.steps}, warmup: {args.warmup}")
 
-    r3 = time_config(L3, args.steps, args.warmup, "v10-L3 (axis1_residual)")
-    r2 = time_config(L2, args.steps, args.warmup, "v10-L2 (axis1_residual_fast)")
-    r1 = time_config(L1, args.steps, args.warmup, "v10-L1 (axis1_residual_mini)")
+    r3 = time_config(L3, args.steps, args.warmup, "med (axis1/med.yaml)")
+    r2 = time_config(L2, args.steps, args.warmup, "small (axis1/small.yaml)")
+    r1 = time_config(L1, args.steps, args.warmup, "tiny (axis1/tiny.yaml)")
 
     print(f"\n{'='*70}\nSUMMARY\n{'='*70}")
     print(f"{'metric':<26} {'L3':>10} {'L2':>10} {'L1':>10} "

@@ -1,81 +1,79 @@
-# Axis 1 v10-L1 (a.k.a. v10-mini): the most aggressive iteration tier.
+# Axis 1 v10-L2 (a.k.a. v10-fast): the cheap-iteration variant of v10.
 # ====================================================================
-# Branched from L2 (axis1_residual_fast.yaml). L1 trades scale-faithfulness
-# for the maximum plausible speedup so that v10 *mechanism* hypotheses
-# (mouth + age-LR + death-age) can be probed at the lowest wall-clock cost.
+# Branched off axis1_residual.yaml (v8/v9, the "L3 paper-faithful" track).
+# Goal: validate v10's hypotheses (wider mouth + age-keyed LR + death-age
+# observability) at meaningfully faster wall-clock so we can iterate.
 #
-# This is the experimental "for the heck of it" tier. Quantitative results
-# from L1 may not predict L3 behavior — the policy is capacity-restricted,
-# the population is below the paper's natural-selection floor, and the
-# physics solver runs fewer iterations. Use L1 as a yes/no check that the
-# v10 mechanisms can produce *any* signal; promote to L2 or L3 to validate
-# magnitude.
+# All deltas vs L3 (axis1_residual.yaml) were chosen *empirically* against
+# the v8 step-2.26M checkpoint. See findings.md §15.19 for the methodology
+# and the three diagnostics that pinned each knob:
 #
-# Diff vs L2 (axis1_residual_fast.yaml):
-#   - world_size:        750    → 600    (~36% additional area reduction)
-#   - prey_cap:          300    → 200
-#   - predator_cap:      35     → 20
-#   - prey_initial:      90     → 60     (density-isometric)
-#   - predator_initial:  7      → 4
-#   - policy_hidden_size 48     → 32     (accepts the deeper SVD compromise)
-#   - n_physics_iter:    4      → 3      (one further substep cut)
-#   - DDB/DDM thresholds (§15.22 retune; tier-graduated):
-#       T_pred 10 → 12, T_prey 100 → 120, T_ddm_pred 10 → 12, +T_ddm_prey 120
-#       (smaller than L3's 20/200 because L1's caps are smaller — engagement
-#       point scales with tier, but stays HIGHER than naive proportional
-#       scaling because LV-crash cost is higher at small pop)
-#   - ddb_max_boost REMOVED (§15.22)
-#   - ddb_boost_distribution_alpha: 0.5 → 0.3  (more uniform; tiny-pop variance)
-#   - everything v10 (mouth, age-LR, death-age) preserved
+#   #1 Counterfactual PPO (sym-KL borderline ~34%; cuts acceptable for
+#      mature agents; #3 below confirms the cuts are low-stakes overall).
+#   #2 SVD of policy W_in: median effective rank @ 95% energy is 53/64.
+#      Top-32 captures 77.6%, top-48 captures 92.4%. → L2 picks hidden=48
+#      as a defensible compromise (92% capacity at ~56% compute cost).
+#      L1 takes hidden=32 knowingly (77% capacity, accepts the loss).
+#   #3 r(age, mean reward) ≈ 0 → within-lifetime PPO not the rate-limiter.
+#      → Cuts to ppo_epochs are empirically safe.
 #
-# Expected speedup vs L3 (CPU): ~2-2.5× (physics N² halved twice + PPO 4×
-# from L2's epoch/minibatch cuts plus 2× from hidden cut). On GPU may be
-# closer to ~1.5-2× — most of the speedup comes from compute reductions
-# that GPU was already underutilized on.
+# The big timing finding (CPU bench): population is the dominant lever.
+# sim_step cost scales as max_agents² for the contact matrix; PPO is only
+# ~1-3% of wall. So the L2 strategy is "modestly cut pop + halve PPO
+# epochs + middle hidden_size + one fewer physics substep" — a ~1.5-1.7×
+# speedup with the policy/physics fidelity mostly intact.
 #
-# Stability concerns at this scale:
-#   - 220 agents total is below paper's 550 agent floor. Selection signal
-#     is noisier; LV cycles could amplify into actual extinction even
-#     with DDB+DDM scaffolds.
-#   - DDB thresholds need to scale down: pred T=10 was tuned for ~30 active
-#     predators; at pred_cap=20 it's still effectively "always active." We
-#     leave thresholds unchanged here so behavior stays predictable when
-#     comparing to L2/L3 — DDB+DDM will simply fire more aggressively at
-#     this density, which is the conservative choice.
+# Diff vs L3 (axis1_residual.yaml):
+#   - world_size:        880    → 750    (~27% area reduction; density-isometric)
+#   - prey_cap:          375    → 300
+#   - predator_cap:      40     → 35
+#   - prey_initial:      125    → 90
+#   - predator_initial:  9      → 7
+#   - policy_hidden_size 64     → 48     (SVD: 92% capacity preserved)
+#   - n_physics_iter:    5      → 4      (config-driven; one substep cut)
+#   - ppo_epochs:        10     → 5
+#   - DDB/DDM thresholds (§15.22 retune):
+#       T_pred 10 → 17, T_prey 100 → 170, T_ddm_pred 10 → 17, +T_ddm_prey 170
+#       (tier-graduated: L3=20, L2=17, L1=12 reflects pop scale)
+#   - ddb_max_boost REMOVED (§15.22): was an arbitrary cap on 1/factor.
+#   - predator_mouth_tactile_bins: [0]   → [0, 1, 17]   (v10 mouth)
+#   - lr_schedule_*: NEW (v10 age-keyed LR)
+#   - death_age_ring_size: NEW (v10 lifespan observability)
+#
+# Knobs deliberately UNCHANGED vs L3:
+#   - rollout_steps: 1024 (preserves GAE quality)
+#   - minibatch_size: 256 (n_minibatches=4; grad-step granularity)
+#   - alpha: 0.5 (linear share)
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis1_residual_mini"   # v10-L1
+experiment_name:    "axis1_residual_reward_mlp_small"   # v10 tier: small
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
 reward_type:        "linear_plus_mlp_residual"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
-# ─── Stability mechanism ─────────────────────────────────────────────────────
-# §15.22 retune + §15.23 rename. Tier-graduated T values for L1.
+# ─── Stability mechanism (§15.22 retune; §15.23 rename; tier-graduated T) ──
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           12.0    # bumped from 8 in §15.22
-density_breeding_threshold_prey:           120.0   # bumped from 60 in §15.22
-density_metabolism_threshold_pred:         12.0    # mirrors breeding pred
-density_metabolism_threshold_prey:         120.0   # NEW in §15.22 — symmetric
+density_breeding_threshold_pred:           17.0    # bumped from 10 in §15.22
+density_breeding_threshold_prey:           170.0   # bumped from 100 in §15.22
+density_metabolism_threshold_pred:         17.0    # bumped from 10 in §15.22
+density_metabolism_threshold_prey:         170.0   # NEW in §15.22 — symmetric
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.3     # more uniform share at tiny pop
-                                                   # (was 0.5; lowered for L1)
+breeding_share_alpha:                      0.5     # unchanged: linear share
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
 
-# ─── World — L1 cut to 600² ──────────────────────────────────────────────────
-world_size:         600
+# ─── World — L2 cut ──────────────────────────────────────────────────────────
+world_size:         750
 total_steps:        10_240_000
 
-# ─── Population — L1 cuts (paper-faithful density at 600²) ──────────────────
-# Density: 200 / 600² = 5.56/10⁴ (vs paper 4.88/10⁴ at 960²) — slightly hot
-# but in the same regime.
-prey_initial:       60
-predator_initial:   4
-prey_cap:           200
-predator_cap:       20
+# ─── Population — L2 cuts ────────────────────────────────────────────────────
+prey_initial:       90
+predator_initial:   7
+prey_cap:           300
+predator_cap:       35
 prey_e_initial:     100.0
 predator_e_initial: 100.0
 
@@ -93,20 +91,15 @@ n_tactile_sensors:      18
 n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
-# ─── Physics — L1 cut to 3 iterations (was 5; ~30% physics speedup) ─────────
-# Default in src/environment.py is 5 (paper-faithful). Reducing to 3 makes
-# the velocity solver less precise — tunneling-through-wall becomes more
-# common, which can manifest as agents briefly overlapping past their
-# radii. Acceptable for L1's iteration-speed goal; never use for paper
-# comparison runs.
-n_physics_iter:     3
+# ─── Physics — L2 cuts one substep (4 vs L3's 5) ────────────────────────────
+n_physics_iter:     4
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               250
-food_initial:           18
-# At world=600 → effective rate 0.5 × (600/960)² ≈ 0.195 food/step.
+food_max:               350
+food_initial:           25
+# At world=750 → effective rate 0.5 × (750/960)² ≈ 0.305 food/step.
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 5
+food_max_regen_per_step: 7
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0
@@ -117,7 +110,7 @@ predator_d_b:           4.0e-3
 predator_d_a:           5.0e-5
 predator_eta:           0.50
 
-# ─── Predator Mouth — v10 widening (kept; ~free) ────────────────────────────
+# ─── Predator Mouth — v10 widening (~free perf cost) ────────────────────────
 predator_mouth_tactile_bins: [0, 1, 17]
 predator_eat_interval:       10
 
@@ -151,15 +144,15 @@ residual_hidden_size:     4
 residual_mutation_scale:  0.03
 residual_weight_clip:     5.0
 
-# ─── Policy — L1 cut to hidden=32 (knowingly throws away ~22% capacity) ─────
-policy_hidden_size:   32
+# ─── Policy — L2 hidden=48 (SVD-defensible compromise) ──────────────────────
+policy_hidden_size:   48
 policy_n_hidden_layers: 2
 
-# ─── PPO — match L2 (rollout=1024, mb=256, epochs=5) ────────────────────────
+# ─── PPO ─────────────────────────────────────────────────────────────────────
 gamma:              0.999
-rollout_steps:      1024
-minibatch_size:     256
-ppo_epochs:         5
+rollout_steps:      1024            # unchanged from L3
+minibatch_size:     256             # unchanged from L3
+ppo_epochs:         5               # was 10 in L3
 clip_epsilon:       0.2
 entropy_coef:       0.001
 gae_lambda:         0.95

@@ -20,10 +20,19 @@ gs://evo-reward-ckpts/results/<exp_name>/seed_<n>/<run_tag>/
     replays/                — viz-only (cross-mirrored to public bucket)
 ```
 
-The currently-running axis-1 run is at:
+The previously-running axis-1 v8 run (extincted at step ~3.7M, see findings §15.22) is at:
 ```
 gs://evo-reward-ckpts/results/axis1_residual/seed_0/2026-05-01T2203Z/
 ```
+
+Post-§15.24 runs use the new `experiment_name` convention — paths look like:
+```
+gs://evo-reward-ckpts/results/axis1_residual_reward_mlp_tiny/seed_0/<run_tag>/
+gs://evo-reward-ckpts/results/axis2_social_heading_tiny/seed_0/<run_tag>/
+gs://evo-reward-ckpts/results/axis12_residual_reward_mlp_social_heading_tiny/seed_0/<run_tag>/
+```
+
+Replace `tiny` with `small` / `med` / `full` for the larger tiers.
 
 ## Pulling data
 

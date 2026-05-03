@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.jax_state import init_simstate
 from src.config_utils import resolve_scale_dependent_params
 
-CFG_PATH = "configs/axis1_residual.yaml"
+CFG_PATH = "configs/axis1/med.yaml"
 RING_FIELDS = {
     "death_age_ring_prey", "death_age_ring_pred",
     "death_age_idx_prey", "death_age_idx_pred",

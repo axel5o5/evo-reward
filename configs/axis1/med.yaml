@@ -46,7 +46,7 @@
 # See findings.md §15.
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis1_residual"
+experiment_name:    "axis1_residual_reward_mlp_med"   # v10 tier: med
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
 reward_type:        "linear_plus_mlp_residual"   # NEW: linear + zero-init MLP perturbation

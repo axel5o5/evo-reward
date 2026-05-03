@@ -207,16 +207,24 @@ def _winner_take_all(closest_prey, closest_pred, closest_food, closest_wall,
 
 def _single_proximity_agents_with_heading(
     obs_pos, obs_angle, obs_radius, obs_idx,
-    all_pos, all_active, all_species, all_radii, all_angles,
+    all_pos, all_active, all_species, all_radii, all_angles, all_velocities,
     half_fov, bin_width, max_range, n_sensors,
+    use_approach_angle=False, include_speed=False,
 ):
-    """Per-bin closest agent distance + heading (sin, cos) per species.
+    """Per-bin closest agent kinematics per species.
 
-    Returns six (n_sensors,) arrays:
-        prey_dist, prey_sin_rel, prey_cos_rel,
-        pred_dist, pred_sin_rel, pred_cos_rel.
-    Distances are inf for bins with no agent of that species.
-    Heading sin/cos are 0.0 for bins with no agent of that species.
+    With `use_approach_angle=False, include_speed=False` (legacy
+    "distance_and_heading"): returns six arrays — prey_dist, prey_sin,
+    prey_cos, pred_dist, pred_sin, pred_cos — where sin/cos are of the
+    egocentric body-orientation difference (other_heading − my_heading).
+
+    With `use_approach_angle=True, include_speed=True` (§15.24
+    "distance_approach_speed"): sin/cos are of the *approach angle*
+    (other_heading − bearing_from_other_to_me), so cos = +1 directly
+    encodes "moving toward me" and cos = −1 directly encodes "moving away
+    from me". A scalar speed channel is added per species per bin
+    (|velocity| of the closest agent). Returns eight arrays — adds
+    prey_speed and pred_speed.
 
     The trick for "look up the closest agent's angle per bin": after
     scatter-min on distances, mark each agent as a "winner in its bin" iff
@@ -256,11 +264,36 @@ def _single_proximity_agents_with_heading(
         has_winner = winner_idx < A
         safe_idx = jnp.where(has_winner, winner_idx, 0)
         winner_angle = all_angles[safe_idx]
-        rel = _wrap(winner_angle - obs_angle)
+        if use_approach_angle:
+            # Bearing from winner to me, in absolute world frame:
+            #   atan2(obs_pos - winner_pos) = atan2(-delta) = angle_to + π (mod 2π)
+            # angle_to was atan2(delta) = "from me to winner". Adding π gives
+            # the reverse: from winner to me.
+            bearing_to_me = angle_to[safe_idx] + jnp.pi
+            rel = _wrap(winner_angle - bearing_to_me)
+        else:
+            # Legacy egocentric: sin/cos of other_heading minus my_heading.
+            # Useful for "what direction is this agent pointing relative to
+            # my forward axis," but does NOT directly encode "approaching."
+            rel = _wrap(winner_angle - obs_angle)
         sin_h = jnp.where(has_winner, jnp.sin(rel), 0.0)
         cos_h = jnp.where(has_winner, jnp.cos(rel), 0.0)
+
+        if include_speed:
+            # Speed magnitude (xy-velocity norm) of the closest agent in bin.
+            # Normalized by max_motor_norm-equivalent ceiling embedded
+            # implicitly via clipping in the encoder.
+            winner_v = all_velocities[safe_idx]
+            speed = jnp.linalg.norm(winner_v, axis=-1)
+            speed = jnp.where(has_winner, speed, 0.0)
+            return closest_dist, sin_h, cos_h, speed
         return closest_dist, sin_h, cos_h
 
+    if include_speed:
+        prey_dist, prey_sin, prey_cos, prey_speed = per_species(0)
+        pred_dist, pred_sin, pred_cos, pred_speed = per_species(1)
+        return (prey_dist, prey_sin, prey_cos, prey_speed,
+                pred_dist, pred_sin, pred_cos, pred_speed)
     prey_dist, prey_sin, prey_cos = per_species(0)
     pred_dist, pred_sin, pred_cos = per_species(1)
     return prey_dist, prey_sin, prey_cos, pred_dist, pred_sin, pred_cos
@@ -272,17 +305,13 @@ def _per_channel_encoding(
     food_dist, wall_dist,
     max_range, n_sensors,
 ):
-    """Encode per-bin channels into (A, S, 8).
+    """Encode per-bin channels into (A, S, 8) — legacy distance_and_heading.
 
     Layout per bin: [prey_dist_norm, prey_sin, prey_cos,
                      pred_dist_norm, pred_sin, pred_cos,
                      food_dist_norm, wall_dist_norm].
     Distance channels are 1 - dist/max_range (clamped to [0, 1]); 0 if no
     detection. Sin/cos already 0 when no agent of that species.
-
-    Note: this differs from _winner_take_all in that all four distance
-    channels can be active simultaneously (no winner gating). Each species'
-    presence and motion are encoded independently per bin.
     """
     def encode_dist(d):
         normed = jnp.clip(1.0 - d / max_range, 0.0, 1.0)
@@ -293,6 +322,35 @@ def _per_channel_encoding(
         encode_dist(pred_dist), pred_sin, pred_cos,
         encode_dist(food_dist), encode_dist(wall_dist),
     ], axis=-1)  # (A, S, 8)
+
+
+def _per_channel_encoding_with_speed(
+    prey_dist, prey_sin_app, prey_cos_app, prey_speed,
+    pred_dist, pred_sin_app, pred_cos_app, pred_speed,
+    food_dist, wall_dist,
+    max_range, max_motor_norm, n_sensors,
+):
+    """Encode per-bin channels into (A, S, 10) — distance_approach_speed (§15.24).
+
+    Layout per bin: [prey_dist_norm, prey_sin_approach, prey_cos_approach, prey_speed_norm,
+                     pred_dist_norm, pred_sin_approach, pred_cos_approach, pred_speed_norm,
+                     food_dist_norm, wall_dist_norm].
+    Approach sin/cos directly encode "moving toward me" (cos=+1) vs "moving
+    away" (cos=-1). Speed is normalized by `max_motor_norm` and clipped to
+    [0, 1]; 0 if no detection.
+    """
+    def encode_dist(d):
+        normed = jnp.clip(1.0 - d / max_range, 0.0, 1.0)
+        return jnp.where(d <= max_range, normed, 0.0)
+
+    def encode_speed(s):
+        return jnp.clip(s / max_motor_norm, 0.0, 1.0)
+
+    return jnp.stack([
+        encode_dist(prey_dist), prey_sin_app, prey_cos_app, encode_speed(prey_speed),
+        encode_dist(pred_dist), pred_sin_app, pred_cos_app, encode_speed(pred_speed),
+        encode_dist(food_dist), encode_dist(wall_dist),
+    ], axis=-1)  # (A, S, 10)
 
 
 # ---------------------------------------------------------------------------
@@ -500,14 +558,29 @@ def _build_obs_fn(config, max_agents, food_max):
     include_kin = n_kin > 0
     include_other = n_other > 0
 
-    # Proximity encoding (compile-time branch)
+    # Proximity encoding (compile-time branch). Three options:
+    #   - "distance_only" — original K&D winner-take-all distance only
+    #   - "distance_and_heading" — adds sin/cos of egocentric body-orientation
+    #     difference per species per bin (8 channels/bin total)
+    #   - "distance_approach_speed" (§15.24) — adds sin/cos of *approach
+    #     angle* (heading relative to bearing-to-me) plus a speed channel
+    #     per species per bin (10 channels/bin total). Directly encodes
+    #     "moving toward me" via cos_approach=+1.
     proximity_encoding = config.get("proximity_encoding", "distance_only")
-    if proximity_encoding not in ("distance_only", "distance_and_heading"):
+    valid_encodings = (
+        "distance_only", "distance_and_heading", "distance_approach_speed",
+    )
+    if proximity_encoding not in valid_encodings:
         raise ValueError(
-            f"proximity_encoding must be 'distance_only' or 'distance_and_heading', "
+            f"proximity_encoding must be one of {valid_encodings}, "
             f"got {proximity_encoding!r}"
         )
-    include_heading = proximity_encoding == "distance_and_heading"
+    include_heading = proximity_encoding in (
+        "distance_and_heading", "distance_approach_speed",
+    )
+    use_approach_angle = proximity_encoding == "distance_approach_speed"
+    include_speed = proximity_encoding == "distance_approach_speed"
+    max_motor_norm = float(config.get("max_motor_norm", 114.0))
 
     # Build vmapped proximity functions
     _vmap_prox_agents = jax.vmap(
@@ -519,11 +592,12 @@ def _build_obs_fn(config, max_agents, food_max):
     )
 
     _vmap_prox_agents_with_heading = jax.vmap(
-        lambda pos, ang, rad, idx, ap, aa, asp, ar, alla: _single_proximity_agents_with_heading(
-            pos, ang, rad, idx, ap, aa, asp, ar, alla,
+        lambda pos, ang, rad, idx, ap, aa, asp, ar, alla, allv: _single_proximity_agents_with_heading(
+            pos, ang, rad, idx, ap, aa, asp, ar, alla, allv,
             half_fov, bin_width, max_range, n_sensors,
+            use_approach_angle=use_approach_angle, include_speed=include_speed,
         ),
-        in_axes=(0, 0, 0, 0, None, None, None, None, None),
+        in_axes=(0, 0, 0, 0, None, None, None, None, None, None),
     )
 
     _vmap_prox_food = jax.vmap(
@@ -579,11 +653,20 @@ def _build_obs_fn(config, max_agents, food_max):
 
         # 1. Proximity — agent channels (prey, predator). With heading if active.
         if include_heading:
-            (closest_prey, prey_sin, prey_cos,
-             closest_pred, pred_sin, pred_cos) = _vmap_prox_agents_with_heading(
-                positions, angles, radii, obs_indices,
-                positions, is_active, species, radii, angles,
-            )  # each (A, S)
+            if include_speed:
+                (closest_prey, prey_sin, prey_cos, prey_speed,
+                 closest_pred, pred_sin, pred_cos, pred_speed) = (
+                    _vmap_prox_agents_with_heading(
+                        positions, angles, radii, obs_indices,
+                        positions, is_active, species, radii, angles, velocities_xy,
+                    )
+                )
+            else:
+                (closest_prey, prey_sin, prey_cos,
+                 closest_pred, pred_sin, pred_cos) = _vmap_prox_agents_with_heading(
+                    positions, angles, radii, obs_indices,
+                    positions, is_active, species, radii, angles, velocities_xy,
+                )  # each (A, S)
         else:
             closest_prey, closest_pred = _vmap_prox_agents(
                 positions, angles, radii, obs_indices,
@@ -602,11 +685,21 @@ def _build_obs_fn(config, max_agents, food_max):
             world_x, world_y, half_fov, bin_width, max_range, n_sensors,
         )  # (A, S)
 
-        # 4. Encode proximity. Two paths:
+        # 4. Encode proximity. Three paths:
         #    - distance_only (K&D-faithful): winner-take-all, 4 channels per bin
-        #    - distance_and_heading: per-channel distance + heading (sin, cos),
-        #      8 channels per bin. No binding required for the policy.
-        if include_heading:
+        #    - distance_and_heading: per-channel distance + egocentric heading
+        #      sin/cos, 8 channels per bin
+        #    - distance_approach_speed (§15.24): adds approach-angle sin/cos
+        #      and speed, 10 channels per bin. cos_approach=+1 directly
+        #      encodes "moving toward me" — no policy combination needed.
+        if include_speed:
+            proximity = _per_channel_encoding_with_speed(
+                closest_prey, prey_sin, prey_cos, prey_speed,
+                closest_pred, pred_sin, pred_cos, pred_speed,
+                closest_food, closest_wall,
+                max_range, max_motor_norm, n_sensors,
+            )  # (A, S, 10)
+        elif include_heading:
             proximity = _per_channel_encoding(
                 closest_prey, prey_sin, prey_cos,
                 closest_pred, pred_sin, pred_cos,

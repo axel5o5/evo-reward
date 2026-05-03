@@ -1,50 +1,71 @@
 # configs/
 
-Science configs for the experiments. Layout reflects what's currently active vs. moved-on-from.
+Science configs organized by axis × tier. For full project context start at [docs/CURRENT_STATE.md](../docs/CURRENT_STATE.md).
 
-For full project context start at [docs/CURRENT_STATE.md](../docs/CURRENT_STATE.md).
+## Layout
 
-## Active
+```
+configs/
+    axis1/    # axis 1: residual reward MLP (evolved nonlinear addition to K&D's linear reward)
+    axis2/    # axis 2: social heading obs (richer per-bin proximity encoding §15.24)
+    axis12/   # axis 1+2 combined
+    archive/  # superseded / deprecated
+    runtime/  # ops overlay (checkpoint cadence, log intervals)
+    baseline_faithful.yaml  # K&D-pure reference
+```
 
-Configs for runs we're launching now or queueing next.
+## Tier convention (every axis has these four)
 
-| File | Status |
-|---|---|
-| [axis1_residual.yaml](axis1_residual.yaml) | **Live (v8)** — residual reward genome; running on `evo-reward-gpu`. |
-| [axis2_aligned_smol.yaml](axis2_aligned_smol.yaml) | **Queued** — bin-aligned heading observation. Filename is historical (`experiment_name: axis2_aligned`, med-large scale). |
+| Tier | World | Caps (prey/pred) | Hidden | Wall-clock for 1M | Use case |
+|---|---|---|---|---|---|
+| `tiny`  | 600² | 200 / 20 | 32–48 | ~3–5 h GPU | sanity-check + cheap iteration; below paper's selection floor |
+| `small` | 750² | 300 / 35 | 48–64 | ~6–8 h GPU | overnight runs; intermediate fidelity |
+| `med`   | 880² | 375 / 40 | 64    | ~12–18 h GPU | production tier you'd cite in a paper |
+| `full`  | 960² | 450 / 50 | 64    | ~24–36 h GPU | paper-faithful K&D scale |
+
+Promote from `tiny` upward only after the mechanism shows signal. Tier T values are graduated per §15.22 (T_pred 12/17/20/22; T_prey 120/170/200/220 for tiny/small/med/full).
+
+## Axis convention
+
+Each axis directory has its own `README.md` explaining the mechanism. Brief summary:
+
+| Axis | Mechanism | What changes vs K&D baseline |
+|---|---|---|
+| `axis1` | Evolved residual reward MLP | `reward_type = linear_plus_mlp_residual` — 25-param MLP added to K&D's linear reward, zero-init, mutates with `residual_mutation_scale` |
+| `axis2` | Social heading observation | `proximity_encoding = distance_approach_speed` — per-bin distance + approach-angle (cos=+1 directly toward me) + speed magnitude. obs_dim = 397 |
+| `axis12` | Combined | Both: residual reward + social heading obs |
+
+Filenames inside an axis folder are just the tier (`tiny.yaml`, `small.yaml`, `med.yaml`, `full.yaml`). `experiment_name` inside the file encodes axis + mechanism + tier explicitly so GCS run paths are unambiguous (e.g. `axis1_residual_reward_mlp_tiny`).
 
 ## Paper reference
 
-| File | Status |
-|---|---|
-| [baseline_faithful.yaml](baseline_faithful.yaml) | Paper-faithful K&D config. Untouched reference; do not mutate without a documented reason. |
+[`baseline_faithful.yaml`](baseline_faithful.yaml) is the K&D-pure reference (linear reward, K&D-faithful proximity encoding, 960² scale). Untouched; do not mutate without a documented reason.
 
 ## Runtime
 
-| Path | Status |
-|---|---|
-| [runtime/](runtime/) | Ops config (checkpoint cadence, log interval) — overlays the science config at run time. |
+[`runtime/`](runtime/) holds the ops overlay configs (checkpoint cadence, log interval, etc.). They overlay the science config at run time and are device-specific (`mac.yaml`, `gcp_l4.yaml`, etc.).
 
 ## Archive
 
-[archive/](archive/) holds superseded and deferred configs. Not active going forward, but kept for git diffs, comparison runs, and historical context. See [archive/README.md](archive/README.md) for per-file status.
+[`archive/`](archive/) holds superseded and deferred configs. Indexed chronologically in [`archive/README.md`](archive/README.md).
 
 ---
 
 ## Adding a new config
 
-1. Drop it in `configs/` (top level) only if it's an active run target.
-2. Inherit scaffold/world settings from `axis1_residual.yaml` unless you have a deliberate reason to deviate (document the deviation in a comment).
-3. Use `food_growth_rate_at_960sq` (scale-relative) instead of `food_growth_rate` (absolute) for non-960² worlds — the resolver in [src/config_utils.py](../src/config_utils.py) handles the area scaling. `baseline_faithful.yaml` is the only config that uses the absolute form.
-4. Set `replay_bucket: "evo-reward-replays-public"` if you want replays uploaded.
+1. Pick the right axis folder (`axis1/`, `axis2/`, `axis12/`, or create a new axis directory).
+2. Pick the right tier (or add a new one — but the four canonical tiers cover most needs).
+3. Inherit scaffold/world settings from the existing same-tier config in another axis as a starting point.
+4. Use `food_growth_rate_at_960sq` (scale-relative) for any non-960² world — the resolver in [src/config_utils.py](../src/config_utils.py) handles area scaling.
+5. Set `replay_bucket: "evo-reward-replays-public"` to upload replays.
+6. Update the parent axis's `README.md` if you've added a tier.
 
 ## Promoting / archiving
 
 When a config moves status:
-- **Active → Archive:** `git mv configs/<name>.yaml configs/archive/`, then update [archive/README.md](archive/README.md) with a one-line outcome (extincted, superseded, deferred, etc.).
-- **Archive → Active:** the reverse. Update both READMEs.
+- **Active → Archive:** `git mv configs/<axis>/<tier>.yaml configs/archive/<date>_<descriptor>.yaml`. Update [`archive/README.md`](archive/README.md) chronologically with a one-line outcome.
+- **Archive → Active:** reverse. Update both READMEs.
 
-Two downstream lists also need to move with it (see [docs/replay-archive-and-pruning.md](../docs/replay-archive-and-pruning.md) §"Sidebar grouping"):
-
-- `ARCHIVE_POLICY` in [scripts/archive_prune.py](../scripts/archive_prune.py) — usually `keep_all` → `keep_last_only` on demotion.
-- `ACTIVE_EXPS` in [dashboard/site/src/lib/replayNaming.ts](../dashboard/site/src/lib/replayNaming.ts) — drives the Active vs Archive split in the replay sidebar.
+Downstream lists that may also need updates:
+- `ARCHIVE_POLICY` in [scripts/archive_prune.py](../scripts/archive_prune.py).
+- `ACTIVE_EXPS` in [dashboard/site/src/lib/replayNaming.ts](../dashboard/site/src/lib/replayNaming.ts).

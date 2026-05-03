@@ -1,86 +1,64 @@
-# Axis 2 v4: Bin-aligned heading encoding + middle-scale + strong DDB+DDM
-# =======================================================================
-# Inherits the proven scaffolds from baseline_med_ddb_ddm (1.35M-step run):
-#   - Middle-scale geometry (800² world, caps 300/30, prey_initial 100, pred 7)
-#   - DDB + DDM stability scaffolds (squared-saturation curves)
-# Plus the strengthened scaffolds from the post-1.35M analysis:
-#   - Tighter thresholds (pred T=4, prey T=40) so curve fades faster.
-#   - floor=0.0: at deep bottlenecks cost approaches zero.
-#   - ddb_max_boost=50: kappa_b scales UP at low pop (lone survivor breeds
-#     every ~20 steps, not every ~1000). More biologically defensible than
-#     pure threshold scaling — pairs naturally with the threshold drop.
-#
-# The diff vs baseline_med_ddb_ddm is the proximity sensor encoding:
-# bin-aligned heading channels instead of K&D-faithful winner-take-all.
-#
-# Per proximity bin, each species channel reports
-# [distance, sin(rel_heading), cos(rel_heading)] of the closest agent of
-# that species in that bin (8 channels per bin total: prey/pred get 3 each,
-# food/wall get 1 each). No social-slot binding problem.
-#
-# obs_dim = 256 (proximity, 32×8) + 72 (tactile) + 5 (self) = 333.
-#
-# See findings.md §13 for bin-aligned design rationale, §15 for the
-# strategic-reset + scaffold-strengthening context.
+# Axis 1 + 2 (combined) — Residual reward MLP + social heading obs — full
+# ===================================================================
+# Combines axis1's residual MLP reward + axis2's approach-angle/speed obs
+# (§15.24). Tier full: paper-faithful 960² world, caps 450/50, paper pop.
+# Long wall-clock — use for paper-comparable runs only.
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis2_aligned"
+experiment_name:    "axis12_residual_reward_mlp_social_heading_full"
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
-reward_type:        "linear"
+reward_type:        "linear_plus_mlp_residual"        # from axis1
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
-# ─── Stability mechanism ─────────────────────────────────────────────────────
-# DDB+DDM with energy-weighted rate boost (v8 — see findings.md §15.15).
-# T=10 (pred), T=100 (prey).
-stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              100.0
-ddb_pred_threshold:              10.0
-ddb_floor:                       0.0
-ddb_max_boost:                   50.0
-ddb_boost_distribution_alpha:    0.5    # see findings.md §15.16
-ddm_pred_threshold:              10.0
-ddm_floor:                       0.0
+# ─── Stability mechanism (§15.22 retune; tier full) ─────────────────────────
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           22.0
+density_breeding_threshold_prey:           220.0
+density_metabolism_threshold_pred:         22.0
+density_metabolism_threshold_prey:         220.0
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.5
 
 # ─── Observation ─────────────────────────────────────────────────────────────
-obs_dim:                333
-proximity_encoding:     "distance_and_heading"   # bin-aligned, sin/cos relative
+obs_dim:                397                          # §15.24
+proximity_encoding:     "distance_approach_speed"    # §15.24
 
-# ─── World (med-large scale) ─────────────────────────────────────────────────
-world_size:         880
+# ─── World (paper) ──────────────────────────────────────────────────────────
+world_size:         960
 total_steps:        10_240_000
 
-# ─── Population (med-large scale) ────────────────────────────────────────────
-prey_initial:       125
-predator_initial:   9
-prey_cap:           375
-predator_cap:       40
+# ─── Population (paper) ─────────────────────────────────────────────────────
+prey_initial:       150
+predator_initial:   11
+prey_cap:           450
+predator_cap:       50
 prey_e_initial:     100.0
 predator_e_initial: 100.0
 
-# ─── Agent Bodies ─────────────────────────────────────────────────────────────
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0
 predator_radius:    14.0
 max_motor_norm:     114.0
 
 # ─── Sensors ─────────────────────────────────────────────────────────────────
 n_proximity_sensors:    32
-n_proximity_channels:   8                # 8 channels with distance_and_heading encoding
+n_proximity_channels:   10            # §15.24
 proximity_fov_deg:      120.0
-proximity_max_range:    120.0   # paper Appendix A; emevo TOML uses 200 but paper text takes precedence (D27)
+proximity_max_range:    120.0
 n_tactile_sensors:      18
 n_tactile_channels:     4
 tactile_spacing_deg:    20.0
 
+# ─── Physics (paper-faithful) ────────────────────────────────────────────────
+n_physics_iter:     5
+
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               525
-food_initial:           35
-# Scale-relative: 0.5 food/step at the paper's 960² world; resolver scales
-# by area ratio so density per unit area matches paper. At world=880 →
-# effective rate 0.5 × (880/960)² ≈ 0.420.
+food_max:               600
+food_initial:           40
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 9
+food_max_regen_per_step: 10
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0
@@ -91,8 +69,8 @@ predator_d_b:           4.0e-3
 predator_d_a:           5.0e-5
 predator_eta:           0.50
 
-# ─── Predator Mouth ──────────────────────────────────────────────────────────
-predator_mouth_tactile_bins: [0]
+# ─── Predator Mouth — v10 widening ──────────────────────────────────────────
+predator_mouth_tactile_bins: [0, 1, 17]
 predator_eat_interval:       10
 
 # ─── Hazard ──────────────────────────────────────────────────────────────────
@@ -114,11 +92,14 @@ zeta_b_pred:        100.0
 energy_share_ratio: 0.4
 spawn_spread:       100.0
 
-# ─── Reward Genome ───────────────────────────────────────────────────────────
+# ─── Reward Genome (linear + residual MLP — from axis1) ─────────────────────
 reward_weights_init_std:  0.1
 mutation_df:              2
 mutation_scale:           0.4
 weight_clip:              100.0
+residual_hidden_size:     4
+residual_mutation_scale:  0.03
+residual_weight_clip:     5.0
 
 # ─── Policy ──────────────────────────────────────────────────────────────────
 policy_hidden_size:   64
@@ -137,13 +118,21 @@ adam_eps:           1.0e-7
 vf_clip:            true
 vf_coef:            0.5
 
+# ─── Per-agent age-keyed LR schedule (v10) ──────────────────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
+
 # ─── Action Space ────────────────────────────────────────────────────────────
 action_clip_low:    -20.0
 action_clip_high:   80.0
 action_mapping:     "sigmoid"
 
 # ─── Replay recording ────────────────────────────────────────────────────────
-# See axis1_residual.yaml for the cadence rationale.
 replay_record_interval_steps:
   - {after: 0,         interval: 20_000}
   - {after: 200_000,   interval: 50_000}
