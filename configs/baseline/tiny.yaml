@@ -1,0 +1,160 @@
+# K&D Baseline Control — tier tiny (L1)
+# ===================================================================
+# Matched scientific control for axis1/tiny.yaml, axis2/tiny.yaml,
+# axis12/tiny.yaml. Same scaffolds, same scale, same population caps —
+# only diff vs axis1/tiny.yaml is `reward_type: linear` (no residual MLP).
+# Only diff vs axis2/tiny.yaml is K&D-faithful proximity encoding (obs_dim
+# 205 instead of 333, no `proximity_encoding: distance_approach_speed`).
+#
+# Use this as the control arm of an A/B:
+#   axis1/tiny  minus this  = pure axis-1 effect at L1 scale
+#   axis2/tiny  minus this  = pure axis-2 effect at L1 scale
+#   axis12/tiny minus this  = combined effect at L1 scale
+#
+# This is *not* the same as `baseline_faithful.yaml`. That file is the
+# paper-pure 960² reference with no stability scaffolds; this file uses
+# the v10 DDB+DDM scaffolds at the L1 tier so the comparison to the axis
+# runs is apples-to-apples.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "baseline_kd_linear_tiny"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"           # K&D-faithful (no residual MLP)
+policy_type:        "mlp"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism (matches axis1/tiny §15.22 retune; tier-graduated T) ─
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           12.0
+density_breeding_threshold_prey:           120.0
+density_metabolism_threshold_pred:         12.0
+density_metabolism_threshold_prey:         120.0
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.3
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205                  # K&D-faithful (no axis-2 social heading)
+
+# ─── World — L1 ──────────────────────────────────────────────────────────────
+world_size:         600
+total_steps:        10_240_000
+
+# ─── Population — L1 ─────────────────────────────────────────────────────────
+prey_initial:       60
+predator_initial:   4
+prey_cap:           200
+predator_cap:       20
+prey_e_initial:     100.0
+predator_e_initial: 100.0
+
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    120.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Physics ─────────────────────────────────────────────────────────────────
+n_physics_iter:     3
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               250
+food_initial:           18
+food_growth_rate_at_960sq: 0.5
+food_max_regen_per_step: 5
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.0e-3
+predator_d_a:           5.0e-5
+predator_eta:           0.50
+
+# ─── Predator Mouth — v10 widening ──────────────────────────────────────────
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+
+# ─── Reward Genome (linear only) ─────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy ──────────────────────────────────────────────────────────────────
+policy_hidden_size:   32
+policy_n_hidden_layers: 2
+
+# ─── PPO ─────────────────────────────────────────────────────────────────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         5
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Per-agent age-keyed LR schedule (v10) ──────────────────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0

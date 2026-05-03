@@ -6,12 +6,13 @@ Science configs organized by axis × tier. For full project context start at [do
 
 ```
 configs/
+    baseline/ # K&D-linear scaffolded controls — matched A/B reference for the axis runs
     axis1/    # axis 1: residual reward MLP (evolved nonlinear addition to K&D's linear reward)
     axis2/    # axis 2: social heading obs (richer per-bin proximity encoding §15.24)
     axis12/   # axis 1+2 combined
     archive/  # superseded / deprecated
     runtime/  # ops overlay (checkpoint cadence, log intervals)
-    baseline_faithful.yaml  # K&D-pure reference
+    baseline_faithful.yaml  # K&D-pure paper reference (no scaffolds, paper-exact)
 ```
 
 ## Tier convention (every axis has these four)
@@ -31,15 +32,21 @@ Each axis directory has its own `README.md` explaining the mechanism. Brief summ
 
 | Axis | Mechanism | What changes vs K&D baseline |
 |---|---|---|
+| `baseline` | (none — control) | K&D linear reward, K&D-faithful obs. Same scaffolds + scale as the axis tier. Use as the matched A/B reference. |
 | `axis1` | Evolved residual reward MLP | `reward_type = linear_plus_mlp_residual` — 25-param MLP added to K&D's linear reward, zero-init, mutates with `residual_mutation_scale` |
 | `axis2` | Social heading observation | `proximity_encoding = distance_approach_speed` — per-bin distance + approach-angle (cos=+1 directly toward me) + speed magnitude. obs_dim = 397 |
 | `axis12` | Combined | Both: residual reward + social heading obs |
 
 Filenames inside an axis folder are just the tier (`tiny.yaml`, `small.yaml`, `med.yaml`, `full.yaml`). `experiment_name` inside the file encodes axis + mechanism + tier explicitly so GCS run paths are unambiguous (e.g. `axis1_residual_reward_mlp_tiny`).
 
-## Paper reference
+## Paper reference vs scaffolded control
 
-[`baseline_faithful.yaml`](baseline_faithful.yaml) is the K&D-pure reference (linear reward, K&D-faithful proximity encoding, 960² scale). Untouched; do not mutate without a documented reason.
+Two distinct "baselines" — pick the one that matches your question:
+
+- [`baseline_faithful.yaml`](baseline_faithful.yaml) — paper-pure K&D (960² scale, **no stability scaffolds**, paper-exact PPO + mouth). Use when you want to reproduce or compare to the K&D 2025 paper directly.
+- [`baseline/<tier>.yaml`](baseline/) — same-tier scaffolded controls (DDB+DDM scaffolds matching the axis runs). Use as the **matched A/B reference**: `axis1/<tier>` minus `baseline/<tier>` = pure axis-1 effect, etc. See [`baseline/README.md`](baseline/README.md).
+
+Both are kept; do not collapse them.
 
 ## Runtime
 
