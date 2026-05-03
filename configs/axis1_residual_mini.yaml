@@ -19,10 +19,12 @@
 #   - predator_initial:  7      → 4
 #   - policy_hidden_size 48     → 32     (accepts the deeper SVD compromise)
 #   - n_physics_iter:    4      → 3      (one further substep cut)
-#   - ddb_pred_threshold:    10  → 8     (slightly tighter; tiny pop)
-#   - ddb_prey_threshold:   100  → 60    (scaled down; danger zone smaller)
-#   - ddm_pred_threshold:    10  → 8
-#   - ddb_max_boost:         75  → 100   (lone survivor breeds every ~10 steps)
+#   - DDB/DDM thresholds (§15.22 retune; tier-graduated):
+#       T_pred 10 → 12, T_prey 100 → 120, T_ddm_pred 10 → 12, +T_ddm_prey 120
+#       (smaller than L3's 20/200 because L1's caps are smaller — engagement
+#       point scales with tier, but stays HIGHER than naive proportional
+#       scaling because LV-crash cost is higher at small pop)
+#   - ddb_max_boost REMOVED (§15.22)
 #   - ddb_boost_distribution_alpha: 0.5 → 0.3  (more uniform; tiny-pop variance)
 #   - everything v10 (mouth, age-LR, death-age) preserved
 #
@@ -51,12 +53,12 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
 stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              60.0   # was 100 in L3; tighter danger zone at small pop
-ddb_pred_threshold:              8.0    # was 10 in L3
+ddb_prey_threshold:              120.0  # was 60 (§15.22 retune; tier-graduated)
+ddb_pred_threshold:              12.0   # was 8 (§15.22 retune; tier-graduated)
 ddb_floor:                       0.0
-ddb_max_boost:                   100.0  # was 50 in L3 — strongest anti-extinction net
 ddb_boost_distribution_alpha:    0.3    # was 0.5 — more uniform share at tiny pop
-ddm_pred_threshold:              8.0    # mirrors ddb_pred_threshold
+ddm_pred_threshold:              12.0   # mirrors ddb_pred_threshold
+ddm_prey_threshold:              120.0  # NEW (§15.22) — symmetric DDM
 ddm_floor:                       0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────

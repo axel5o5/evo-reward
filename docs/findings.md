@@ -968,3 +968,78 @@ Underpowered with n=9 — spike rate quantizes to {0, 0.98, 1.95}/1k. Directiona
 **The one knob worth tuning *if* L2 results suggest it** (parametrically, not via the boolean flag): the schedule values themselves. The schedule is already dynamic via `lr_schedule_initial` / `lr_schedule_final` / `lr_schedule_decay_steps` — setting initial=final disables it without touching the flag. Gentler variants for future ablation: `5e-4 → 3e-4 over 30K` (1.67× boost vs current 3.3×), or `1e-3 → 3e-4 over 60K` (same magnitude, slower decay). Don't apply these proactively; only if L2 + age-LR shows policy instability.
 
 **Next action:** wait for v8 to reach ~3M steps before launching L2 (gives one more checkpoint diff to validate the cohort survival pattern and confirm `w_pred` keeps deepening). Then launch L1 first as the cheap-iteration tier per §15.20's plan.
+
+### 15.22 v8 extinction post-mortem + DDB/DDM retune (2026-05-03)
+
+v8 (axis-1 residual on L3) went extinct between step 3.7M and 3.8M. Predator pop trajectory: 12 (3.50M) → 6 (3.60M) → 7 (3.70M) → **0** (3.80M). The system has been frozen since — prey at cap=375 with mean energy 427, no births, no deaths. This is the second post-§15-reset extinction (v7 §15.15 was the first), now happening on the run that was supposed to "fix" v7.
+
+**What killed the run.** Cohort trajectory across `step_03500000.npz` → `step_04000000.npz` (one-time analysis at `/tmp/v8_analysis/bracket_extinction.py`):
+
+| step | n_pred | n_prey | pred E (min/med/max) | catches added |
+|------|--------|--------|----------------------|---------------|
+| 3.50M | 12 | 283 | 5.8 / 68.1 / 122.1 | — |
+| 3.60M |  6 | 215 | 24.8 / 35.3 / 50.1 | +701 |
+| 3.70M |  7 | 221 | 19.8 / 33.2 / 60.4 | +619 |
+| 3.80M |  0 | 360 | — | +472 |
+
+The crash window was 100K steps (3.70M → 3.80M). Pop fell from 7 to 0 with median predator energy already at 33 — well below the breeding cliff edge.
+
+**Why DDB+DDM didn't rescue it — the sigmoid math.** Given `P_birth = kappa_eff / (1 + exp(zeta_eff − β·E))` with β=0.4, zeta_b_pred=100, kappa_b=1e-3:
+
+The "cliff edge" of the breeding sigmoid sits at `E = zeta_eff / β`. With T=10 (the v8 setting), at the death-spiral pop of 7 the cliff was at:
+- factor = 49/(49+100) = 0.329
+- zeta_eff = 100 × 0.329 = 32.9
+- cliff edge = 32.9 / 0.4 = **82** energy
+
+Median predator energy was 33 — almost 50 below the cliff. Even with the kappa boost (3× at this pop, capped at 50× by `ddb_max_boost`), the sigmoid floored P_birth at ~1e−10 per step. **`ddb_max_boost` was multiplying a vanishing sigmoid, not overcoming it.**
+
+The error in §15.20's threshold philosophy: keeping T high "to fire more aggressively at small pop" was the right intuition, but T=10 was already too low — the scaffold doesn't meaningfully engage until pop ≤ 3, by which time energies have already collapsed. The recovery window had closed before DDB could help.
+
+**Conceptual fix (which lever does what):**
+
+| Lever | What it controls | Operating regime |
+|---|---|---|
+| `T` (DDB threshold) | *When* the scaffold engages — half-engagement at pop=T | The main lever. T=10 misses pop=7; T=20 catches it. |
+| `zeta_eff = zeta · factor` | Where the sigmoid cliff sits | Slides smoothly with factor. |
+| `kappa_eff = kappa / factor` | Max breeding rate when sigmoid saturates | Normally only 1.5–5× at moderate pops; only relevant at pop ≤ 2. |
+| ~~`ddb_max_boost`~~ | Cap on the rate boost | **Removed in this section** — it was an arbitrary clip on the smooth `1/factor` curve. Doesn't bite at the operating point and doesn't help recovery. |
+| `ddb_floor` | Floor on the factor | Almost never relevant. Stays 0. |
+
+**The retune (§15.22):**
+
+1. **T bumps, tier-graduated:**
+
+| Tier | T_pred (was→is) | T_prey (was→is) | T_ddm_pred | T_ddm_prey (NEW) |
+|------|---|---|---|---|
+| L3 | 10 → **20** | 100 → **200** | 10 → **20** | **200** |
+| L2 | 10 → **17** | 100 → **170** | 10 → **17** | **170** |
+| L1 |  8 → **12** |  60 → **120** |  8 → **12** | **120** |
+
+T_pred = 20 (L3) catches the death spiral: at pop=7, zeta_eff = 100 × 0.109 = 10.9, cliff edge at E=27 — *below* the actual energy of survivors. They breed.
+
+2. **DDM extended to prey symmetrically.** `ddm_prey_threshold` is a new config key that scales `c_b` (prey passive metabolic cost) by `factor(N_prey, T_ddm_prey)`. Same formula as the predator side. Closes the asymmetry that DDM was predator-only — there was no principled reason for that.
+
+3. **`ddb_max_boost` removed as a cap.** Replaced with the natural floor `factor ≥ kappa_b`, which gives `P_birth ≤ 1` for any sensible config without clipping the recovery curve. At integer pops with sane T, the natural floor never bites — the rate is just `kappa_b / factor` smoothly. Legacy configs that still set `ddb_max_boost` are silently ignored. (Note: not a literal "remove the cap" — there's still a kappa_b floor, but it's at 1/kappa_b ≈ 1000× and serves the math, not arbitrary tuning.)
+
+4. **Code changes:** `src/jax_lifecycle.py` `_batch_birth_prob_jax` removes the gate-on-max_boost block; `update_energies_jax` now requires `prey_count` and applies the symmetric DDM. Caller in `src/jax_sim.py` passes both counts. Tests updated in `tests/test_ddb_ddm.py`.
+
+**What this does NOT change:**
+
+- The DDB+DDM mechanism itself. Same `factor(N) = N²/(N²+T²)` saturation curve. The fix is a tuning + scope (DDM-for-prey) change, not a formula change. Path A in spirit; only "Path B" element is the symmetry extension and removal of the arbitrary cap.
+- `ddb_boost_distribution_alpha` (the energy-weighted-share parameter). L1 stays at 0.3, L2/L3 at 0.5. With higher T, the alpha redistribution engages at higher pops too — but the share formula is unchanged.
+- The v10 mechanism additions (mouth widening, age-keyed LR, death-age ring). All independent of this retune.
+
+**What we're explicitly *not* doing here:**
+
+- *Hardcoded extinction floor* (parthenogenesis at pop=1, genome-bank for pop=0). The proposal was discussed; rejected on the principle that the existing levers should work if tuned correctly. T=20 should obviate the need. If T=20 still produces a death spiral, hardcoded floors come back on the table.
+- *Linear interpolation rate-boost formula* (`kappa × (1 + (max_boost−1) × (1−factor))`). Considered as Path B; rejected — at moderate pops it's wildly more aggressive than `1/factor` (21× at pop=12 vs the desired ~2×). Current `1/factor` shape is what we want.
+
+**Validation plan before relaunch:**
+
+- Run the test suite (266 fast tests pass, including 14 in `test_ddb_ddm.py` covering the new behavior). Done.
+- Local 10K-step smoke on Mac CPU before any cloud launch. (Pending — to be run before next launch.)
+- Watch for the failure mode in the first 200K steps: if predator pop oscillates above ~10 and energies stay > 50, T=20 is doing its job. If pop drops below 7 with energies < 30 (the death-spiral signature), the retune wasn't enough.
+
+**Naming cleanup deferred** to a follow-up commit. The `ddb_*` and `ddm_*` config keys carry awkward project-internal names; better candidates are `density_breeding_threshold_*`, `density_metabolism_threshold_*`, etc. Done as a separate clarity pass to keep this commit focused.
+
+**Next action:** the v8 process is dead but still occupying the GPU VM doing nothing (looping with prey at cap, no births/deaths). Stop it before relaunching anything. Then local smoke on the new L1/L2/L3 configs, then GCS launch.

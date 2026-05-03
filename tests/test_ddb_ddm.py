@@ -2,10 +2,15 @@
 
 DDB (density-dependent breeding):
     - Threshold scaling: zeta_b -> zeta_b * factor
-    - Rate boost (with ddb_max_boost > 1.0): kappa_b -> kappa_b / max(factor, 1/max_boost)
+    - Rate boost: kappa_b -> kappa_b / max(factor, kappa_b)
+      (§15.22 — natural kappa_b floor instead of ddb_max_boost cap;
+       at integer pops with sane T, factor >> kappa_b so the floor
+       only matters for proof-of-validity at extinction)
 
 DDM (density-dependent metabolism):
-    - Decay scaling: predator d_b -> d_b * factor
+    - Decay scaling per species: d_b -> d_b * factor(N_pred, T_ddm_pred)
+                                  c_b -> c_b * factor(N_prey, T_ddm_prey)
+      (§15.22 — symmetric across species)
 """
 import jax.numpy as jnp
 import pytest
@@ -47,8 +52,13 @@ def test_ddb_factor_floor_pins_below_threshold():
     assert f1_third == pytest.approx(0.3, abs=1e-3)
 
 
-def test_birth_prob_no_boost_when_max_boost_default(base_config):
-    """Regression: ddb_max_boost defaults to 1.0 => kappa_b unchanged."""
+def test_birth_prob_mild_boost_at_healthy_pop(base_config):
+    """At healthy pop the 1/factor boost is near 1 — selection intact.
+
+    §15.22: removed the ddb_max_boost cap. Rate boost is always applied
+    when DDB is enabled, but at high pop the factor is near 1 so the
+    boost is near 1× (no meaningful effect).
+    """
     cfg = {**base_config, "stability_mechanism": "ddb",
            "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
            "ddb_floor": 0.0}
@@ -56,17 +66,18 @@ def test_birth_prob_no_boost_when_max_boost_default(base_config):
     energies = jnp.array([100.0, 1000.0])  # well above any threshold
     probs = _batch_birth_prob_jax(energies, species, cfg,
                                   prey_count=jnp.int32(100), pred_count=jnp.int32(20))
-    # Healthy populations -> factor near 1, kappa_b ~unchanged
     p_prey, p_pred = float(probs[0]), float(probs[1])
-    assert p_prey == pytest.approx(1e-3, rel=0.05)
-    assert p_pred == pytest.approx(1e-3, rel=0.05)
+    # prey N=100, T=40: factor = 10000/(10000+1600) = 0.862 -> boost = 1.16
+    # pred N=20,  T=4:  factor = 400/(400+16)     = 0.962 -> boost = 1.04
+    assert p_prey == pytest.approx(1.16e-3, rel=0.05)
+    assert p_pred == pytest.approx(1.04e-3, rel=0.05)
 
 
 def test_birth_prob_boost_at_low_predator_pop(base_config):
-    """With max_boost=50 and pred N=1, kappa_b should boost ~17x (1/factor)."""
+    """At pred N=1, kappa_b should boost ~17x (1/factor)."""
     cfg = {**base_config, "stability_mechanism": "ddb",
            "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
-           "ddb_floor": 0.0, "ddb_max_boost": 50.0}
+           "ddb_floor": 0.0}
     species = jnp.array([1])  # predator
     energies = jnp.array([1000.0])  # saturated above threshold
     probs = _batch_birth_prob_jax(energies, species, cfg,
@@ -76,33 +87,41 @@ def test_birth_prob_boost_at_low_predator_pop(base_config):
     assert p == pytest.approx(17e-3, rel=0.05)
 
 
-def test_birth_prob_boost_capped_by_max_boost(base_config):
-    """At extreme low N (factor << 1/max_boost), boost is capped at max_boost."""
+def test_birth_prob_no_cap_at_extreme_low_pop(base_config):
+    """§15.22: cap removed. At extreme low N, P_birth saturates at the
+    natural validity ceiling (~1.0) — sigmoid denom keeps it ≤ 1 regardless."""
     cfg = {**base_config, "stability_mechanism": "ddb",
            "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
-           "ddb_floor": 0.0, "ddb_max_boost": 50.0}
+           "ddb_floor": 0.0}
     species = jnp.array([0])  # prey
-    energies = jnp.array([1000.0])
-    # At prey N=1, T=40: factor = 1/1601 ≈ 0.000625 -> uncapped boost would be 1600x
-    # Cap = 50 -> kappa_b_eff = 50e-3
+    energies = jnp.array([1000.0])  # sigmoid heavily saturated
+    # At prey N=1, T=40: factor = 1/1601 ≈ 6.25e-4. Natural kappa_b floor
+    # caps boost at 1/kappa_b = 1000x → kappa_eff = 1.0. With saturated
+    # sigmoid (E=1000 >> zeta_eff/β), P_birth ≈ 1.0.
     probs = _batch_birth_prob_jax(energies, species, cfg,
                                   prey_count=jnp.int32(1), pred_count=jnp.int32(20))
     p = float(probs[0])
-    assert p == pytest.approx(50e-3, rel=0.05)
+    assert p == pytest.approx(1.0, rel=0.01)
 
 
-def test_birth_prob_boost_fades_to_one_at_healthy_pop(base_config):
-    """At healthy pop (factor near 1), boost should be ~1 (selection intact)."""
-    cfg = {**base_config, "stability_mechanism": "ddb",
-           "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
-           "ddb_floor": 0.0, "ddb_max_boost": 50.0}
-    species = jnp.array([1])  # predator
+def test_birth_prob_legacy_max_boost_silently_ignored(base_config):
+    """§15.22: configs that still set ddb_max_boost should not error.
+    The knob is silently ignored; behavior matches a config without it."""
+    cfg_legacy = {**base_config, "stability_mechanism": "ddb",
+                  "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
+                  "ddb_floor": 0.0, "ddb_max_boost": 50.0}
+    cfg_clean = {**base_config, "stability_mechanism": "ddb",
+                 "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
+                 "ddb_floor": 0.0}
+    species = jnp.array([1])
     energies = jnp.array([1000.0])
-    # Pred N=20, T=4: factor = 400/416 ≈ 0.96 -> boost ≈ 1.04
-    probs = _batch_birth_prob_jax(energies, species, cfg,
-                                  prey_count=jnp.int32(100), pred_count=jnp.int32(20))
-    p = float(probs[0])
-    assert p == pytest.approx(1.04e-3, rel=0.05)
+    p_legacy = float(_batch_birth_prob_jax(
+        energies, species, cfg_legacy,
+        prey_count=jnp.int32(100), pred_count=jnp.int32(1))[0])
+    p_clean = float(_batch_birth_prob_jax(
+        energies, species, cfg_clean,
+        prey_count=jnp.int32(100), pred_count=jnp.int32(1))[0])
+    assert p_legacy == pytest.approx(p_clean, rel=1e-6)
 
 
 def test_energy_weighted_boost_redistributes_to_high_energy(base_config):

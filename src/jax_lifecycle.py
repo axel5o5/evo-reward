@@ -18,13 +18,15 @@ from src.jax_evolution import spawn_offspring_jax
 # ---------------------------------------------------------------------------
 
 def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catches,
-                        all_actions, config, pred_count=None):
+                        all_actions, config, pred_count=None, prey_count=None):
     """Vectorized energy update for all agents. Pure JAX.
 
-    Optionally applies density-dependent metabolism (DDM): when predator
-    population is low, the predator's energy decay rate (d_b) is scaled
-    down by the same squared-saturation curve as DDB. Lone survivors hold
-    their energy longer while waiting to catch prey. See findings.md §15.
+    Optionally applies density-dependent metabolism (DDM): when species
+    population is low, the passive metabolic cost is scaled down by the
+    same squared-saturation curve as DDB. Lone survivors hold their energy
+    longer while waiting to feed. Applied to both species symmetrically
+    (predators via d_b, prey via c_b), each with its own threshold.
+    See findings.md §15.
 
     Args:
         sim_state: SimState
@@ -34,6 +36,8 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
         pred_n_catches: (max_agents,) int32 — catches per predator
         pred_count: scalar int — current predator population, required
             when stability_mechanism=="ddb_ddm" or "ddm".
+        prey_count: scalar int — current prey population, required when
+            stability_mechanism=="ddb_ddm" or "ddm".
         all_actions: (max_agents, 2) — actions taken (sigmoid-scaled)
         config: dict
     """
@@ -59,31 +63,42 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
     # was computed upstream without nearest-pred dedup (D28 shared-credit).
     pred_gain = eta * pred_caught_energy  # (max_agents,)
 
-    # Density-dependent metabolism: scale predator d_b down when N_pred is low.
-    # Mirrors DDB shape: f(N) = max(floor, N^2 / (N^2 + threshold^2)).
+    # Density-dependent metabolism: scale species' passive cost (d_b for
+    # predators, c_b for prey) down when own-species pop is low. Mirrors DDB
+    # shape: f(N) = max(floor, N^2 / (N^2 + threshold^2)).
     # Same threshold/floor as DDB by default but configurable separately.
+    # Symmetric across species (§15.22): each species has its own DDM threshold.
     stability = config.get("stability_mechanism", "none")
     apply_ddm = stability in ("ddm", "ddb_ddm")
     if apply_ddm:
-        if pred_count is None:
+        if pred_count is None or prey_count is None:
             raise ValueError(
-                f"stability_mechanism={stability!r} requires pred_count "
-                "to be passed to update_energies_jax."
+                f"stability_mechanism={stability!r} requires pred_count and "
+                "prey_count to be passed to update_energies_jax."
             )
         ddm_floor = float(config.get("ddm_floor", config.get("ddb_floor", 0.3)))
         ddm_pred_threshold = float(
             config.get("ddm_pred_threshold", config.get("ddb_pred_threshold", 8.0))
         )
+        ddm_prey_threshold = float(
+            config.get(
+                "ddm_prey_threshold",
+                config.get("ddb_prey_threshold", ddm_pred_threshold * 10.0),
+            )
+        )
         ddm_factor_pred = _ddb_factor(pred_count, ddm_pred_threshold, ddm_floor)
+        ddm_factor_prey = _ddb_factor(prey_count, ddm_prey_threshold, ddm_floor)
         d_b_eff = d_b * ddm_factor_pred
+        c_b_eff = c_b * ddm_factor_prey
     else:
         d_b_eff = d_b
+        c_b_eff = c_b
 
     # Species-conditional update
     is_prey = sim_state.species == 0
     food_gain = jnp.where(is_prey, prey_gain, pred_gain)
     cost_a = jnp.where(is_prey, c_a, d_a)
-    cost_b = jnp.where(is_prey, c_b, d_b_eff)
+    cost_b = jnp.where(is_prey, c_b_eff, d_b_eff)
 
     delta = food_gain - cost_a * action_norms - cost_b
     new_energies = jnp.minimum(sim_state.energies + delta, cap)
@@ -136,10 +151,13 @@ def _batch_birth_prob_jax(energies, species, config,
     down by a squared-saturation factor, making breeding easier at deep
     bottlenecks.
 
-    With ddb_max_boost > 1.0, also scales the breeding *rate* (kappa_b)
-    upward by the inverse factor (capped at max_boost), so a lone
-    survivor not only breeds at low energy but breeds *frequently*.
-    See findings.md §15.
+    Also scales the breeding *rate* (kappa_b) upward by the inverse factor,
+    so a lone survivor not only breeds at low energy but breeds *frequently*.
+    The natural floor is `factor >= kappa_b`, which keeps `P_birth ≤ 1` for
+    any sensible config (cap of 1/kappa_b ≈ 1000× at integer pops). The
+    legacy `ddb_max_boost` config knob has been removed (§15.22) — it was
+    an arbitrary cap on the smooth `1/factor` curve, not a biologically
+    meaningful constraint. See findings.md §15.
 
     Boost distribution control (findings.md §15.14, §15.16):
         Two ways to set the distribution; alpha takes precedence if set:
@@ -180,7 +198,11 @@ def _batch_birth_prob_jax(energies, species, config,
         floor = float(config.get("ddb_floor", 0.3))
         prey_threshold = float(config.get("ddb_prey_threshold", 30.0))
         pred_threshold = float(config.get("ddb_pred_threshold", 5.0))
-        max_boost = float(config.get("ddb_max_boost", 1.0))
+        if "ddb_max_boost" in config:
+            # Legacy knob — silently ignored as of §15.22. Logging would
+            # require a host-side print which doesn't trace under jit, so we
+            # rely on the deprecation note in findings.md and the configs.
+            pass
 
         # Resolve effective alpha. Explicit float wins; else map legacy string.
         if "ddb_boost_distribution_alpha" in config:
@@ -195,45 +217,50 @@ def _batch_birth_prob_jax(energies, species, config,
         zeta_prey = zeta_prey * prey_factor
         zeta_pred = zeta_pred * pred_factor
 
-        if max_boost > 1.0:
-            prey_boost_uniform = 1.0 / jnp.maximum(prey_factor, 1.0 / max_boost)
-            pred_boost_uniform = 1.0 / jnp.maximum(pred_factor, 1.0 / max_boost)
+        # Rate boost: 1/factor with a natural floor at kappa_b that keeps
+        # P_birth = kappa_eff/(1+exp(...)) ≤ 1 (since denom ≥ 1). The floor
+        # only bites at sub-integer populations (factor ≥ kappa_b at any
+        # pop ≥ 1 with sane T values), so for all real states this is the
+        # smooth `1/factor` curve. (Removed the legacy `max_boost` cap in
+        # §15.22 — it was an arbitrary clip on the recovery curve.)
+        prey_boost_uniform = 1.0 / jnp.maximum(prey_factor, kappa_b)
+        pred_boost_uniform = 1.0 / jnp.maximum(pred_factor, kappa_b)
 
-            if alpha <= 0.0:
-                # Pure uniform — no per-agent redistribution. No is_active needed.
-                kappa_b_prey = kappa_b * prey_boost_uniform
-                kappa_b_pred = kappa_b * pred_boost_uniform
-                kappa_b_eff_all = jnp.where(species == 0, kappa_b_prey, kappa_b_pred)
-            else:
-                if is_active is None:
-                    raise ValueError(
-                        "ddb_boost_distribution_alpha > 0 (or 'energy_weighted') "
-                        "requires is_active to be passed to _batch_birth_prob_jax."
-                    )
-                # Power-law share: share_i ∝ energy_i^k where k = alpha/(1-alpha).
-                # Computed via masked log-softmax for numerical stability.
-                # Total budget per species preserved: Σ shares = 1, so
-                # Σ (N * boost_uniform * share_i) = N * boost_uniform.
-                k = alpha / max(1.0 - alpha, 1e-3)
-                prey_active = is_active & (species == 0)
-                pred_active = is_active & (species == 1)
-
-                log_e = jnp.log(jnp.maximum(energies, 1e-9))
-                # Weighted log-energy; mask inactive/wrong-species to -inf so
-                # softmax assigns ~0 weight there.
-                logits_prey = jnp.where(prey_active, k * log_e, -jnp.inf)
-                logits_pred = jnp.where(pred_active, k * log_e, -jnp.inf)
-                # Stable softmax (subtract max within each species' active set).
-                shares_prey = jax.nn.softmax(logits_prey)
-                shares_pred = jax.nn.softmax(logits_pred)
-
-                prey_count_f = prey_count.astype(jnp.float32)
-                pred_count_f = pred_count.astype(jnp.float32)
-                prey_agent_boost = prey_boost_uniform * prey_count_f * shares_prey
-                pred_agent_boost = pred_boost_uniform * pred_count_f * shares_pred
-                kappa_b_eff_all = kappa_b * jnp.where(
-                    species == 0, prey_agent_boost, pred_agent_boost
+        if alpha <= 0.0:
+            # Pure uniform — no per-agent redistribution. No is_active needed.
+            kappa_b_prey = kappa_b * prey_boost_uniform
+            kappa_b_pred = kappa_b * pred_boost_uniform
+            kappa_b_eff_all = jnp.where(species == 0, kappa_b_prey, kappa_b_pred)
+        else:
+            if is_active is None:
+                raise ValueError(
+                    "ddb_boost_distribution_alpha > 0 (or 'energy_weighted') "
+                    "requires is_active to be passed to _batch_birth_prob_jax."
                 )
+            # Power-law share: share_i ∝ energy_i^k where k = alpha/(1-alpha).
+            # Computed via masked log-softmax for numerical stability.
+            # Total budget per species preserved: Σ shares = 1, so
+            # Σ (N * boost_uniform * share_i) = N * boost_uniform.
+            k = alpha / max(1.0 - alpha, 1e-3)
+            prey_active = is_active & (species == 0)
+            pred_active = is_active & (species == 1)
+
+            log_e = jnp.log(jnp.maximum(energies, 1e-9))
+            # Weighted log-energy; mask inactive/wrong-species to -inf so
+            # softmax assigns ~0 weight there.
+            logits_prey = jnp.where(prey_active, k * log_e, -jnp.inf)
+            logits_pred = jnp.where(pred_active, k * log_e, -jnp.inf)
+            # Stable softmax (subtract max within each species' active set).
+            shares_prey = jax.nn.softmax(logits_prey)
+            shares_pred = jax.nn.softmax(logits_pred)
+
+            prey_count_f = prey_count.astype(jnp.float32)
+            pred_count_f = pred_count.astype(jnp.float32)
+            prey_agent_boost = prey_boost_uniform * prey_count_f * shares_prey
+            pred_agent_boost = pred_boost_uniform * pred_count_f * shares_pred
+            kappa_b_eff_all = kappa_b * jnp.where(
+                species == 0, prey_agent_boost, pred_agent_boost
+            )
 
     zeta = jnp.where(species == 0, zeta_prey, zeta_pred)
     exponent = jnp.clip(zeta - beta_b * energies, -700, 700)

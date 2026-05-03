@@ -68,16 +68,22 @@ coevolution_mode:   "concurrent"
 # Bad hunters survive but don't propagate their genes. Net: population
 # stable, selection sharp.
 #
-# Thresholds: T=10 (pred), T=100 (prey). See findings.md §15.13.
+# §15.22 retune (post-v8 extinction at step ~3.7M, pop=7→0): T values bumped
+# so the scaffolds engage at the death-spiral operating point (pop≈7, E≈33),
+# not only after pop ≤ 3 where they'd be too late. Sigmoid math: zeta_eff =
+# zeta·factor must drop below β·E ≈ 13 before breeding fires; with T=10 that
+# requires pop ≤ 3, with T=20 it requires only pop ≤ 8.
+# Also: DDM extended to prey symmetrically (was predator-only).
+# Also: ddb_max_boost removed (was an arbitrary cap on the 1/factor curve).
 stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              100.0
-ddb_pred_threshold:              10.0
+ddb_prey_threshold:              200.0   # was 100 (§15.22)
+ddb_pred_threshold:              20.0    # was 10 (§15.22)
 ddb_floor:                       0.0
-ddb_max_boost:                   50.0
-ddb_boost_distribution_alpha:    0.5    # see findings.md §15.16
-                                        # 0.0=uniform, 0.5=linear (current),
-                                        # 1.0=winner-take-all
-ddm_pred_threshold:              10.0
+ddb_boost_distribution_alpha:    0.5     # see findings.md §15.16
+                                         # 0.0=uniform, 0.5=linear (current),
+                                         # 1.0=winner-take-all
+ddm_pred_threshold:              20.0    # was 10 (§15.22)
+ddm_prey_threshold:              200.0   # NEW (§15.22) — symmetric DDM
 ddm_floor:                       0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────

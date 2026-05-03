@@ -32,7 +32,10 @@
 #   - policy_hidden_size 64     → 48     (SVD: 92% capacity preserved)
 #   - n_physics_iter:    5      → 4      (config-driven; one substep cut)
 #   - ppo_epochs:        10     → 5
-#   - ddb_max_boost:     50     → 75     (stronger anti-extinction safety)
+#   - DDB/DDM thresholds (§15.22 retune):
+#       T_pred 10 → 17, T_prey 100 → 170, T_ddm_pred 10 → 17, +T_ddm_prey 170
+#       (tier-graduated: L3=20, L2=17, L1=12 reflects pop scale)
+#   - ddb_max_boost REMOVED (§15.22): was an arbitrary cap on 1/factor.
 #   - predator_mouth_tactile_bins: [0]   → [0, 1, 17]   (v10 mouth)
 #   - lr_schedule_*: NEW (v10 age-keyed LR)
 #   - death_age_ring_size: NEW (v10 lifespan observability)
@@ -40,10 +43,6 @@
 # Knobs deliberately UNCHANGED vs L3:
 #   - rollout_steps: 1024 (preserves GAE quality)
 #   - minibatch_size: 256 (n_minibatches=4; grad-step granularity)
-#   - DDB/DDM thresholds (T_pred=10, T_prey=100, T_ddm=10): scaffolds are
-#     supposed to fire in the *danger zone*; smaller pop has higher LV-crash
-#     cost, so we want the safety net to engage *more* aggressively, not
-#     less. Bumped ddb_max_boost instead.
 #   - alpha: 0.5 (linear share)
 
 # ─── Identity ────────────────────────────────────────────────────────────────
@@ -54,14 +53,14 @@ reward_type:        "linear_plus_mlp_residual"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
-# ─── Stability mechanism ─────────────────────────────────────────────────────
+# ─── Stability mechanism (§15.22 retune; tier-graduated T) ──────────────────
 stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              100.0   # unchanged from L3
-ddb_pred_threshold:              10.0    # unchanged from L3
+ddb_prey_threshold:              170.0   # was 100 (§15.22 — engage at death-spiral E)
+ddb_pred_threshold:              17.0    # was 10 (§15.22 — was T=10, dies at pop=7)
 ddb_floor:                       0.0
-ddb_max_boost:                   75.0    # was 50 in L3 — stronger lone-survivor breeding
 ddb_boost_distribution_alpha:    0.5     # unchanged: linear share
-ddm_pred_threshold:              10.0    # unchanged from L3
+ddm_pred_threshold:              17.0    # was 10 (§15.22)
+ddm_prey_threshold:              170.0   # NEW (§15.22) — symmetric DDM
 ddm_floor:                       0.0
 
 # ─── Observation ─────────────────────────────────────────────────────────────
