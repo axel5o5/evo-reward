@@ -51,15 +51,16 @@ Record exact versions in `requirements.txt` to match what emevo's 2025 branch us
 ### 3. Read these documents fully before implementing anything
 
 **Start with `docs/CURRENT_STATE.md`** — the most recent snapshot of what's
-running, what's queued, and the v10 framework (three-tier L1/L2/L3 ladder,
-mouth widening, age-keyed LR schedule, death-age ring buffer). Then:
+running, what's queued, and the current run framework (per-axis × per-tier
+configs in `configs/axis{1,2,12}/`, four tiers each: tiny/small/med/full,
+with §15.22 retuned scaffolds + §15.24 axis-2 obs redesign). Then:
 
-1. `docs/findings.md` (especially §15 strategic reset and §15.20 v10 ladder)
+1. `docs/findings.md` (especially §15 strategic reset and §15.22-§15.24 for the most recent design moves)
 2. `docs/technical-spec-kd-replication.md` — every numerical parameter, the reward equation, success criteria
 3. `docs/interfaces.md` — every module's function signatures and data contracts
 4. `docs/emevo-diff.md` — what we change from emevo and why
 5. `docs/development-roadmap.md` — build order, test specs, gate sequence
-6. `configs/baseline_faithful.yaml` — the complete config for Phase 1a
+6. `configs/baseline_faithful.yaml` — the K&D-pure paper-faithful reference
 
 ### 4. Build modules in this order
 

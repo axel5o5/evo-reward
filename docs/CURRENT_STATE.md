@@ -257,7 +257,7 @@ Earlier full-MLP-replacement attempts (axis1_v1, v2) extincted before
 evolution could find anything useful. The residual design avoids the
 bootstrap failure: t=0 reward is proven-stable K&D linear.
 
-**Config:** [configs/axis1_residual.yaml](../configs/axis1_residual.yaml).
+**Configs:** [`configs/axis1/`](../configs/axis1/) — all four tiers (`tiny.yaml`, `small.yaml`, `med.yaml`, `full.yaml`).
 **Code:** `src/reward.py::ResidualRewardMLP`, `compute_residual_reward`,
 `init_residual_genome`; `src/jax_evolution.py::mutate_residual_genome_jax`.
 
@@ -286,8 +286,7 @@ slot Y". Bin-aligned encoding co-locates kinematics with position,
 eliminating binding burden. sin/cos avoids the "no agent" / "agent facing
 forward" aliasing bug (both → 0).
 
-**Config:** [configs/axis2_aligned_smol.yaml](../configs/axis2_aligned_smol.yaml)
-(filename is historical; `experiment_name: axis2_aligned`, middle-scale).
+**Configs:** [`configs/axis2/`](../configs/axis2/) — all four tiers. Default `proximity_encoding` is `"distance_approach_speed"` (the §15.24 redesign — see findings).
 **Code:** `src/observations.py` — `_single_proximity_agents_with_heading`,
 `_per_channel_encoding`. Toggle via `proximity_encoding: "distance_and_heading"`.
 
