@@ -1125,3 +1125,134 @@ Folder names stay `axis1`/`axis2`/`axis12` since "axis" vocabulary is establishe
 - Whether the speed channel matters independently of the approach-angle math. Could split the `distance_approach_speed` encoding into two for the ablation: approach without speed, and full. Deferred.
 
 **Next action:** launch axis1/tiny on GCP (the v8-extinction-driven retune wants empirical validation) and pair with axis2/tiny and axis12/tiny if there's GPU budget. Don't relaunch v8.
+
+### 15.25 v8 axis1 deep post-mortem — predators got smart, then starved (2026-05-03)
+
+§15.22 identified the breeding cliff as the proximate failure. This section is a fuller forensic pass on the v8 axis1 run (`gs://evo-reward-ckpts/results/axis1_residual/seed_0/2026-05-01T2203Z`, 478 metric points spanning step 10K → 4.78M, plus 25 sampled checkpoints across the lifecycle). The headline: **evolution worked. Predators got measurably smarter for 3M steps. They went extinct anyway, because their reproductive cliff sat above the energy levels they could actually attain.** Two pieces of folklore I'd been carrying are also corrected here.
+
+**Predator evolution trajectory** (per-checkpoint inspection, all 25 sampled steps; abbreviated):
+
+| step | n | E_max | w_act | w_prey | w_pred | residual L1 | age_median | age_max |
+|------|---|-------|-------|--------|--------|-------------|------------|---------|
+| 500K | 13 | 124 | −1.79 | +0.38 | −2.19 | 2.97 | 49K | 376K |
+| 1M | 10 | 90 | +0.50 | +1.66 | −2.07 | 4.17 | 75K | 437K |
+| 2M | 11 | 73 | +7.93 | +4.55 | −2.54 | 5.05 | 66K | 121K |
+| 3M | 8 | 83 | **+11.66** | **+6.71** | −2.83 | 6.60 | 32K | 82K |
+| 3.5M | 12 | 122 | +10.10 | +6.94 | −2.87 | 7.00 | 16K | **490K** |
+| 3.7M | 7 | 60 | +9.95 | +7.39 | −1.08 | 6.62 | 30K | **690K** |
+| 3.76M | 5 | 38 | +10.13 | +7.17 | −2.02 | 6.35 | 6K | 171K |
+
+The reward-genome means show clear directed evolution: `w_act` swung −1.8 → +12 (predators *enjoy* moving), `w_prey` 0.4 → +7.4 (predators *enjoy* being near prey). Residual MLP L1 norm tripled from 2.97 → 7.00. By 3M, the cohort had a converged "active hunter" profile and the residual was carrying real signal. **Through the entire 100K-step death window (3.7M → 3.8M), the *surviving* predators still had this fully-evolved genome** — they didn't get dumber. They just got fewer.
+
+Prey were stressed throughout the late phase: prey mean energy held at 15-18 from 1M onward despite N_prey ~ 250-360. The moment predators went extinct (3.80M), prey energy released: 25 → 167 → 297 → 403 → 497 → 572 (final). So predators were *effective* hunters right up to extinction; they weren't dying because they couldn't catch prey on average.
+
+**The age² death hazard does not exist.** The hazard formula in [src/lifecycle.py:26](src/lifecycle.py#L26) and [src/jax_lifecycle.py:143](src/jax_lifecycle.py#L143) is the K&D Gompertz form:
+
+```
+h(t, e) = kappa_h · [1 − 1/(1 + alpha_e · exp(−beta_h · E))] · alpha_t · exp(beta_t · age)
+```
+
+Both terms are *exponential* in their argument, multiplied. Earlier writeups (and one SMS to Gil) called the age term `age²`. That was wrong — it's `exp(beta_t · age)`, Gompertz mortality. Also wrong: that age was the dominant death driver. Concrete numbers at v8's `alpha_t_pred=2e-7`, `beta_t_pred=4e-6`:
+
+| operating point | hazard / step | per 100K steps |
+|---|---|---|
+| young + healthy (E=80, age=0) | 4.5e−18 | 4.5e−13 |
+| young + low-energy (E=20, age=0) | 7.3e−13 | 7.3e−8 |
+| Methuselah + low-energy (E=20, age=690K) | 1.2e−11 | 1.2e−6 |
+| starving (E=1, age=10K) | 3.4e−11 | 3.4e−6 |
+| 5M-yr-old + low-energy (E=20, 5M) | 3.6e−4 | ~certainty |
+
+The 690K-old Methuselah in v8 had an age-multiplier of `exp(2.76) ≈ 16×` baseline. Multiplicatively meaningful, but `16 × 7e−13 ≈ 1e−11` per step is still vanishing — cumulative death-by-hazard probability over 100K steps is ~1 in 10⁶. The hazard formula in our parameter regime essentially *never fires*. Both terms hover near their floors.
+
+**So how do predators actually die?** [src/jax_lifecycle.py:366](src/jax_lifecycle.py#L366):
+
+```python
+dead_mask = sim_state.is_active & ((sim_state.energies < 0) | (death_randoms < h_all))
+```
+
+Two paths — but in our regime, path 1 (`energies < 0` → instant death) handles essentially all deaths. Predators starve. The hazard sigmoid is dormant.
+
+**Policy is per-individual and reset at birth.** [src/jax_evolution.py:154-155](src/jax_evolution.py#L154):
+
+```python
+# Child policy: fresh initialization
+child_params, child_opt = init_policy(k4, config)
+```
+
+Every offspring inherits the (mutated) reward genome but receives a **brand-new PPO policy**. The motor learning — chase trajectories, turn timing, the actual hunting craft — dies with the parent. This is one of the most consequential implementation details in the whole sim. It means:
+
+- A predator's ability to *catch prey* is a function of its lifetime PPO updates, not its inheritance.
+- The reward genome encodes "what to want" (chasing, eating). PPO encodes "how to act." Only one of these is heritable.
+- Genome convergence (which v8 had: `w_pred std` 0.67 → 0.49 by 3.76M) makes things worse — when veterans die, the freshly-initialized offspring have no diversity in reward signal either, so PPO gradients across the new cohort are highly correlated. They all explore the same way, all fail the same way.
+
+**The Methuselah pipeline — and the PPO-experience accounting that makes it fragile.** Tracking `age_max` across the 25 sampled checkpoints reveals that the v8 cohort never had a *bench* of veterans — only **one Methuselah at a time**:
+
+| step | n_pred | age_max | age_median | Methuselah lineage |
+|---|---|---|---|---|
+| 500K | 13 | 376K | 49K | M#1 (born ~step 124K) |
+| 1M | 10 | 437K | 75K | M#2 (born ~step 563K) — M#1 already died |
+| 2M | 11 | **121K** | 66K | M#3 (born ~step 1.88M) — M#2 already died |
+| 3M | 8 | **82K** | 32K | M#4 (born ~step 2.92M) — M#3 already died |
+| 3.5M | 12 | 490K | 16K | M#5 (born ~step 3.01M) |
+| 3.7M | 7 | **690K** | 30K | same M#5, still alive |
+| 3.76M | 5 | 171K | 6K | M#6 (born ~step 3.59M) — M#5 already died |
+
+Methuselahs cycle through the run — each lives 300K-700K steps, dies *also from `E<0`* (even great hunters can't outrun a long bad-catch stretch), then a new individual slowly accumulates age. The cohort is small enough (n=7-13) that the reservoir of "next-oldest" is always shallow. When a Methuselah dies during a bad-luck window, the rest of the >30K-age cohort tends to die in the *same* window (same prey-encounter stochasticity), and the freshly-born juveniles inherit the genome but have to start motor learning from zero.
+
+The lifetime-PPO-update count is the key quantity. Per-agent PPO fires every `rollout_steps` (1024 in v8/v10), so:
+
+| individual lifetime | PPO updates | with `ppo_epochs=10` (v8 L3) |
+|---|---|---|
+| Methuselah (690K steps) | ~674 | ~6.7K gradient passes |
+| veteran (100K steps) | ~98 | ~980 |
+| typical adult (30K steps) | ~29 | ~290 |
+| juvenile (6K steps — median at extinction) | ~6 | ~60 |
+
+**Methuselah had ~100× more gradient signal than the offspring inheriting his (mutated) genome.** When he died, the survivors had single-digit PPO fires trying to catch prey through a stochastically thinned prey field. They couldn't. Pop went 5 → 3 → 0 in a 30K-step span.
+
+This also recasts the v10 age-keyed LR schedule introduced in §15.19/§15.20 (`lr_schedule_initial: 1e-3 → lr_schedule_final: 3e-4 over 30K steps`). v8 ran with constant LR throughout. The v10 schedule front-loads gradient magnitude into each agent's first 30K steps — exactly the band where a juvenile is otherwise locked out by tiny update counts. It doesn't fix the fresh-policy-at-birth problem, but it shortens the time a new cohort needs to become functional hunters. Combined with §15.22's T=20 (which lets more births fire while veterans are still alive), the goal is to move from "1 Methuselah holding the population up" to "a few overlapping veterans + faster-maturing juveniles."
+
+**The unified extinction narrative:**
+
+1. Predators evolved a "smart hunter" genome (positive `w_act`, positive `w_prey`, negative `w_pred`) by 2M-3M steps.
+2. Long-lived individuals' PPO policies converged on effective hunting (residual L1 norm 6-7, prey energy depressed throughout).
+3. **But** the operating energy distribution (predator E hovering 30-80, max 120) sat below the v8 breeding cliff (E=82 at pop=7 with T=10). Births were rare luck events.
+4. Pop ratcheted down 13 → 10 → 8 → 7 across 3M steps despite occasional births. Genome diversity collapsed in parallel (low-pop selection bottleneck).
+5. At 3.7M-3.76M, a bad catch window dropped E_max from 122 → 38. Maintenance metabolism (`d_b·t`) drained the surviving predators' energies. They starved — not from age-hazard, but from `E < 0`.
+6. Each starving veteran took its trained policy with it. The few births happening in the final window produced freshly-initialized juveniles who had no chance of catching enough prey to survive *or* breed.
+7. By 3.79M only 2 predators left, both with E < 3. Extinction at 3.80M.
+
+**Implications for the §15.22 fix (T=10 → T=20).** Drops the breeding cliff from E=82 (unreachable) to E=27 (well below typical operating energy) and simultaneously cuts metabolic bleed 3× at the spiral point — both effects ride the same `N²/(N²+T²)` factor curve. The reframing from this section: the deeper reason it works isn't just "births fire" but "**T=20 keeps the experienced cohort alive long enough that the population always carries enough PPO-trained hunters to ride out a bad-catch window.**" v8's failure mode was being reduced to single-digit-PPO-update juveniles holding the population alone; T=20 should prevent that by making pop=7 a routine recoverable state rather than a one-Methuselah-from-extinction state.
+
+**Implications for "make them live longer" as a separate intervention** (the conversation with Gil that motivated this analysis). The intuition is sound — long lifespan is structurally load-bearing because PPO is per-individual. But the right knob is *not* `beta_t_pred`. The age-hazard is already at the floor; halving or zeroing `beta_t_pred` changes essentially nothing (Methuselah goes from 1.2e−11/step to 6e−13/step — both negligible vs the `E<0` cliff). The right knobs to extend predator lifespan run roughly in this order:
+
+1. **Push T higher still.** `predator_d_b` is *already* DDM-scaled by `N²/(N²+T²)` ([src/jax_lifecycle.py:107](src/jax_lifecycle.py#L107)). Bumping T from 10→20 doesn't only lower the breeding cliff — at the spiral operating point of pop=7 it also cuts metabolic bleed from 1.32e−3/step to 0.44e−3/step (3× reduction). DDB and DDM share the same factor curve, so a single T-bump moves both. With current §15.22 T=20 we expect both effects already.
+2. **Raise `predator_eta`** (energy yield per catch). Pumps energy *in* faster — complements DDM pumping less *out*. Doesn't break species-pop independence; clean knob.
+3. **Lower `density_factor_floor` to 0** (currently 0.3 in some configs). Lets `d_b_eff → 0` at extreme low pop, giving lone survivors maximum runway between catches. Cheap to try.
+4. **Lower the `predator_d_b` baseline (4e-3 → e.g. 2e-3).** Last-resort — globally cheaper metabolism breaks K&D fidelity but is the most direct longevity knob if symmetric-T reductions aren't enough.
+
+Note: `predator_d_a` (action energy cost, 5e-5 × ‖action‖) is *not* DDM-scaled, but it's ~30× smaller than even the floored `d_b_eff` at the spiral point, so it's not the rate-limiter and not worth scaling.
+
+We shouldn't pull any of these yet — axis1/tiny with the §15.22 T=20 retune is the cleanest first ablation. T=20 *should* obviate the need (it cuts metabolism 3× and drops the breeding cliff to E=27 simultaneously). But if it doesn't, the order above is the priority list, with the most paper-faithful knobs first.
+
+**What this updates in our mental model:**
+
+| Belief | Status |
+|---|---|
+| Death hazard is `α + β·age²` | ❌ — it's Gompertz `α · exp(β·age)`, multiplied by an energy term |
+| Old predators die from age | ❌ — in our regime, age hazard is ~1e−11/step at any age below ~5M |
+| Predators went extinct because they couldn't learn to hunt | ❌ — they hunted effectively until the last 100K steps; prey energy was depressed throughout |
+| Predators went extinct because the breeding cliff was too high | ✓ — directly confirmed by inspecting energy distributions vs `zeta_eff/β` |
+| Long-lived predators are structurally important | ✓ — confirmed by the "policy fresh at birth" code path and the cohort-survival data showing veteran PPO policies are non-fungible |
+| The cohort had a "bench" of multiple experienced hunters | ❌ — there was only one Methuselah at a time. Pipeline failure mode: when the active Methuselah died in a bad-catch window, the >30K-age cohort tended to die in the same window, leaving only juveniles |
+| v10's age-keyed LR schedule (added in §15.19/§15.20) is just a stabilization hack | ❌ — it specifically targets the "single-digit PPO fires per juvenile" failure mode. Front-loads gradient magnitude into the band where lifetime updates are scarce. Shortens the maturation gap between Methuselah-death and offspring-becoming-functional |
+| `ddb_max_boost` was the relevant knob | ❌ — it was clipping a smooth `1/factor` curve nowhere near the death-spiral operating point. Removed in §15.22. |
+
+**Process notes** (for future post-mortems):
+
+- `metrics.npz` (the time-series of `prey_population`, `predator_population`, `*_mean_energy`, `*_mean_w_*`, `*_std_w_*`) is the **first** thing to look at on any extincted run. It's compact (~40 KB), gives 478-point coverage of the whole run, and immediately localizes the spiral window without needing to download checkpoints.
+- `progress.json` at the run root carries final cumulative counters (`cum_catches`, `cum_deaths`, `next_agent_id`) and final population. Read first.
+- For deep cohort-level analysis, `scripts/inspect_checkpoint.py` against a 3-5 checkpoint sequence covering the spiral window is sufficient. The diff-mode (two checkpoints) shows cohort survival cleanly.
+- Don't repeat my mistakes: verify the actual code before writing a story about it. The "age²" detail came from misremembering the K&D paper without re-reading [src/lifecycle.py:53](src/lifecycle.py#L53).
+
+**Next action (no change to plan):** axis1/tiny is running on GCP (run tag `2026-05-03T2017Z` on `evo-reward-gpu`). At step 10K it had pred=16, predE healthy, w_pred mean already drifting +0.40 — early evolution active. Watch for whether the v8 ratcheting pattern (steady predator pop decline despite births) repeats; if predator pop holds above ~10 with E_max > 50 through 1M-2M steps, the §15.22 retune is doing its job.
