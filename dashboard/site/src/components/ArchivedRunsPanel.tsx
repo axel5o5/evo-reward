@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArchiveRunSummary,
   ArchiveSummary,
   ReplayIndexEntry,
-  fetchArchiveSummary,
 } from "../lib/replayLoader";
 import { displayExperimentName, displayRunTag } from "../lib/replayNaming";
 
@@ -14,20 +13,15 @@ interface Props {
   // Used to grey-out runs whose replays still exist in index.json (so the
   // panel reads as "what's been archived" vs "what's still live").
   liveReplays: ReplayIndexEntry[];
+  // Hoisted from Replay.tsx so the page only fetches summary.json once.
+  // Null while loading or when the bucket has no summary yet.
+  summary: ArchiveSummary | null;
 }
 
-export default function ArchivedRunsPanel({ liveReplays }: Props) {
-  const [summary, setSummary] = useState<ArchiveSummary | null>(null);
+export default function ArchivedRunsPanel({ liveReplays, summary }: Props) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("final_step");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  useEffect(() => {
-    fetchArchiveSummary()
-      .then(setSummary)
-      .catch((e) => setError(String(e)));
-  }, []);
 
   // Per-run live checkpoint counts. Used to classify each archived row as
   // live (every archived ckpt is still on disk), thinned (some pruned), or
@@ -62,14 +56,6 @@ export default function ArchivedRunsPanel({ liveReplays }: Props) {
     }
     return { live, thinned, pruned };
   }, [summary, liveCounts]);
-
-  if (error) {
-    return (
-      <div className="text-xs text-amber-700 dark:text-amber-400">
-        Could not load archive summary: {error}
-      </div>
-    );
-  }
 
   if (!summary) {
     // Quietly absent until the archive script has been uploaded — no need to

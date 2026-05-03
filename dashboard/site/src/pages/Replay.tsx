@@ -8,9 +8,11 @@ import WeightHistogram from "../components/WeightHistogram";
 import WeightTrajectoryStrip from "../components/WeightTrajectoryStrip";
 import ArchivedRunsPanel from "../components/ArchivedRunsPanel";
 import {
+  ArchiveSummary,
   ReplayData,
   ReplayIndex,
   ReplayIndexEntry,
+  fetchArchiveSummary,
   fetchIndex,
   fetchReplay,
   replaysBaseUrl,
@@ -76,6 +78,16 @@ export default function Replay() {
   const [data, setData] = useState<ReplayData | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Per-run rollup (final_step, extinction). Fetched once and threaded into
+  // both ReplaySelector and ArchivedRunsPanel so we don't double-fetch.
+  // Null until loaded; absent in the bucket also resolves to null and the
+  // selector silently falls back to no per-run badges.
+  const [summary, setSummary] = useState<ArchiveSummary | null>(null);
+  useEffect(() => {
+    fetchArchiveSummary().then(setSummary).catch(() => {
+      // Non-fatal — selector just won't show step/extinction badges.
+    });
+  }, []);
 
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -318,6 +330,7 @@ export default function Replay() {
               replays={index.replays}
               selected={selected}
               onSelect={setSelected}
+              summary={summary}
             />
             {selected?.run_tag && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -551,7 +564,7 @@ export default function Replay() {
 
       {index && index.replays.length > 0 && (
         <div className="mt-8">
-          <ArchivedRunsPanel liveReplays={index.replays} />
+          <ArchivedRunsPanel liveReplays={index.replays} summary={summary} />
         </div>
       )}
     </div>

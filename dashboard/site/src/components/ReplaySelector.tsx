@@ -1,12 +1,17 @@
 import { useMemo, useState } from "react";
-import { ReplayIndexEntry } from "../lib/replayLoader";
+import { ArchiveSummary, ReplayIndexEntry } from "../lib/replayLoader";
 import {
   ExpCategory,
+  ExpVariant,
+  RunStats,
   categoryForExp,
   describeReplay,
   displayExperimentName,
   displayRunTag,
+  formatSteps,
   parseRunTagDate,
+  runStatsFor,
+  tagStats,
   variantForExp,
 } from "../lib/replayNaming";
 
@@ -14,6 +19,9 @@ interface Props {
   replays: ReplayIndexEntry[];
   selected: ReplayIndexEntry | null;
   onSelect: (entry: ReplayIndexEntry) => void;
+  // Per-run rollup from summary.json. Optional so the selector still works
+  // before the summary loads (or when the bucket has none yet).
+  summary?: ArchiveSummary | null;
 }
 
 const tagOf = (r: ReplayIndexEntry) => r.run_tag || "current";
@@ -25,11 +33,13 @@ function pickFirst(
   return replays.find(pred);
 }
 
-function compareVariant(a: string, b: string): number {
-  const rank = (v: string): number => {
-    if (v === "Baseline") return 0;
-    const axis = v.match(/^Axis (\d+)$/);
-    if (axis) return 10 + Number(axis[1]);
+function compareVariant(a: ExpVariant, b: ExpVariant): number {
+  const rank = (v: ExpVariant): number => {
+    if (v === "Baseline (paper)") return 0;
+    if (v === "Baseline") return 1;
+    if (v === "Axis 1") return 11;
+    if (v === "Axis 2") return 12;
+    if (v === "Axis 1+2") return 13;
     if (v === "Demo") return 90;
     return 50;
   };
@@ -39,18 +49,26 @@ function compareVariant(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
-export default function ReplaySelector({ replays, selected, onSelect }: Props) {
+export default function ReplaySelector({
+  replays,
+  selected,
+  onSelect,
+  summary = null,
+}: Props) {
   const [expSort, setExpSort] = useState<"recent" | "az">("recent");
   const fallback = replays[0] ?? null;
   const activeTag = selected ? tagOf(selected) : fallback ? tagOf(fallback) : "current";
-  const activeVariant = selected
+  const activeVariant: ExpVariant = selected
     ? variantForExp(selected.exp)
     : fallback
       ? variantForExp(fallback.exp)
-      : "";
+      : "Custom";
   const activeExp = selected?.exp ?? fallback?.exp ?? "";
   const activeSeed = selected?.seed ?? fallback?.seed ?? -1;
   const selectedDisplay = selected ? describeReplay(selected) : null;
+  const selectedRunStats = selected
+    ? runStatsFor(summary, selected.exp, selected.seed, tagOf(selected))
+    : null;
 
   // Tags — "current" first, rest alpha.
   const tags = useMemo(() => {
@@ -221,6 +239,15 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
                 {chip}
               </span>
             ))}
+            {selectedRunStats && (
+              <span
+                className="px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300 font-mono"
+                title={`Final step: ${selectedRunStats.finalStep.toLocaleString()}`}
+              >
+                {formatSteps(selectedRunStats.finalStep)} steps
+              </span>
+            )}
+            {selectedRunStats && <ExtinctionBadge stats={selectedRunStats} />}
           </div>
           <div className="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
             Run: {selectedDisplay.runLabel}
@@ -236,6 +263,7 @@ export default function ReplaySelector({ replays, selected, onSelect }: Props) {
           tags={tags}
           activeTag={activeTag}
           tagCategory={tagCategory}
+          summary={summary}
           onSelect={pickTag}
         />
       )}
@@ -370,11 +398,13 @@ function RunPicker({
   tags,
   activeTag,
   tagCategory,
+  summary,
   onSelect,
 }: {
   tags: string[];
   activeTag: string;
   tagCategory: Map<string, ExpCategory>;
+  summary: ArchiveSummary | null;
   onSelect: (tag: string) => void;
 }) {
   // Top-level split mirrors configs/ vs configs/archive/. Active is the
@@ -396,6 +426,7 @@ function RunPicker({
           hint="from configs/"
           tags={activeTags}
           activeTag={activeTag}
+          summary={summary}
           onSelect={onSelect}
           defaultOpen={true}
           forceOpen={activeCategory === "active"}
@@ -405,6 +436,7 @@ function RunPicker({
           hint="from configs/archive/"
           tags={archiveTags}
           activeTag={activeTag}
+          summary={summary}
           onSelect={onSelect}
           defaultOpen={false}
           forceOpen={activeCategory === "archive"}
@@ -421,6 +453,7 @@ function CategorySection({
   hint,
   tags,
   activeTag,
+  summary,
   onSelect,
   defaultOpen,
   forceOpen,
@@ -429,6 +462,7 @@ function CategorySection({
   hint: string;
   tags: string[];
   activeTag: string;
+  summary: ArchiveSummary | null;
   onSelect: (tag: string) => void;
   defaultOpen: boolean;
   forceOpen: boolean;
@@ -497,6 +531,7 @@ function CategorySection({
                 label={band}
                 tags={banded[band]}
                 activeTag={activeTag}
+                summary={summary}
                 onSelect={onSelect}
               />
             ) : null,
@@ -517,6 +552,7 @@ function CategorySection({
                   label={band}
                   tags={banded[band]}
                   activeTag={activeTag}
+                  summary={summary}
                   onSelect={onSelect}
                 />
               ) : null,
@@ -531,11 +567,13 @@ function RunBand({
   label,
   tags,
   activeTag,
+  summary,
   onSelect,
 }: {
   label: DateBand;
   tags: string[];
   activeTag: string;
+  summary: ArchiveSummary | null;
   onSelect: (tag: string) => void;
 }) {
   return (
@@ -549,6 +587,7 @@ function RunBand({
             key={t}
             tag={t}
             active={t === activeTag}
+            stats={tagStats(summary, t)}
             onSelect={() => onSelect(t)}
           />
         ))}
@@ -560,10 +599,12 @@ function RunBand({
 function RunRow({
   tag,
   active,
+  stats,
   onSelect,
 }: {
   tag: string;
   active: boolean;
+  stats: RunStats | null;
   onSelect: () => void;
 }) {
   const date = tag === "current" ? null : parseRunTagDate(tag);
@@ -576,6 +617,18 @@ function RunRow({
   const display = displayRunTag(tag === "current" ? undefined : tag);
   const stripped = display.replace(/^[A-Z][a-z]{2} \d{1,2}(?: · )?/, "");
   const label = stripped || (date ? "—" : display);
+  const titleParts = [tag];
+  if (stats) {
+    titleParts.push(`${stats.finalStep.toLocaleString()} steps`);
+    if (stats.extinct) {
+      const sp = stats.extinctSpecies;
+      const at =
+        stats.extinctionStep !== null
+          ? ` @ ${stats.extinctionStep.toLocaleString()}`
+          : "";
+      titleParts.push(`${sp} extinct${at}`);
+    }
+  }
   return (
     <button
       onClick={onSelect}
@@ -584,7 +637,7 @@ function RunRow({
           ? "bg-blue-600 text-white"
           : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
       }`}
-      title={tag}
+      title={titleParts.join(" · ")}
     >
       <span
         className={`font-mono text-[10px] tabular-nums ${
@@ -594,7 +647,78 @@ function RunRow({
         {dateLabel}
       </span>
       <span className="truncate flex-1">{label}</span>
+      {stats && (
+        <span
+          className={`font-mono text-[10px] tabular-nums ${
+            active ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
+          }`}
+        >
+          {formatSteps(stats.finalStep)}
+        </span>
+      )}
+      {stats?.extinct && <ExtinctionBadge stats={stats} compact active={active} />}
     </button>
+  );
+}
+
+// Extinction badge — red for predator extinction, amber for prey, slate for
+// mixed. `compact` is the small inline variant used inside RunRow; the
+// non-compact form is the chip-shaped one in the Selected card.
+function ExtinctionBadge({
+  stats,
+  compact = false,
+  active = false,
+}: {
+  stats: RunStats;
+  compact?: boolean;
+  active?: boolean;
+}) {
+  if (!stats.extinct) return null;
+  const sp = stats.extinctSpecies;
+  const label = sp === "pred" ? "✗ pred" : sp === "prey" ? "✗ prey" : "✗ mixed";
+  const titleAt =
+    stats.extinctionStep !== null
+      ? ` at step ${stats.extinctionStep.toLocaleString()}`
+      : "";
+  const title =
+    sp === "mixed"
+      ? `Multiple seeds extincted in different species${titleAt}`
+      : `${sp === "pred" ? "Predator" : "Prey"} went extinct${titleAt}`;
+  // Active-row variant rides on the blue background — keep contrast with a
+  // light fill instead of trying to color-shift the underlying button.
+  if (active) {
+    return (
+      <span
+        title={title}
+        className="font-mono text-[10px] tabular-nums px-1 rounded bg-blue-100 text-blue-700"
+      >
+        {label}
+      </span>
+    );
+  }
+  const cls =
+    sp === "pred"
+      ? "border-red-400 text-red-700 dark:border-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40"
+      : sp === "prey"
+        ? "border-amber-400 text-amber-700 dark:border-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40"
+        : "border-gray-400 text-gray-700 dark:border-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900";
+  if (compact) {
+    return (
+      <span
+        title={title}
+        className={`font-mono text-[10px] tabular-nums px-1 rounded border ${cls}`}
+      >
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span
+      title={title}
+      className={`px-2 py-0.5 rounded-full border text-[11px] font-mono ${cls}`}
+    >
+      {label}
+    </span>
   );
 }
 
