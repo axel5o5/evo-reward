@@ -33,3 +33,6 @@ dashboard/site/public/replays/test_*/
 
 # Local run logs
 logs/
+
+# Local checkpoints
+ckpts/
