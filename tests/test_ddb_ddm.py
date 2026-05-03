@@ -104,6 +104,30 @@ def test_birth_prob_no_cap_at_extreme_low_pop(base_config):
     assert p == pytest.approx(1.0, rel=0.01)
 
 
+def test_new_config_keys_match_legacy_keys(base_config):
+    """§15.23: the new density_*_threshold_* keys produce identical output
+    to the legacy ddb_*/ddm_*_threshold keys."""
+    cfg_legacy = {**base_config, "stability_mechanism": "ddb",
+                  "ddb_pred_threshold": 4.0, "ddb_prey_threshold": 40.0,
+                  "ddb_floor": 0.0, "ddb_boost_distribution_alpha": 0.5}
+    cfg_new = {**base_config, "stability_mechanism": "ddb",
+               "density_breeding_threshold_pred": 4.0,
+               "density_breeding_threshold_prey": 40.0,
+               "density_factor_floor": 0.0,
+               "breeding_share_alpha": 0.5}
+    species = jnp.array([0, 1])
+    energies = jnp.array([100.0, 1000.0])
+    is_active = jnp.array([True, True])
+    p_legacy = _batch_birth_prob_jax(
+        energies, species, cfg_legacy,
+        prey_count=jnp.int32(20), pred_count=jnp.int32(2), is_active=is_active)
+    p_new = _batch_birth_prob_jax(
+        energies, species, cfg_new,
+        prey_count=jnp.int32(20), pred_count=jnp.int32(2), is_active=is_active)
+    assert float(p_legacy[0]) == pytest.approx(float(p_new[0]), rel=1e-6)
+    assert float(p_legacy[1]) == pytest.approx(float(p_new[1]), rel=1e-6)
+
+
 def test_birth_prob_legacy_max_boost_silently_ignored(base_config):
     """§15.22: configs that still set ddb_max_boost should not error.
     The knob is silently ignored; behavior matches a config without it."""

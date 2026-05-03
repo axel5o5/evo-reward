@@ -75,16 +75,16 @@ coevolution_mode:   "concurrent"
 # requires pop ≤ 3, with T=20 it requires only pop ≤ 8.
 # Also: DDM extended to prey symmetrically (was predator-only).
 # Also: ddb_max_boost removed (was an arbitrary cap on the 1/factor curve).
-stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              200.0   # was 100 (§15.22)
-ddb_pred_threshold:              20.0    # was 10 (§15.22)
-ddb_floor:                       0.0
-ddb_boost_distribution_alpha:    0.5     # see findings.md §15.16
-                                         # 0.0=uniform, 0.5=linear (current),
-                                         # 1.0=winner-take-all
-ddm_pred_threshold:              20.0    # was 10 (§15.22)
-ddm_prey_threshold:              200.0   # NEW (§15.22) — symmetric DDM
-ddm_floor:                       0.0
+# Names refreshed in §15.23 — old ddb_*/ddm_* names still read as fallback.
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           20.0    # bumped from 10 in §15.22
+density_breeding_threshold_prey:           200.0   # bumped from 100 in §15.22
+density_metabolism_threshold_pred:         20.0    # bumped from 10 in §15.22
+density_metabolism_threshold_prey:         200.0   # NEW in §15.22 — symmetric
+density_factor_floor:                      0.0     # shared by both scaffolds
+breeding_share_alpha:                      0.5     # see findings.md §15.16
+                                                   # 0=uniform, 0.5=linear (current),
+                                                   # 1=winner-take-all
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205

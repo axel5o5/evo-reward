@@ -53,15 +53,14 @@ reward_type:        "linear_plus_mlp_residual"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
-# ─── Stability mechanism (§15.22 retune; tier-graduated T) ──────────────────
-stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              170.0   # was 100 (§15.22 — engage at death-spiral E)
-ddb_pred_threshold:              17.0    # was 10 (§15.22 — was T=10, dies at pop=7)
-ddb_floor:                       0.0
-ddb_boost_distribution_alpha:    0.5     # unchanged: linear share
-ddm_pred_threshold:              17.0    # was 10 (§15.22)
-ddm_prey_threshold:              170.0   # NEW (§15.22) — symmetric DDM
-ddm_floor:                       0.0
+# ─── Stability mechanism (§15.22 retune; §15.23 rename; tier-graduated T) ──
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           17.0    # bumped from 10 in §15.22
+density_breeding_threshold_prey:           170.0   # bumped from 100 in §15.22
+density_metabolism_threshold_pred:         17.0    # bumped from 10 in §15.22
+density_metabolism_threshold_prey:         170.0   # NEW in §15.22 — symmetric
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.5     # unchanged: linear share
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205

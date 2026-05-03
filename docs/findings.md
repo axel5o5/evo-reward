@@ -1043,3 +1043,28 @@ T_pred = 20 (L3) catches the death spiral: at pop=7, zeta_eff = 100 × 0.109 = 1
 **Naming cleanup deferred** to a follow-up commit. The `ddb_*` and `ddm_*` config keys carry awkward project-internal names; better candidates are `density_breeding_threshold_*`, `density_metabolism_threshold_*`, etc. Done as a separate clarity pass to keep this commit focused.
 
 **Next action:** the v8 process is dead but still occupying the GPU VM doing nothing (looping with prey at cap, no births/deaths). Stop it before relaunching anything. Then local smoke on the new L1/L2/L3 configs, then GCS launch.
+
+### 15.23 Config-key rename for the density-dependent scaffolds (2026-05-03)
+
+The `ddb_*` and `ddm_*` config-key prefixes are project-internal acronyms that aren't self-explanatory to a reader. Renamed to descriptive keys; new names tell you what the knob does without needing the §15.x story. Old names still read as fallback for backward compat with archived configs.
+
+| Old key | New key | What it controls |
+|---------|---------|------------------|
+| `ddb_pred_threshold` | `density_breeding_threshold_pred` | Pop at which DDB engages at half-strength (predator) |
+| `ddb_prey_threshold` | `density_breeding_threshold_prey` | Pop at which DDB engages at half-strength (prey) |
+| `ddm_pred_threshold` | `density_metabolism_threshold_pred` | Pop at which DDM engages at half-strength (predator) |
+| `ddm_prey_threshold` | `density_metabolism_threshold_prey` | Pop at which DDM engages at half-strength (prey) |
+| `ddb_floor` / `ddm_floor` | `density_factor_floor` | Minimum value of the saturation factor |
+| `ddb_boost_distribution_alpha` | `breeding_share_alpha` | Power-law exponent for energy-weighted boost share |
+
+**What stayed the same:**
+- Paper-faithful Greek names (`kappa_b`, `beta_b`, `zeta_b_pred`, `zeta_b_prey`) — these match K&D's notation and changing them would create unnecessary documentation drift.
+- `stability_mechanism` — already self-explanatory.
+- `ddb_max_boost` (removed in §15.22, not renamed).
+- The legacy `ddb_boost_distribution` string knob ("uniform" / "energy_weighted") — still works, still maps to alpha.
+
+**Backward compat strategy.** All readers in `src/jax_lifecycle.py` use a chain of `config.get(NEW, config.get(OLD, default))`. New configs use new names; archived configs keep working. Test `test_new_config_keys_match_legacy_keys` in `tests/test_ddb_ddm.py` pins the equivalence (asserts birth probabilities are identical when only the key names differ).
+
+**What this enables.** Reading a fresh config (e.g., when handing off to a collaborator) no longer requires the §15.x history to understand. `density_breeding_threshold_pred: 20` is interpretable on its own; `ddb_pred_threshold: 20` is not.
+
+**Configs updated:** L1/L2/L3 (axis1_residual_mini, axis1_residual_fast, axis1_residual). Other configs in `configs/` and `configs/archive/` keep the legacy names and continue to work. Tests in `tests/test_ddb_ddm.py` keep using legacy names (validates fallback path).

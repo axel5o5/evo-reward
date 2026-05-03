@@ -76,16 +76,32 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
                 f"stability_mechanism={stability!r} requires pred_count and "
                 "prey_count to be passed to update_energies_jax."
             )
-        ddm_floor = float(config.get("ddm_floor", config.get("ddb_floor", 0.3)))
-        ddm_pred_threshold = float(
-            config.get("ddm_pred_threshold", config.get("ddb_pred_threshold", 8.0))
-        )
-        ddm_prey_threshold = float(
+        # New names (§15.23) — fall back to legacy ddm_*/ddb_* keys for
+        # backward compat with older configs and checkpoints.
+        ddm_floor = float(config.get(
+            "density_factor_floor",
+            config.get("ddm_floor", config.get("ddb_floor", 0.3))
+        ))
+        ddm_pred_threshold = float(config.get(
+            "density_metabolism_threshold_pred",
+            config.get(
+                "ddm_pred_threshold",
+                config.get(
+                    "density_breeding_threshold_pred",
+                    config.get("ddb_pred_threshold", 8.0),
+                ),
+            )
+        ))
+        ddm_prey_threshold = float(config.get(
+            "density_metabolism_threshold_prey",
             config.get(
                 "ddm_prey_threshold",
-                config.get("ddb_prey_threshold", ddm_pred_threshold * 10.0),
+                config.get(
+                    "density_breeding_threshold_prey",
+                    config.get("ddb_prey_threshold", ddm_pred_threshold * 10.0),
+                ),
             )
-        )
+        ))
         ddm_factor_pred = _ddb_factor(pred_count, ddm_pred_threshold, ddm_floor)
         ddm_factor_prey = _ddb_factor(prey_count, ddm_prey_threshold, ddm_floor)
         d_b_eff = d_b * ddm_factor_pred
@@ -195,9 +211,19 @@ def _batch_birth_prob_jax(energies, species, config,
                 f"stability_mechanism={stability!r} requires prey_count and pred_count "
                 "to be passed to _batch_birth_prob_jax."
             )
-        floor = float(config.get("ddb_floor", 0.3))
-        prey_threshold = float(config.get("ddb_prey_threshold", 30.0))
-        pred_threshold = float(config.get("ddb_pred_threshold", 5.0))
+        # New names (§15.23) — fall back to legacy ddb_* keys for backward
+        # compat with older configs and checkpoints.
+        floor = float(config.get(
+            "density_factor_floor", config.get("ddb_floor", 0.3)
+        ))
+        prey_threshold = float(config.get(
+            "density_breeding_threshold_prey",
+            config.get("ddb_prey_threshold", 30.0)
+        ))
+        pred_threshold = float(config.get(
+            "density_breeding_threshold_pred",
+            config.get("ddb_pred_threshold", 5.0)
+        ))
         if "ddb_max_boost" in config:
             # Legacy knob — silently ignored as of §15.22. Logging would
             # require a host-side print which doesn't trace under jit, so we
@@ -205,7 +231,9 @@ def _batch_birth_prob_jax(energies, species, config,
             pass
 
         # Resolve effective alpha. Explicit float wins; else map legacy string.
-        if "ddb_boost_distribution_alpha" in config:
+        if "breeding_share_alpha" in config:
+            alpha = float(config["breeding_share_alpha"])
+        elif "ddb_boost_distribution_alpha" in config:
             alpha = float(config["ddb_boost_distribution_alpha"])
         else:
             boost_dist = config.get("ddb_boost_distribution", "uniform")

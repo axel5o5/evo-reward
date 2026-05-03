@@ -52,14 +52,15 @@ policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism ─────────────────────────────────────────────────────
-stability_mechanism:             "ddb_ddm"
-ddb_prey_threshold:              120.0  # was 60 (§15.22 retune; tier-graduated)
-ddb_pred_threshold:              12.0   # was 8 (§15.22 retune; tier-graduated)
-ddb_floor:                       0.0
-ddb_boost_distribution_alpha:    0.3    # was 0.5 — more uniform share at tiny pop
-ddm_pred_threshold:              12.0   # mirrors ddb_pred_threshold
-ddm_prey_threshold:              120.0  # NEW (§15.22) — symmetric DDM
-ddm_floor:                       0.0
+# §15.22 retune + §15.23 rename. Tier-graduated T values for L1.
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           12.0    # bumped from 8 in §15.22
+density_breeding_threshold_prey:           120.0   # bumped from 60 in §15.22
+density_metabolism_threshold_pred:         12.0    # mirrors breeding pred
+density_metabolism_threshold_prey:         120.0   # NEW in §15.22 — symmetric
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.3     # more uniform share at tiny pop
+                                                   # (was 0.5; lowered for L1)
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
