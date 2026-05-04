@@ -62,7 +62,7 @@ targets:
     project_id: rl-bio-sims-494715
     # launch_sweep_vm.sh names the VM via $1 — keep this in sync with the
     # name passed at launch time (or set to the actual running VM's name).
-    vm_name: evo-baseline-constage
+    vm_name: evo-baseline-constage-predlr
     # Read-only on the dashboard: api/action.ts + gcp-action.yml only
     # know about the evo-reward project, so PIN actions can't target this.
     allow_actions: false

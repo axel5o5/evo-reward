@@ -88,7 +88,7 @@ def time_config(config_path: str, n_steps: int, warmup: int, label: str):
         state.rollout_log_probs, state.rollout_rewards,
         state.rollout_values, state.rollout_dones,
         state.rollout_ptrs, state.is_active, ppo_rngs,
-        state.ages,
+        state.ages, state.species,
     )
     jax.block_until_ready(jax.tree_util.tree_leaves(new_params)[0])
     t_ppo_first = time.time() - t0
@@ -111,7 +111,7 @@ def time_config(config_path: str, n_steps: int, warmup: int, label: str):
         state.rollout_log_probs, state.rollout_rewards,
         state.rollout_values, state.rollout_dones,
         state.rollout_ptrs, state.is_active, ppo_rngs,
-        state.ages,
+        state.ages, state.species,
     )
     jax.block_until_ready(jax.tree_util.tree_leaves(new_params)[0])
     t_ppo_post = time.time() - t0

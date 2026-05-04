@@ -37,6 +37,9 @@ logs/
 # Local checkpoints
 ckpts/
 
+# SSH credentials pulled from VMs (never commit private keys)
+.ssh-from-vm/
+
 # Dashboard — auto-generated data indexes.
 # Regenerated on every build by `npm run extract` (dashboard/extract_data.py).
 # Build now fails hard if extract fails (we removed the `|| true` fallback),

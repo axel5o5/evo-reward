@@ -74,13 +74,21 @@ def build_ppo_update_fn(config):
     lr_final = float(config.get("lr_schedule_final", lr))
     lr_decay_steps = float(config.get("lr_schedule_decay_steps", 1.0))
 
-    def _lr_scale_for_age(age):
+    # Per-species LR multiplier. Default 1.0 → identical to single-LR behavior.
+    # Stacks multiplicatively on top of the age schedule. Useful for ablations
+    # where one species needs more / less plasticity than the other (e.g.,
+    # predators need to learn faster because their lifespans are short).
+    lr_prey_mult = float(config.get("lr_prey_multiplier", 1.0))
+    lr_pred_mult = float(config.get("lr_pred_multiplier", 1.0))
+
+    def _lr_scale(age, species):
+        species_mult = jnp.where(species == 0, lr_prey_mult, lr_pred_mult)
         if not lr_sched_enable:
-            return jnp.float32(1.0)
+            return species_mult.astype(jnp.float32)
         a = age.astype(jnp.float32)
         frac = jnp.minimum(a / lr_decay_steps, 1.0)
         lr_at_age = lr_initial + (lr_final - lr_initial) * frac
-        return lr_at_age / lr
+        return species_mult * (lr_at_age / lr)
 
     net = PolicyNetwork(hidden_size=hidden_size, action_dim=2)
     optimizer = optax.adam(learning_rate=lr, eps=adam_eps)
@@ -118,14 +126,15 @@ def build_ppo_update_fn(config):
         return loss, grads
 
     def single_agent_ppo(params, opt_state, obs, actions, log_probs,
-                         rewards, values, dones, ptr, is_active, rng_key, age):
+                         rewards, values, dones, ptr, is_active, rng_key,
+                         age, species):
         """PPO update for one agent. Called via vmap over all slots.
 
         If ptr < rollout_steps or agent is inactive, returns inputs unchanged.
         Otherwise, runs full PPO and resets ptr to 0.
         """
         should_update = is_active & (ptr >= rollout_steps)
-        lr_scale = _lr_scale_for_age(age)
+        lr_scale = _lr_scale(age, species)
 
         def do_update(_):
             # GAE
@@ -190,7 +199,8 @@ def build_ppo_update_fn(config):
     @functools.partial(jax.jit, donate_argnums=(0, 1, 8))
     def maybe_ppo_update_all(policy_params, opt_states, rollout_obs, rollout_actions,
                              rollout_log_probs, rollout_rewards, rollout_values,
-                             rollout_dones, rollout_ptrs, is_active, rng_keys, ages):
+                             rollout_dones, rollout_ptrs, is_active, rng_keys,
+                             ages, species):
         """Run conditional PPO update on all agent slots.
 
         Returns: (new_params, new_opt_states, new_ptrs)
@@ -199,7 +209,7 @@ def build_ppo_update_fn(config):
             policy_params, opt_states,
             rollout_obs, rollout_actions, rollout_log_probs,
             rollout_rewards, rollout_values, rollout_dones,
-            rollout_ptrs, is_active, rng_keys, ages,
+            rollout_ptrs, is_active, rng_keys, ages, species,
         )
 
     return maybe_ppo_update_all
@@ -236,19 +246,22 @@ def build_ppo_update_fn_lstm(config):
     chunk_length = config.get("lstm_chunk_length", 128)
     n_chunks = rollout_steps // chunk_length
 
-    # v10 age-keyed LR (mirror of the MLP path).
+    # v10 age-keyed LR + per-species multiplier (mirror of the MLP path).
     lr_sched_enable = bool(config.get("lr_schedule_enable", False))
     lr_initial = float(config.get("lr_schedule_initial", lr))
     lr_final = float(config.get("lr_schedule_final", lr))
     lr_decay_steps = float(config.get("lr_schedule_decay_steps", 1.0))
+    lr_prey_mult = float(config.get("lr_prey_multiplier", 1.0))
+    lr_pred_mult = float(config.get("lr_pred_multiplier", 1.0))
 
-    def _lr_scale_for_age(age):
+    def _lr_scale(age, species):
+        species_mult = jnp.where(species == 0, lr_prey_mult, lr_pred_mult)
         if not lr_sched_enable:
-            return jnp.float32(1.0)
+            return species_mult.astype(jnp.float32)
         a = age.astype(jnp.float32)
         frac = jnp.minimum(a / lr_decay_steps, 1.0)
         lr_at_age = lr_initial + (lr_final - lr_initial) * frac
-        return lr_at_age / lr
+        return species_mult * (lr_at_age / lr)
 
     net = LSTMPolicyNetwork(
         lstm_hidden_size=lstm_hidden_size,
@@ -297,10 +310,10 @@ def build_ppo_update_fn_lstm(config):
 
     def single_agent_ppo_lstm(params, opt_state, obs, actions, log_probs,
                               rewards, values, dones, ptr, is_active,
-                              rng_key, init_hidden_packed, age):
+                              rng_key, init_hidden_packed, age, species):
         """PPO update for one LSTM agent. Called via vmap."""
         should_update = is_active & (ptr >= rollout_steps)
-        lr_scale = _lr_scale_for_age(age)
+        lr_scale = _lr_scale(age, species)
 
         def do_update(_):
             # GAE (same as MLP — computed from stored values)
@@ -383,7 +396,7 @@ def build_ppo_update_fn_lstm(config):
     def maybe_ppo_update_all_lstm(policy_params, opt_states, rollout_obs, rollout_actions,
                                   rollout_log_probs, rollout_rewards, rollout_values,
                                   rollout_dones, rollout_ptrs, is_active, rng_keys,
-                                  init_hiddens, ages):
+                                  init_hiddens, ages, species):
         """Run conditional LSTM PPO update on all agent slots.
 
         Returns: (new_params, new_opt_states, new_ptrs)
@@ -393,7 +406,7 @@ def build_ppo_update_fn_lstm(config):
             rollout_obs, rollout_actions, rollout_log_probs,
             rollout_rewards, rollout_values, rollout_dones,
             rollout_ptrs, is_active, rng_keys,
-            init_hiddens, ages,
+            init_hiddens, ages, species,
         )
 
     return maybe_ppo_update_all_lstm

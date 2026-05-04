@@ -269,7 +269,7 @@ def run_experiment_jax(config, seed, max_steps=None, out_dir="results",
             state.rollout_log_probs, state.rollout_rewards,
             state.rollout_values, state.rollout_dones,
             state.rollout_ptrs, state.is_active, ppo_rngs,
-            state.ages,
+            state.ages, state.species,
         )
         return state.replace(
             policy_params=new_params,
