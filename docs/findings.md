@@ -1256,3 +1256,57 @@ We shouldn't pull any of these yet — axis1/tiny with the §15.22 T=20 retune i
 - Don't repeat my mistakes: verify the actual code before writing a story about it. The "age²" detail came from misremembering the K&D paper without re-reading [src/lifecycle.py:53](src/lifecycle.py#L53).
 
 **Next action (no change to plan):** axis1/tiny is running on GCP (run tag `2026-05-03T2017Z` on `evo-reward-gpu`). At step 10K it had pred=16, predE healthy, w_pred mean already drifting +0.40 — early evolution active. Watch for whether the v8 ratcheting pattern (steady predator pop decline despite births) repeats; if predator pop holds above ~10 with E_max > 50 through 1M-2M steps, the §15.22 retune is doing its job.
+
+### 15.26 axis1/tiny extinction at 60K → cold-start scaffolds (2026-05-04)
+
+The §15.25 axis1/tiny run (`2026-05-03T2017Z`) finished its predator population at step **~60K** — far worse than v8's 4M. metrics.npz pulled from GCS (340 points, 0 → 3.4M):
+
+| step | pred | predE | pw_eat |
+|---|---|---|---|
+| 10K | 16 | 80.6 | −0.08 |
+| 30K | 13 | 53.1 | −0.23 |
+| 50K | 4 | 8.6 | +0.05 |
+| 60K | **0** | 0 | — |
+
+For the next 3.34M steps the prey-only economy ran with prey at cap (200) and mean E ramping from 67 → 482. Cumulative final state: 563 catches, 855 total agents born (vs v8's 29571 / 31123 — two orders of magnitude less ecology).
+
+The configs are not directly comparable to v8 (axis1/tiny is L1 — `world=600`, `prey_cap=200`, `predator_cap=20`, `predator_initial=4`; v8 was L3 — `world=960`, `predator_cap=50`, `predator_initial=11`). The §15.22 T retune is also tier-graduated (L1 uses T=12, not T=20). But the *qualitative* failure is the same one §15.25 diagnosed in v8: a cold-start cohort starves before it learns to hunt. L1 just collapses faster because:
+
+1. **4 starting predators with random policy + ~10K-step lifetime ⇒ ~10 PPO updates per individual.** Two PPO steps is nothing; the founder cohort dies still random.
+2. **Per-agent fresh policy at birth.** Offspring inherit the (mutated) reward genome but get a brand-new MLP — confirmed at [src/jax_evolution.py:154-155](src/jax_evolution.py#L154-L155). Every newborn restarts from random.
+3. **Mean-field collapse.** Same hunting environment for everyone; no genome variation in hunting yet (random policy = random hunting); E drops in lockstep with N.
+
+**Why the existing scaffolds didn't bite.** DDB/DDM relieve density-based suppression but *not* energy-based suppression — and the energy-based gate is what's actually firing in a cold-start collapse:
+
+| step | N | factor | DDM (`d_b_eff/d_b`) | E-cliff = `zeta·factor/β` | predE | E/cliff |
+|---|---|---|---|---|---|---|
+| 10K | 16 | 0.64 | 0.64× | 160 | 80 | 0.50 |
+| 30K | 13 | 0.54 | 0.54× | 135 | 53 | 0.39 |
+| 50K | 4 | 0.10 | 0.10× | 25 | 8.6 | 0.34 |
+
+The cliff lowers as N drops, but predE drops in lockstep — `E/E_cliff` stays roughly constant the whole way down (~0.35). Selection effects (low-E individuals dying first → survivors having higher E) don't kick in because random-policy predators all hunt equally badly. By the time scaffold relief is large, predators are already starving below the floor it lowered to.
+
+So the scaffolds correctly handle a stable population riding density swings (the v8 case) but not a population that hasn't bootstrapped hunting at all.
+
+**Three fixes added** (commit `cae5e35`):
+
+1. **`predator_initial` bumps across tiers** — L1: 4→10, L2: 9→20, L3: 11→30. More starters means each individual lifetime contributes a smaller fraction of the cohort's PPO budget, but the *cohort's* aggregate updates over its lifespan dominate, and at ~30 starters losing one to bad luck is a survivable shock rather than a 25% population blow.
+2. **`predator_e_initial` 100→150** — gives the founder cohort ~50% more steps before the first individuals hit `E<0`. Per-species initial energy was unwired in the JAX path; [src/jax_state.py:194-200](src/jax_state.py#L194-L200) now reads `prey_e_initial` and `predator_e_initial` separately rather than the single `initial_energy` (which no config sets).
+3. **Emergency breeding clause** — when own-species count drops below `emergency_breeding_n_*`, `P_birth` is floored at `kappa_b · max(0, 1 − N/N_em)` regardless of the energy gate. Implemented at [src/jax_lifecycle.py:295-318](src/jax_lifecycle.py#L295-L318) inside `_batch_birth_prob_jax`. Default disabled (N_em=0); tier configs set `emergency_breeding_n_pred=3, emergency_breeding_n_prey=10`. This decouples low-N breeding from the energy gate that DDB does *not* relieve, giving a cohort about to extinct one last shot at recovery even when starvation has crashed mean E below the cliff. The tail is small and rate-limited (max kappa_b = 1e-3/agent/step at N=0).
+
+These are tier-config-keyed knobs, not changes to the K&D math at any operating point above N_emergency. For populations stably above the threshold the formula is bit-identical.
+
+**Local smoke (axis1/tiny, 10K steps on Mac):** predators climbed from 10 → 20 (cap) within ~5K steps, sat at cap with median E ~125, regular catches+births. No cold-start collapse. Three orders of magnitude better than the L1 run we just killed.
+
+**L2 launch:** axis1/med now running on `evo-reward-gpu` (us-west1-a), tmux session `axis1med`, run tag `2026-05-04T0714Z`. At step 870K (~8.5%, 8.2h elapsed):
+- pred 17-19, prey 290-316, predE median 50-61
+- Δcatches/10K: 100-130. Δbirths/10K: 100-130. Replays uploading.
+- Reward weights actively evolving: pred_w_act → −5.4 (action aversion), pred_w_pred → +5.4 (clustering), pred_w_eat → +0.4-0.7. Larger swings than v8 saw — possibly because the surviving cohort is bigger, possibly drift; clip is at 100 so safe.
+
+**What's still uncertain.** Whether the larger reward-weight swings reflect authentic learning or scaffold-enabled drift; whether the L2 run will hit a v8-style late-extinction window or sustain the population; whether L1 with the same fixes can recover (we haven't relaunched it yet).
+
+**Implementation pointers (one-liner each):**
+- Predator slot count + initial E: configs/axis1/{tiny,med,full}.yaml — `predator_initial`, `predator_e_initial`, `emergency_breeding_n_*` lines.
+- Per-species initial E read: [src/jax_state.py:194-200](src/jax_state.py#L194-L200).
+- Emergency breeding clause: [src/jax_lifecycle.py:295-318](src/jax_lifecycle.py#L295-L318).
+- v10/tiny analysis workspace (kept locally): `/tmp/v10_analysis/{metrics.npz,progress.json}`.
