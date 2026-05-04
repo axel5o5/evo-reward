@@ -195,6 +195,23 @@ def residual_l1_per_agent(state: SimState):
     return out
 
 
+def ppo_updates_per_agent(state: SimState, config=None) -> np.ndarray:
+    """Number of PPO updates each agent has received since its birth.
+
+    `policy_opt_states[0].count` is the per-agent Adam step counter, reset
+    to 0 at birth (init_policy is called fresh in handle_birth_jax). One PPO
+    trigger fires `ppo_epochs * (rollout_steps / minibatch_size)` Adam
+    steps, so dividing the count by that product gives the number of PPO
+    update events the agent has lived through. Values for inactive slots
+    are still returned (they reflect the previous occupant's life).
+    """
+    cfg = _read_config(config)
+    n_minibatches = cfg["rollout_steps"] // cfg["minibatch_size"]
+    adam_per_event = cfg["ppo_epochs"] * n_minibatches
+    counts = np.asarray(state.policy_opt_states[0].count)
+    return counts // adam_per_event
+
+
 def agents_table(state: SimState, active_only: bool = True) -> dict:
     """Per-agent fields gathered into a dict of 1-D numpy arrays.
 
@@ -230,6 +247,7 @@ def agents_table(state: SimState, active_only: bool = True) -> dict:
         "w_prey": rw[:, 2],
         "w_pred": rw[:, 3],
         "residual_l1": l1,
+        "ppo_updates": ppo_updates_per_agent(state),
     }
     if active_only:
         return {k: v[is_active] for k, v in cols.items()}
