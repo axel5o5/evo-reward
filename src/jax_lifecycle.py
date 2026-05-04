@@ -131,7 +131,24 @@ def update_energies_jax(sim_state, prey_n_eaten, pred_caught_energy, pred_n_catc
 # ---------------------------------------------------------------------------
 
 def _batch_hazard_prob_jax(ages, energies, species, config):
-    """Vectorized hazard probability. Pure JAX."""
+    """Vectorized hazard probability. Pure JAX.
+
+    Hazard is `kappa_h * energy_term * age_term`. The age term has two
+    selectable shapes per species, controlled by `age_hazard_mode_{prey,pred}`
+    in the config (default "exp", paper-faithful):
+
+        "exp"    : age_term = alpha_t * exp(beta_t * age)
+        "linear" : age_term = max(0, alpha_t + beta_t * age)
+
+    Linear mode is for ablations that want to remove the late-life
+    super-exponential blow-up in the K&D formula — useful when probing
+    whether predator extinction is driven by age-mortality runaway versus
+    other factors. alpha_t / beta_t are reinterpreted as the additive
+    intercept and per-step slope; choose magnitudes accordingly.
+
+    The mode strings are read at trace time (Python-level branching), so
+    switching modes triggers a re-trace but adds zero runtime overhead.
+    """
     kappa_h = config["kappa_h"]
     alpha_e = config["alpha_e"]
     beta_h = config["beta_h"]
@@ -139,8 +156,25 @@ def _batch_hazard_prob_jax(ages, energies, species, config):
     alpha_t = jnp.where(species == 0, config["alpha_t_prey"], config["alpha_t_pred"])
     beta_t = jnp.where(species == 0, config["beta_t_prey"], config["beta_t_pred"])
 
+    mode_prey = config.get("age_hazard_mode_prey", "exp")
+    mode_pred = config.get("age_hazard_mode_pred", "exp")
+    for name, m in [("age_hazard_mode_prey", mode_prey),
+                    ("age_hazard_mode_pred", mode_pred)]:
+        if m not in ("exp", "linear"):
+            raise ValueError(f"{name} must be 'exp' or 'linear', got {m!r}")
+
+    ages_f = ages.astype(jnp.float32)
+    age_exp = alpha_t * jnp.exp(jnp.clip(beta_t * ages_f, -700, 700))
+    age_lin = jnp.maximum(0.0, alpha_t + beta_t * ages_f)
+
+    if mode_prey == mode_pred:
+        age_term = age_exp if mode_prey == "exp" else age_lin
+    else:
+        prey_pick = age_exp if mode_prey == "exp" else age_lin
+        pred_pick = age_exp if mode_pred == "exp" else age_lin
+        age_term = jnp.where(species == 0, prey_pick, pred_pick)
+
     energy_term = 1.0 - 1.0 / (1.0 + alpha_e * jnp.exp(jnp.clip(-beta_h * energies, -700, 700)))
-    age_term = alpha_t * jnp.exp(jnp.clip(beta_t * ages.astype(jnp.float32), -700, 700))
     h = kappa_h * energy_term * age_term
     return jnp.clip(h, 0.0, 1.0)
 
