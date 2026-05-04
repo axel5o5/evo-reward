@@ -191,9 +191,14 @@ def init_simstate(config: dict, rng_key) -> SimState:
     parent_ids = jnp.full(max_agents, -1, dtype=jnp.int32)
     ages = jnp.zeros(max_agents, dtype=jnp.int32)
 
-    # Energies: initial_energy for active slots, 0 elsewhere.
-    initial_energy = config.get("initial_energy", 100.0)
-    energies = jnp.where(is_active, initial_energy, 0.0).astype(jnp.float32)
+    # Energies: per-species initial energy for active slots, 0 elsewhere.
+    # `initial_energy` is a uniform fallback; per-species keys take precedence
+    # so we can give predators more starting fuel without changing prey.
+    fallback_e = float(config.get("initial_energy", 100.0))
+    prey_initial_e = float(config.get("prey_e_initial", fallback_e))
+    pred_initial_e = float(config.get("predator_e_initial", fallback_e))
+    species_initial_e = jnp.where(species_arr == 0, prey_initial_e, pred_initial_e)
+    energies = jnp.where(is_active, species_initial_e, 0.0).astype(jnp.float32)
 
     # Reward-weight genomes: N(0, init_std) for active slots; zeros elsewhere
     # (masking by is_active downstream makes the exact value inconsequential,

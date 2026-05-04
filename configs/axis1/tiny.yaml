@@ -73,11 +73,13 @@ total_steps:        10_240_000
 # Density: 200 / 600² = 5.56/10⁴ (vs paper 4.88/10⁴ at 960²) — slightly hot
 # but in the same regime.
 prey_initial:       60
-predator_initial:   4
+predator_initial:   10        # bumped 4→10 (cold-start cohort survives bad luck)
 prey_cap:           200
 predator_cap:       20
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0     # bumped 100→150 (more PPO time before E<0)
+emergency_breeding_n_pred: 3  # below this, breeding overrides energy gate
+emergency_breeding_n_prey: 10
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0

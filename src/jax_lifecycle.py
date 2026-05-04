@@ -292,7 +292,31 @@ def _batch_birth_prob_jax(energies, species, config,
 
     zeta = jnp.where(species == 0, zeta_prey, zeta_pred)
     exponent = jnp.clip(zeta - beta_b * energies, -700, 700)
-    return kappa_b_eff_all / (1.0 + jnp.exp(exponent))
+    p_standard = kappa_b_eff_all / (1.0 + jnp.exp(exponent))
+
+    # Emergency breeding clause: when species count drops below a critical
+    # threshold, override the energy gate so a starving low-N cohort can
+    # still reproduce. Linear ramp from kappa_b at N=0 down to 0 at N>=N_em.
+    # Disabled when N_em <= 0.
+    n_emerg_prey = float(config.get("emergency_breeding_n_prey", 0.0))
+    n_emerg_pred = float(config.get("emergency_breeding_n_pred", 0.0))
+    if (n_emerg_prey > 0.0 or n_emerg_pred > 0.0) and (
+        prey_count is not None and pred_count is not None
+    ):
+        prey_cf = prey_count.astype(jnp.float32)
+        pred_cf = pred_count.astype(jnp.float32)
+        emerg_prey = (
+            jnp.clip(1.0 - prey_cf / max(n_emerg_prey, 1e-9), 0.0, 1.0)
+            if n_emerg_prey > 0.0 else jnp.float32(0.0)
+        )
+        emerg_pred = (
+            jnp.clip(1.0 - pred_cf / max(n_emerg_pred, 1e-9), 0.0, 1.0)
+            if n_emerg_pred > 0.0 else jnp.float32(0.0)
+        )
+        emerg_factor = jnp.where(species == 0, emerg_prey, emerg_pred)
+        p_emergency = kappa_b * emerg_factor
+        return jnp.maximum(p_standard, p_emergency)
+    return p_standard
 
 
 def _write_death_ages_jax(ring_prey, ring_pred, idx_prey, idx_pred,
