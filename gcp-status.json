@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-07T22:14:16+00:00",
+  "updated_at": "2026-05-07T22:43:12+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-05-05T00:40:44.168-07:00",
-        "runtime_hours_current": 62.5579,
+        "runtime_hours_current": 63.0402,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 53.1742,
+        "estimated_current_run_usd": 53.5842,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 801,
         "latest_step": 4780000,
-        "latest_age_hours": 97.918,
+        "latest_age_hours": 98.4,
         "total_gb": 222.7391
       },
       "costs": {
-        "compute_current_run": 53.1742,
-        "nat_since_active": 20.06,
-        "storage_current": 1.0138,
-        "live_estimate_total": 74.25,
+        "compute_current_run": 53.5842,
+        "nat_since_active": 20.08,
+        "storage_current": 1.0167,
+        "live_estimate_total": 74.68,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 66.797,
+        "progress_file_age_hours": 67.279,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 98,
@@ -115,27 +115,27 @@
         "provisioning": "STANDARD",
         "created_at": "2026-05-07T08:14:46.090-07:00",
         "last_started_at": "2026-05-07T08:14:53.472-07:00",
-        "runtime_hours_current": 6.9895,
+        "runtime_hours_current": 7.4717,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 5.9411,
+        "estimated_current_run_usd": 6.3509,
         "labels": {
-          "seed": "0",
           "experiment": "baseline_kd_linear_age_predlr_med_r256",
-          "phase": "1a"
+          "phase": "1a",
+          "seed": "0"
         }
       },
       "checkpoints": {
         "bucket": "rl-bio-sims-494715-ckpts",
-        "count": 245,
+        "count": 246,
         "latest_step": 6900000,
-        "latest_age_hours": 7.369,
-        "total_gb": 76.3402
+        "latest_age_hours": 7.852,
+        "total_gb": 76.5517
       },
       "costs": {
-        "compute_current_run": 5.9411,
+        "compute_current_run": 6.3509,
         "nat_since_active": null,
-        "storage_current": 0.3475,
-        "live_estimate_total": 6.29,
+        "storage_current": 0.3494,
+        "live_estimate_total": 6.7,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -143,60 +143,60 @@
       "training": {
         "experiment_name": "baseline_kd_linear_age_predlr_med_r256",
         "seed": 0,
-        "step": 1160000,
+        "step": 1260000,
         "total_steps": 10240000,
-        "progress_frac": 0.11328,
-        "sps": 47.389,
-        "eta_hours": 53.22,
+        "progress_frac": 0.12305,
+        "sps": 47.964,
+        "eta_hours": 52.01,
         "population": {
-          "prey": 284,
-          "pred": 22,
-          "food": 525,
-          "mean_energy": 16.355640411376953
+          "prey": 248,
+          "pred": 19,
+          "food": 524,
+          "mean_energy": 13.156538009643555
         },
         "reward_weights": {
           "prey": {
             "eat": [
-              4.521975994110107,
-              11.819576263427734
+              3.757699489593506,
+              7.135792255401611
             ],
             "act": [
-              8.393046379089355,
-              7.527194976806641
+              9.106224060058594,
+              6.2219414710998535
             ],
             "prey": [
-              1.7122021913528442,
-              4.581690311431885
+              3.570955514907837,
+              4.2515106201171875
             ],
             "pred": [
-              -5.42559289932251,
-              4.967103481292725
+              -7.062813758850098,
+              5.105462074279785
             ]
           },
           "pred": {
             "eat": [
-              0.5608044862747192,
-              1.2347549200057983
+              0.900661051273346,
+              1.203871488571167
             ],
             "act": [
-              -2.6366357803344727,
-              1.3584181070327759
+              -2.767104387283325,
+              1.4833589792251587
             ],
             "prey": [
-              0.5594416260719299,
-              0.8646242022514343
+              0.4100256860256195,
+              0.8307169079780579
             ],
             "pred": [
-              -1.3880306482315063,
-              1.3264925479888916
+              -1.8900283575057983,
+              1.4538359642028809
             ]
           }
         },
-        "progress_file_age_hours": 0.032,
+        "progress_file_age_hours": 0.008,
         "evolution_detected": true,
         "gpu": {
-          "util_pct": 0,
-          "mem_util_pct": 0,
+          "util_pct": 91,
+          "mem_util_pct": 16,
           "mem_used_mb": 17148,
           "mem_total_mb": 23034
         },
