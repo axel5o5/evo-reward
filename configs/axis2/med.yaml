@@ -22,12 +22,12 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; §15.23 rename) ─────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           20.0
-density_breeding_threshold_prey:           200.0
-density_metabolism_threshold_pred:         20.0
-density_metabolism_threshold_prey:         200.0
+density_breeding_threshold_pred:           15.0    # 20 → 15 in §15.27
+density_breeding_threshold_prey:           150.0   # 200 → 150 in §15.27
+density_metabolism_threshold_pred:         15.0    # 20 → 15 in §15.27
+density_metabolism_threshold_prey:         150.0   # 200 → 150 in §15.27
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.5
+breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 (unified)
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:                397                          # §15.24
@@ -39,11 +39,13 @@ total_steps:        10_240_000
 
 # ─── Population (L3) ─────────────────────────────────────────────────────────
 prey_initial:       125
-predator_initial:   9
+predator_initial:   20        # 9 → 20 in §15.27 (cold-start parity)
 prey_cap:           375
 predator_cap:       40
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0    # 100.0 → 150.0 in §15.27 (cold-start parity)
+emergency_breeding_n_pred: 3   # NEW in §15.27 (cold-start parity)
+emergency_breeding_n_prey: 10  # NEW in §15.27 (cold-start parity)
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0
@@ -63,10 +65,10 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     5
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               525
-food_initial:           35
+food_max:               505        # 525 → 505 in §15.27 (paper-density)
+food_initial:           34
 food_growth_rate_at_960sq: 0.5           # scale-relative; 0.420 effective at world=880
-food_max_regen_per_step: 9
+food_max_regen_per_step: 8         # 9 → 8 in §15.27 (paper density-isometric)
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

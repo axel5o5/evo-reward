@@ -1310,3 +1310,87 @@ These are tier-config-keyed knobs, not changes to the K&D math at any operating 
 - Per-species initial E read: [src/jax_state.py:194-200](src/jax_state.py#L194-L200).
 - Emergency breeding clause: [src/jax_lifecycle.py:295-318](src/jax_lifecycle.py#L295-L318).
 - v10/tiny analysis workspace (kept locally): `/tmp/v10_analysis/{metrics.npz,progress.json}`.
+
+### 15.27 axis1/med v2 retune — scaffold was too soft, lazy-clusterer attractor (2026-05-07)
+
+After 7.1M steps the §15.22+§15.26 axis1/med run produced a stable but **wrong** evolutionary attractor. Reward weights had tightly converged on a "lazy clusterer" phenotype that defeats the experiment's purpose:
+
+- `pred w_act = -25.86 ± 1.33` (predators penalize moving)
+- `pred w_prey = +13.57 ± 1.46` (reward being near prey)
+- `pred w_pred = +19.87 ± 2.48` (cluster with other predators)
+- `pred w_eat = -5.59 ± 2.95` (linear coefficient negative; MLP residual contributes only +0.59 standardized → full-reward β still −1.95)
+
+**Diagnosis: it's a selection problem, not a learning problem.** The std on the converged weights is single-digit on weights of magnitude 13–25 — selection is firing strongly, just on the wrong attractor. Two-tier population structure makes the failure mode legible:
+
+- 15–18 alive predators with mean age 100K (~100 PPO updates each) — long-lived elite.
+- ~256 deaths/10K-step window with median age 13K (~13 PPO updates) — scaffold-spawned newborns dying fast.
+- Oldest predator has been alive for 359K steps and growing (336+ PPO updates).
+
+The 7× gap between living-elite and dying-cohort age is the signature of scaffold-protected drift. The DDB+DDM scaffold (T_pred=20) plus emergency-breeding clause keep population at ~18 regardless of fitness — so any genome that stays alive long enough to reproduce wins. "Don't move, cluster, want prey nearby" wins because it minimizes metabolic cost; passive contact with prey provides enough food (290 prey scattered around 18 predators in world=880 makes incidental collisions sufficient).
+
+**Why LR doesn't fix it.** Co-author Gil floated `lr_pred_multiplier` ([fe59b46](src/jax_ppo.py)) as the fix, hypothesis being that few-PPO-updates predators can't learn complex policies → reward genome gets "tuned to dumb policies." Two failures in that chain: (a) policies don't inherit — each newborn re-rolls PPO from scratch with the parent's reward genome, so even smart-elite policies don't propagate; (b) faster LR makes the policy converge to whatever the genome rewards, faster — if the genome says don't-move, LR=∞ converges to don't-move instantly. The bug is in *what* gets reproduced (genomes), not in *how fast* policies adapt within a life. We checked: prediction "selection can't distinguish dumb policies → high std drift" is false; observed std is tight, opposite of that prediction.
+
+**The retune (§15.27):** five coupled changes to the scaffold's selection sharpness, none to genome / hazard / physics.
+
+| Knob | v8 | §15.22 | §15.27 (this) | Why |
+|------|------|---------|------|-----|
+| `density_breeding_threshold_pred` | 10 | 20 | **15** | Pull back partway toward v8. At pop=18: factor 0.45→0.59 (boost 2.2×→1.7×). At pop=10: factor 0.20→0.31 (boost 5×→3.2×). Less relief at the operating point where lazy-clusterer is currently stable. |
+| `density_breeding_threshold_prey` | 100 | 200 | **150** | Symmetric. |
+| `density_metabolism_threshold_pred` | 10 | 20 | **15** | Symmetric — DDM relief shrinks proportionally. |
+| `density_metabolism_threshold_prey` | — | 200 | **150** | Keep symmetric DDM (§15.22 addition). |
+| `breeding_share_alpha` | 0.5 | 0.5 | **0.75** | Sharpens energy-weighted share of births. With pred E spread 12/45/92, top-quartile predator now gets ~3× the breeding share of bottom-quartile (was ~1.7× at α=0.5). The actual selection knob — biases reproduction toward high-E predators (proxy for hunting skill). |
+
+**What stays:**
+- `predator_initial: 20` and `predator_e_initial: 150` — cold-start cohort protections (§15.26) are mostly free, no reason to roll back.
+- `emergency_breeding_n_pred: 3` / `n_prey: 10` — extinction-prevention floor. Rare to fire at steady-state but provides a safety net if §15.27 retune over-tightens.
+- K&D-faithful Gompertz age hazard. Never bites at typical lifetimes (age multiplier ≈ 1.06 at age=13K), but kept for paper alignment. Gil's separate `baseline/med_constant_age*` configs ([93542b6](configs/baseline/), [fe59b46](configs/baseline/)) are alternative ablations for this branch of the design space.
+- v10 age-keyed LR schedule (`1e-3 → 3e-4` over 30K steps). Doesn't address selection but cheap to keep.
+- `reward_type: linear_plus_mlp_residual` — still the axis-1 question. The MLP residual *is* being utilized (mean L1=14.75, contributes 5.5% of reward variance), it just hasn't compensated for the lazy linear coefficients.
+
+**Predictions for the v2 run:**
+1. Pred pop oscillates lower (10–14) than v1 (16–20) because the scaffold protects less aggressively. If pop drops below 5 frequently, emergency-breeding floor takes over and we know to back off α or T.
+2. Reward genome std stays tight (selection is sharp), but the converged values shift: `w_act` should be less extreme (closer to 0 than -25), `w_prey`/`w_eat` more positive, `w_pred` lower (less clustering pressure once high-E predators dominate births).
+3. Median death age stays around 10–20K (still mostly newborn churn) but mean *living* age stabilizes lower than 100K — old elites turn over faster.
+
+**Risks worth flagging:**
+- **α=0.75 could create a lineage bottleneck at low N.** If only 5 predators are alive and one has 2–3× the energy of the rest, ~70% of births come from that lineage. After 200K steps the population is one predator's clone. Mitigation: emergency-breeding clause kicks in at N≤3 and uses uniform breeding (no α weighting), so true bottlenecks get rescued. Watch for `next_agent_id - prior_id` in the 100–200 range per 100K steps but lineage ancestry concentrating.
+- **Lower T + higher α together is a double tightening.** If v8's 4M-step extinction was because relief was too small *and* selection couldn't converge, doubling down on selection could trigger another extinction window. Emergency-breeding floor is the safety net, but if the run goes extinct around 4–6M, we know §15.27 was too aggressive.
+- **The lazy attractor is a local optimum in genome space.** Tightening selection might just produce a *different* local optimum (e.g., aggressive-but-cluster-feeding) rather than the textbook "predators chase, prey flee" phenotype. If this run also converges weird, the issue is the fitness landscape's topology, not the scaffold knobs.
+
+**Diff vs Gil's parallel ablation.** Gil's `med_constant_age_predlr.yaml` ([fe59b46](configs/baseline/med_constant_age_predlr.yaml)) tests the LR-multiplier hypothesis on a constant-age baseline. The two retunes are orthogonal: §15.27 changes selection pressure, Gil's changes within-life policy plasticity. Running both gives 4-cell ablation evidence (scaffold-tight × LR-bumped, scaffold-tight × LR-flat, scaffold-loose × LR-bumped, scaffold-loose × LR-flat). Each cell is one seed for now; seeds can be added if a cell looks interesting.
+
+**Cross-tier sweep applied at the same time.** §15.27 lands on all four axis-1 tiers (tiny/small/med/full), unifying the selection knobs and bringing food/prey density to paper-faithful values. Two reasons to do them together: (a) the lazy-clusterer attractor is plausibly tier-independent (it's a fitness-landscape phenomenon, not a scale-specific one), so the same intervention should apply at every scale we care about; (b) `small` had been left in a partial-update state — got §15.22 but never got §15.26's cold-start scaffolds — so this is also a parity catchup.
+
+**§15.27 unified values across tiers:**
+
+| Knob | tiny (L1) | small (L2) | med (L3) | full | Notes |
+|---|---|---|---|---|---|
+| `density_breeding_threshold_pred` | 12 → **10** | 17 → **14** | 20 → **15** | 22 → **17** | ~25% pullback per tier |
+| `density_breeding_threshold_prey` | 120 → **100** | 170 → **140** | 200 → **150** | 220 → **170** | symmetric |
+| `density_metabolism_threshold_pred` | 12 → **10** | 17 → **14** | 20 → **15** | 22 → **17** | symmetric |
+| `density_metabolism_threshold_prey` | 120 → **100** | 170 → **140** | 200 → **150** | 220 → **170** | symmetric |
+| `breeding_share_alpha` | 0.3 → **0.75** | 0.5 → **0.75** | 0.5 → **0.75** | 0.5 → **0.75** | unified, big bump on tiny |
+
+**§15.26 catchup applied to small (was missing):**
+- `predator_e_initial`: 100 → **150** (more PPO updates before starvation)
+- `predator_initial`: 7 → **14** (cold-start cohort doubled like other tiers)
+- `emergency_breeding_n_pred`: NEW = **3** (uniform-share floor at near-extinction)
+- `emergency_breeding_n_prey`: NEW = **10**
+
+**Density normalization to paper-faithful values.** Audit found med was at +4% food density and +7% food regen vs paper (`world=960²`, `food_max=600`, `food_max_regen=10`); tiny was at +7% food density and roughly +29% food regen vs density-isometric. The lazy-clusterer phenotype catches prey at ~1 per 1500 steps per predator at current med rates — that's right at energy break-even. Even a ~5% reduction in food/prey supply could push lazy below break-even. So density normalization isn't just consistency cleanup; it's a complementary intervention to the selection retune.
+
+| Tier | food_max | food_max_regen_per_step | prey_cap |
+|---|---|---|---|
+| tiny | 250 → **235** | 5 → **4** | 200 → **180** |
+| small | 350 → **365** | 7 → **6** | 300 → **275** |
+| med | 525 → **505** | 9 → **8** | 375 (paper) |
+| full | 600 (paper) | 10 (paper) | 450 (paper) |
+
+Note small's food_max went *up* (it was below density-isometric); the rest came down. Targets are `world² × 6.51e-4` for food_max and `10 × (world/960)²` for regen, both matching paper.
+
+**Implementation pointers:**
+- Config diff: [configs/axis1/med.yaml:79-93](configs/axis1/med.yaml#L79-L93) — five selection values changed in the stability block; food density block also touched.
+- Cross-tier diff: [configs/axis1/tiny.yaml](configs/axis1/tiny.yaml), [configs/axis1/small.yaml](configs/axis1/small.yaml), [configs/axis1/full.yaml](configs/axis1/full.yaml) — same selection sweep, density-normalized.
+- Selection-sharpness math: `breeding_share_alpha` consumed at [src/jax_lifecycle.py](src/jax_lifecycle.py) — `alpha_to_share` function.
+- Verification probe used: pulled the alive-pred ages directly from `state.ages[active & species==1]` on the latest checkpoint via `analysis/checkpoint_explorer.load`.
+- Reward-nonlinearity probe used: `analysis/reward_nonlinearity_population.py --species predator` against `step_07000000.npz`. PNG saved to `analysis/reward_nonlinearity_population_predator_step7M.png`.

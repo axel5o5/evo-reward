@@ -53,14 +53,19 @@ reward_type:        "linear_plus_mlp_residual"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
-# ─── Stability mechanism (§15.22 retune; §15.23 rename; tier-graduated T) ──
+# ─── Stability mechanism (§15.22 + §15.27 retune; §15.23 rename) ──────────
+# §15.27: T values pulled back partway toward v8, alpha bumped to 0.75 (the
+# selection knob — sharpens energy-weighted breeding share). Same intervention
+# as med (L3); see findings.md §15.27 for the lazy-clusterer diagnosis.
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           17.0    # bumped from 10 in §15.22
-density_breeding_threshold_prey:           170.0   # bumped from 100 in §15.22
-density_metabolism_threshold_pred:         17.0    # bumped from 10 in §15.22
-density_metabolism_threshold_prey:         170.0   # NEW in §15.22 — symmetric
+density_breeding_threshold_pred:           14.0    # 17 → 14 in §15.27
+density_breeding_threshold_prey:           140.0   # 170 → 140 in §15.27
+density_metabolism_threshold_pred:         14.0    # 17 → 14 in §15.27
+density_metabolism_threshold_prey:         140.0   # 170 → 140 in §15.27
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.5     # unchanged: linear share
+breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 — unified
+                                                   # across tiers; sharpens energy-
+                                                   # weighted breeding share.
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
@@ -70,12 +75,14 @@ world_size:         750
 total_steps:        10_240_000
 
 # ─── Population — L2 cuts ────────────────────────────────────────────────────
-prey_initial:       90
-predator_initial:   7
-prey_cap:           300
+prey_initial:       82                 # 90 → 82 in §15.27 (paper-density: 562k×4.88e-4 ≈ 274)
+predator_initial:   14                 # 7 → 14 in §15.27 (§15.26 cold-start parity, doubled)
+prey_cap:           275                 # 300 → 275 in §15.27 (paper-density normalize)
 predator_cap:       35
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0              # 100 → 150 in §15.27 (§15.26 cold-start parity)
+emergency_breeding_n_pred: 3            # NEW in §15.27 (§15.26 parity)
+emergency_breeding_n_prey: 10           # NEW in §15.27 (§15.26 parity)
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0
@@ -95,11 +102,11 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     4
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               350
-food_initial:           25
+food_max:               365        # 350 → 365 in §15.27 (paper-density: 562k×6.51e-4)
+food_initial:           26
 # At world=750 → effective rate 0.5 × (750/960)² ≈ 0.305 food/step.
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 7
+food_max_regen_per_step: 6         # 7 → 6 in §15.27 (paper density-isometric: 10×0.61)
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

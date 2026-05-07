@@ -13,12 +13,12 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; tier full) ─────────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           22.0
-density_breeding_threshold_prey:           220.0
-density_metabolism_threshold_pred:         22.0
-density_metabolism_threshold_prey:         220.0
+density_breeding_threshold_pred:           17.0    # 22 → 17 in §15.27
+density_breeding_threshold_prey:           170.0   # 220 → 170 in §15.27
+density_metabolism_threshold_pred:         17.0    # 22 → 17 in §15.27
+density_metabolism_threshold_prey:         170.0   # 220 → 170 in §15.27
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.5
+breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 (unified)
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:                397                          # §15.24
@@ -30,11 +30,13 @@ total_steps:        10_240_000
 
 # ─── Population (paper) ─────────────────────────────────────────────────────
 prey_initial:       150
-predator_initial:   11
+predator_initial:   30        # 11 → 30 in §15.27 (cold-start parity)
 prey_cap:           450
 predator_cap:       50
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0    # 100.0 → 150.0 in §15.27 (cold-start parity)
+emergency_breeding_n_pred: 3   # NEW in §15.27 (cold-start parity)
+emergency_breeding_n_prey: 10  # NEW in §15.27 (cold-start parity)
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0

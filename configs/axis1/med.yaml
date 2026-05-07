@@ -76,15 +76,25 @@ coevolution_mode:   "concurrent"
 # Also: DDM extended to prey symmetrically (was predator-only).
 # Also: ddb_max_boost removed (was an arbitrary cap on the 1/factor curve).
 # Names refreshed in §15.23 — old ddb_*/ddm_* names still read as fallback.
+# §15.27 retune (post-7M lazy-clusterer convergence): scaffold was too
+# protective at moderate pops, letting "don't move" become evolutionarily
+# stable. Three coupled adjustments: T values pulled back partway toward
+# v8 (so the relief curve fades faster into the healthy regime), DDB share
+# alpha bumped from 0.5 → 0.75 (sharper bias toward high-energy parents),
+# emergency-breeding floor and cold-start bumps preserved as the
+# safety net. See findings.md §15.27.
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           20.0    # bumped from 10 in §15.22
-density_breeding_threshold_prey:           200.0   # bumped from 100 in §15.22
-density_metabolism_threshold_pred:         20.0    # bumped from 10 in §15.22
-density_metabolism_threshold_prey:         200.0   # NEW in §15.22 — symmetric
+density_breeding_threshold_pred:           15.0    # 20 → 15 in §15.27
+density_breeding_threshold_prey:           150.0   # 200 → 150 in §15.27
+density_metabolism_threshold_pred:         15.0    # 20 → 15 in §15.27
+density_metabolism_threshold_prey:         150.0   # 200 → 150 in §15.27
 density_factor_floor:                      0.0     # shared by both scaffolds
-breeding_share_alpha:                      0.5     # see findings.md §15.16
-                                                   # 0=uniform, 0.5=linear (current),
-                                                   # 1=winner-take-all
+breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 — biases
+                                                   # breeding share more sharply toward
+                                                   # high-energy parents, the actual
+                                                   # selection knob (§15.16).
+                                                   # 0=uniform, 0.5=linear-in-E^0.5,
+                                                   # 0.75=this run, 1=winner-take-all
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
@@ -124,13 +134,13 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     5
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               525
-food_initial:           35
+food_max:               505        # 525 → 505 in §15.27 (paper-density: 774k×6.51e-4)
+food_initial:           34
 # Scale-relative: 0.5 food/step at the paper's 960² world; resolver scales
 # by area ratio so density per unit area matches paper. At world=880 →
 # effective rate 0.5 × (880/960)² ≈ 0.420.
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 9
+food_max_regen_per_step: 8         # 9 → 8 in §15.27 (paper density-isometric: 10×0.84)
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0

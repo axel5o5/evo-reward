@@ -18,12 +18,12 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; tier tiny) ─────────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           12.0
-density_breeding_threshold_prey:           120.0
-density_metabolism_threshold_pred:         12.0
-density_metabolism_threshold_prey:         120.0
+density_breeding_threshold_pred:           10.0    # 12 → 10 in §15.27
+density_breeding_threshold_prey:           100.0   # 120 → 100 in §15.27
+density_metabolism_threshold_pred:         10.0    # 12 → 10 in §15.27
+density_metabolism_threshold_prey:         100.0   # 120 → 100 in §15.27
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.3
+breeding_share_alpha:                      0.75    # 0.3 → 0.75 in §15.27 (unified)
 
 # ─── Observation (from axis2 — §15.24) ──────────────────────────────────────
 # Per proximity bin per species: distance, sin(approach), cos(approach), speed.
@@ -35,12 +35,14 @@ world_size:         600
 total_steps:        10_240_000
 
 # ─── Population (tiny) ──────────────────────────────────────────────────────
-prey_initial:       60
-predator_initial:   4
-prey_cap:           200
+prey_initial:       55
+predator_initial:   10        # 4 → 10 in §15.27 (cold-start parity)
+prey_cap:           180        # 200 → 180 in §15.27 (paper-density)
 predator_cap:       20
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0    # 100.0 → 150.0 in §15.27 (cold-start parity)
+emergency_breeding_n_pred: 3   # NEW in §15.27 (cold-start parity)
+emergency_breeding_n_prey: 10  # NEW in §15.27 (cold-start parity)
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0
@@ -60,10 +62,10 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     3
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               250
-food_initial:           18
+food_max:               235        # 250 → 235 in §15.27 (paper-density)
+food_initial:           17
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 5
+food_max_regen_per_step: 4         # 5 → 4 in §15.27 (paper density-isometric)
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0
