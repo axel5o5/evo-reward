@@ -297,6 +297,20 @@ function parseRunTagTimestamp(runTag: string): string | null {
   return `${MONTHS[month - 1]} ${day}`;
 }
 
+// Pulls the HH:MM portion of an ISO-with-time run tag (e.g. `2026-05-04T0714Z`
+// → "07:14Z"). Returns null for date-only tags. Used to disambiguate multiple
+// runs on the same day in the run picker, where the date is already shown in
+// its own column.
+export function parseRunTagTimeOfDay(runTag?: string): string | null {
+  if (!runTag) return null;
+  const m = runTag.match(DATE_PREFIX_RE);
+  if (!m) return null;
+  const hour = m[4];
+  const min = m[5];
+  if (!hour || !min) return null;
+  return `${hour}:${min}Z`;
+}
+
 // Returns a Date for the run's date prefix, or null for tags that don't
 // start with YYYY-MM-DD. Used for date-banded grouping in the run picker.
 export function parseRunTagDate(runTag?: string): Date | null {
@@ -331,6 +345,10 @@ export function displayRunTag(runTag?: string): string {
 
 export interface RunStats {
   finalStep: number;
+  // True when finalStep was estimated from index entries (max start_step +
+  // n_frames) because summary.json had no row for this run. Lower bound, not
+  // authoritative — UI marks it with a tilde / italic.
+  finalStepIsApprox?: boolean;
   extinct: boolean;
   // "mixed" only when multiple seeds under the same tag extincted in
   // different species; rare but possible.
@@ -340,16 +358,51 @@ export interface RunStats {
   count: number;
 }
 
+// Fallback step count for a tag when summary.json has no entry: take the max
+// start_step + n_frames seen across all replays for that tag. This is a lower
+// bound on the run's final training step (the run continued past the latest
+// captured checkpoint), so callers should mark it as approximate.
+export function tagStepsFromIndex(
+  replays: Array<{ run_tag?: string; start_step: number; n_frames: number }>,
+  tag: string,
+): number {
+  let m = 0;
+  for (const r of replays) {
+    if ((r.run_tag || "current") !== tag) continue;
+    const upper = r.start_step + r.n_frames;
+    if (upper > m) m = upper;
+  }
+  return m;
+}
+
 // Aggregate per-tag stats. A run_tag identifies a launch; multiple (exp, seed)
 // pairs may share a tag in principle, so we aggregate: take the longest run
 // for finalStep, mark extinct if any did, surface "mixed" if seeds disagree.
+//
+// `replays` is an optional fallback source: when summary.json has no row for
+// the tag (common for fresh runs), we still return a stats object with
+// `finalStep` estimated from the index and `finalStepIsApprox=true`. Callers
+// that want strictly-from-summary behavior pass undefined.
 export function tagStats(
   summary: ArchiveSummary | null,
   tag: string,
+  replays?: Array<{ run_tag?: string; start_step: number; n_frames: number }>,
 ): RunStats | null {
-  if (!summary || tag === "current") return null;
-  const matches = summary.runs.filter((r) => r.run_tag === tag);
-  if (matches.length === 0) return null;
+  if (tag === "current") return null;
+  const matches = summary ? summary.runs.filter((r) => r.run_tag === tag) : [];
+  if (matches.length === 0) {
+    if (!replays) return null;
+    const fallbackStep = tagStepsFromIndex(replays, tag);
+    if (fallbackStep === 0) return null;
+    return {
+      finalStep: fallbackStep,
+      finalStepIsApprox: true,
+      extinct: false,
+      extinctSpecies: "none",
+      extinctionStep: null,
+      count: 0,
+    };
+  }
   const finalStep = matches.reduce(
     (m, r) => Math.max(m, r.final_step ?? 0),
     0,
@@ -387,17 +440,46 @@ export function tagStats(
 
 // Run-stats keyed on (exp, seed, tag), for the "Selected replay" card where
 // we know the exact run, not just the tag.
+//
+// `replays` is the same optional fallback as `tagStats`: when summary.json
+// has no row, return an approx finalStep estimated from the index entries
+// matching (exp, seed, tag).
 export function runStatsFor(
   summary: ArchiveSummary | null,
   exp: string,
   seed: number,
   tag: string,
+  replays?: Array<{
+    run_tag?: string;
+    exp: string;
+    seed: number;
+    start_step: number;
+    n_frames: number;
+  }>,
 ): RunStats | null {
-  if (!summary || tag === "current") return null;
-  const r = summary.runs.find(
+  if (tag === "current") return null;
+  const r = summary?.runs.find(
     (s) => s.exp === exp && s.seed === seed && s.run_tag === tag,
   );
-  if (!r) return null;
+  if (!r) {
+    if (!replays) return null;
+    let fallbackStep = 0;
+    for (const e of replays) {
+      if ((e.run_tag || "current") !== tag) continue;
+      if (e.exp !== exp || e.seed !== seed) continue;
+      const upper = e.start_step + e.n_frames;
+      if (upper > fallbackStep) fallbackStep = upper;
+    }
+    if (fallbackStep === 0) return null;
+    return {
+      finalStep: fallbackStep,
+      finalStepIsApprox: true,
+      extinct: false,
+      extinctSpecies: "none",
+      extinctionStep: null,
+      count: 0,
+    };
+  }
   return {
     finalStep: r.final_step ?? 0,
     extinct: r.extinct,
@@ -408,6 +490,49 @@ export function runStatsFor(
     extinctionStep: r.extinction_step,
     count: 1,
   };
+}
+
+// Build the label shown for a run in the date-banded picker. The picker
+// already renders the date in its own column, so we strip "Mon DD · " from
+// `displayRunTag(tag)`. When the remainder is empty (true for bare-timestamp
+// tags like `2026-05-04T0714Z`), fall back to `HH:MMZ + variant (tier)`
+// derived from the index entries under that tag — that's what disambiguates
+// e.g. four `2026-05-01T*` rows that would otherwise all read "May 1 · —".
+//
+// `replays` is filtered to entries matching `tag` internally, so callers can
+// pass the full index without prefiltering.
+export function tagPickerLabel(
+  tag: string,
+  replays: Array<{ run_tag?: string; exp: string; seed: number }>,
+): { primary: string; secondary: string | null } {
+  const display = displayRunTag(tag === "current" ? undefined : tag);
+  const stripped = display.replace(/^[A-Z][a-z]{2} \d{1,2}(?: · )?/, "").trim();
+  if (stripped.length > 0) {
+    return { primary: stripped, secondary: null };
+  }
+  const time = parseRunTagTimeOfDay(tag);
+  // Distinct exps under this tag — usually exactly 1.
+  const expsHere = Array.from(
+    new Set(
+      replays
+        .filter((r) => (r.run_tag || "current") === tag)
+        .map((r) => r.exp),
+    ),
+  );
+  let expBlurb: string | null = null;
+  if (expsHere.length === 1) {
+    const parsed = parseExp(expsHere[0]);
+    expBlurb = parsed.tier
+      ? `${parsed.variant} (${parsed.tier})`
+      : parsed.variant;
+  } else if (expsHere.length > 1) {
+    const variants = Array.from(new Set(expsHere.map((e) => parseExp(e).variant)));
+    expBlurb = variants.length === 1 ? variants[0] : `${expsHere.length} exps`;
+  }
+  if (time && expBlurb) return { primary: time, secondary: expBlurb };
+  if (time) return { primary: time, secondary: null };
+  if (expBlurb) return { primary: expBlurb, secondary: null };
+  return { primary: "—", secondary: null };
 }
 
 // "1.0M", "250K", "12.5K", "8000". One decimal once the number reaches

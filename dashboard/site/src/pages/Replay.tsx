@@ -6,6 +6,7 @@ import AgentInspector from "../components/AgentInspector";
 import EventChips from "../components/EventChips";
 import WeightHistogram from "../components/WeightHistogram";
 import WeightTrajectoryStrip from "../components/WeightTrajectoryStrip";
+import AgeRangeBoxplot from "../components/AgeRangeBoxplot";
 import ArchivedRunsPanel from "../components/ArchivedRunsPanel";
 import {
   ArchiveSummary,
@@ -528,6 +529,7 @@ export default function Replay() {
                     setFrameIdx(f);
                   }}
                 />
+                <AgeRangeBoxplot data={data} />
                 <input
                   type="range"
                   min={0}

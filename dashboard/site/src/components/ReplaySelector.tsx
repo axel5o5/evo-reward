@@ -7,10 +7,10 @@ import {
   categoryForExp,
   describeReplay,
   displayExperimentName,
-  displayRunTag,
   formatSteps,
   parseRunTagDate,
   runStatsFor,
+  tagPickerLabel,
   tagStats,
   variantForExp,
 } from "../lib/replayNaming";
@@ -67,7 +67,7 @@ export default function ReplaySelector({
   const activeSeed = selected?.seed ?? fallback?.seed ?? -1;
   const selectedDisplay = selected ? describeReplay(selected) : null;
   const selectedRunStats = selected
-    ? runStatsFor(summary, selected.exp, selected.seed, tagOf(selected))
+    ? runStatsFor(summary, selected.exp, selected.seed, tagOf(selected), replays)
     : null;
 
   // Tags — "current" first, rest alpha.
@@ -242,8 +242,13 @@ export default function ReplaySelector({
             {selectedRunStats && (
               <span
                 className="px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300 font-mono"
-                title={`Final step: ${selectedRunStats.finalStep.toLocaleString()}`}
+                title={
+                  selectedRunStats.finalStepIsApprox
+                    ? `≥ ${selectedRunStats.finalStep.toLocaleString()} steps (estimated from index — no summary.json entry yet)`
+                    : `Final step: ${selectedRunStats.finalStep.toLocaleString()}`
+                }
               >
+                {selectedRunStats.finalStepIsApprox ? "≥ " : ""}
                 {formatSteps(selectedRunStats.finalStep)} steps
               </span>
             )}
@@ -264,6 +269,7 @@ export default function ReplaySelector({
           activeTag={activeTag}
           tagCategory={tagCategory}
           summary={summary}
+          replays={replays}
           onSelect={pickTag}
         />
       )}
@@ -399,12 +405,14 @@ function RunPicker({
   activeTag,
   tagCategory,
   summary,
+  replays,
   onSelect,
 }: {
   tags: string[];
   activeTag: string;
   tagCategory: Map<string, ExpCategory>;
   summary: ArchiveSummary | null;
+  replays: ReplayIndexEntry[];
   onSelect: (tag: string) => void;
 }) {
   // Top-level split mirrors configs/ vs configs/archive/. Active is the
@@ -427,6 +435,7 @@ function RunPicker({
           tags={activeTags}
           activeTag={activeTag}
           summary={summary}
+          replays={replays}
           onSelect={onSelect}
           defaultOpen={true}
           forceOpen={activeCategory === "active"}
@@ -437,6 +446,7 @@ function RunPicker({
           tags={archiveTags}
           activeTag={activeTag}
           summary={summary}
+          replays={replays}
           onSelect={onSelect}
           defaultOpen={false}
           forceOpen={activeCategory === "archive"}
@@ -454,6 +464,7 @@ function CategorySection({
   tags,
   activeTag,
   summary,
+  replays,
   onSelect,
   defaultOpen,
   forceOpen,
@@ -463,6 +474,7 @@ function CategorySection({
   tags: string[];
   activeTag: string;
   summary: ArchiveSummary | null;
+  replays: ReplayIndexEntry[];
   onSelect: (tag: string) => void;
   defaultOpen: boolean;
   forceOpen: boolean;
@@ -532,6 +544,7 @@ function CategorySection({
                 tags={banded[band]}
                 activeTag={activeTag}
                 summary={summary}
+                replays={replays}
                 onSelect={onSelect}
               />
             ) : null,
@@ -553,6 +566,7 @@ function CategorySection({
                   tags={banded[band]}
                   activeTag={activeTag}
                   summary={summary}
+                  replays={replays}
                   onSelect={onSelect}
                 />
               ) : null,
@@ -568,12 +582,14 @@ function RunBand({
   tags,
   activeTag,
   summary,
+  replays,
   onSelect,
 }: {
   label: DateBand;
   tags: string[];
   activeTag: string;
   summary: ArchiveSummary | null;
+  replays: ReplayIndexEntry[];
   onSelect: (tag: string) => void;
 }) {
   return (
@@ -587,7 +603,8 @@ function RunBand({
             key={t}
             tag={t}
             active={t === activeTag}
-            stats={tagStats(summary, t)}
+            stats={tagStats(summary, t, replays)}
+            label={tagPickerLabel(t, replays)}
             onSelect={() => onSelect(t)}
           />
         ))}
@@ -600,26 +617,25 @@ function RunRow({
   tag,
   active,
   stats,
+  label,
   onSelect,
 }: {
   tag: string;
   active: boolean;
   stats: RunStats | null;
+  label: { primary: string; secondary: string | null };
   onSelect: () => void;
 }) {
   const date = tag === "current" ? null : parseRunTagDate(tag);
   const dateLabel = date
     ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
     : "—";
-  // displayRunTag returns "Apr 21 · D19", "Apr 21", or just "Current". Since
-  // we render the date in its own column, strip the "Mon DD" prefix from the
-  // label. Date-only tags (no descriptor) fall through to an em-dash.
-  const display = displayRunTag(tag === "current" ? undefined : tag);
-  const stripped = display.replace(/^[A-Z][a-z]{2} \d{1,2}(?: · )?/, "");
-  const label = stripped || (date ? "—" : display);
   const titleParts = [tag];
   if (stats) {
-    titleParts.push(`${stats.finalStep.toLocaleString()} steps`);
+    const stepLabel = stats.finalStepIsApprox
+      ? `≥${stats.finalStep.toLocaleString()} steps (estimated from index)`
+      : `${stats.finalStep.toLocaleString()} steps`;
+    titleParts.push(stepLabel);
     if (stats.extinct) {
       const sp = stats.extinctSpecies;
       const at =
@@ -646,13 +662,25 @@ function RunRow({
       >
         {dateLabel}
       </span>
-      <span className="truncate flex-1">{label}</span>
+      <span className="truncate flex-1 min-w-0">
+        <span>{label.primary}</span>
+        {label.secondary && (
+          <span
+            className={`ml-1.5 text-[10px] ${
+              active ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {label.secondary}
+          </span>
+        )}
+      </span>
       {stats && (
         <span
           className={`font-mono text-[10px] tabular-nums ${
             active ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
-          }`}
+          } ${stats.finalStepIsApprox ? "italic opacity-80" : ""}`}
         >
+          {stats.finalStepIsApprox ? "≥" : ""}
           {formatSteps(stats.finalStep)}
         </span>
       )}
