@@ -1792,6 +1792,15 @@
       "run_tag": "2026-05-04T0714Z"
     },
     {
+      "exp": "axis1_residual_reward_mlp_med",
+      "seed": 0,
+      "start_step": 6990001,
+      "n_frames": 10000,
+      "path": "axis1_residual_reward_mlp_med/seed_0/2026-05-04T0714Z/step_06990001",
+      "size_bytes": 2505,
+      "run_tag": "2026-05-04T0714Z"
+    },
+    {
       "exp": "axis1_residual_reward_mlp_tiny",
       "seed": 0,
       "start_step": 10001,
@@ -4139,6 +4148,42 @@
       "path": "baseline_kd_linear_age_pred_med/seed_0/2026-05-04T1531Z/step_00170001",
       "size_bytes": 2655,
       "run_tag": "2026-05-04T1531Z"
+    },
+    {
+      "exp": "baseline_kd_linear_age_predlr_med_r256",
+      "seed": 0,
+      "start_step": 10001,
+      "n_frames": 10000,
+      "path": "baseline_kd_linear_age_predlr_med_r256/seed_0/2026-05-07T1521Z/step_00010001",
+      "size_bytes": 2654,
+      "run_tag": "2026-05-07T1521Z"
+    },
+    {
+      "exp": "baseline_kd_linear_age_predlr_med_r256",
+      "seed": 0,
+      "start_step": 30001,
+      "n_frames": 10000,
+      "path": "baseline_kd_linear_age_predlr_med_r256/seed_0/2026-05-07T1521Z/step_00030001",
+      "size_bytes": 2654,
+      "run_tag": "2026-05-07T1521Z"
+    },
+    {
+      "exp": "baseline_kd_linear_age_predlr_med_r256",
+      "seed": 0,
+      "start_step": 50001,
+      "n_frames": 10000,
+      "path": "baseline_kd_linear_age_predlr_med_r256/seed_0/2026-05-07T1521Z/step_00050001",
+      "size_bytes": 2654,
+      "run_tag": "2026-05-07T1521Z"
+    },
+    {
+      "exp": "baseline_kd_linear_age_predlr_med_r256",
+      "seed": 0,
+      "start_step": 70001,
+      "n_frames": 10000,
+      "path": "baseline_kd_linear_age_predlr_med_r256/seed_0/2026-05-07T1521Z/step_00070001",
+      "size_bytes": 2654,
+      "run_tag": "2026-05-07T1521Z"
     },
     {
       "exp": "baseline_med_ddb",
