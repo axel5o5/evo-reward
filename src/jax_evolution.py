@@ -102,11 +102,16 @@ def mutate_temporal_genome_jax(parent_params, rng_key, config):
     )
 
 
-def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
+def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energy_bonus=0.0):
     """Spawn one offspring into new_slot from parent_slot. Operates on SimState arrays.
 
     Returns updated SimState with the new agent activated at new_slot.
-    Caller is responsible for updating parent energy (energy share).
+    Caller is responsible for updating parent energy (energy share + bonus).
+
+    energy_bonus: scalar (jnp or Python float). Additive birth-time energy
+    bonus applied to the child on top of the K&D `parent_E * energy_share_ratio`
+    transfer. The caller computes bonus from scaffold engagement (see
+    process_births_and_deaths_jax). Default 0.0 → paper-faithful K&D mechanics.
     """
     k1, k2, k3, k4, k5 = jax.random.split(rng_key, 5)
 
@@ -148,8 +153,10 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config):
     else:
         child_genome = parent_genome
 
-    # Child energy: parent shares
-    child_energy = parent_energy * energy_share_ratio
+    # Child energy: parent shares (K&D) + scaffold-aware additive bonus.
+    # Bonus is computed by caller based on scaffold engagement; defaults to
+    # 0.0 → paper-faithful K&D 0.4 transfer.
+    child_energy = parent_energy * energy_share_ratio + energy_bonus
 
     # Child policy: fresh initialization
     child_params, child_opt = init_policy(k4, config)

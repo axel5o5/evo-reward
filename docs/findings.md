@@ -1394,3 +1394,74 @@ Note small's food_max went *up* (it was below density-isometric); the rest came 
 - Selection-sharpness math: `breeding_share_alpha` consumed at [src/jax_lifecycle.py](src/jax_lifecycle.py) — `alpha_to_share` function.
 - Verification probe used: pulled the alive-pred ages directly from `state.ages[active & species==1]` on the latest checkpoint via `analysis/checkpoint_explorer.load`.
 - Reward-nonlinearity probe used: `analysis/reward_nonlinearity_population.py --species predator` against `step_07000000.npz`. PNG saved to `analysis/reward_nonlinearity_population_predator_step7M.png`.
+
+### 15.28 axis1/small extinction at step ~80K → scaffold-aware birth-energy bonus (2026-05-07)
+
+The §15.27 retune launched on axis1/small went extinct at step ~80K — far worse than predicted (the §15.27 risk note flagged a 4–6M extinction window if over-tightened, but it actually fired at 80K). Trajectory pulled from `~/phase1a_small.log` on the GCP VM:
+
+| step | pred | pred E median | catch rate per pred per 10K |
+|---|---|---|---|
+| 10K | 31 | 102 | 10.1 (above break-even) |
+| 20K | 26 | 68 | 6.3 (just below) |
+| 30K | 15 | 58 | 5.8 (well below) |
+| ~80K | 0 | — | — |
+| 100K | 0 | n/a | population frozen, prey at cap |
+
+**Diagnosis: emergency_breeding clause is structurally crippled by `energy_share_ratio = 0.4`.**
+
+The clause fires correctly at N ≤ n_emerg_pred, setting `P_birth = kappa_b * (1 - N/n_emerg)`. At N=1 that's 6.67e-4/step (~99% chance of at least one birth in 10K steps). But:
+
+```python
+child_energy = parent_energy * energy_share_ratio   # 0.4
+```
+
+In the death-spiral regime, parent E is already low (≤ 15). Newborn gets `parent_E * 0.4 = 4–6 energy`, lifetime ≈ 900–1400 steps before starvation, can't breed in that window, dies. Rescue is born starving.
+
+Compounded by the cascade speed: pred=15 at step 30K dropped to pred=0 by step ~80K. With per-predator energy decay of ~11/10K, all 15 predators starved on similar timelines (synchronized cohort effect from the cold-start). The window where pop sat at N ≤ 3 (when emergency is active) was probably under 5K steps — not enough to recover even if newborns *were* viable.
+
+**Fix: scaffold-aware additive birth-energy bonus.**
+
+Two new config knobs (default 0.0 → paper-faithful):
+- `birth_energy_bonus_global`: float, always added at birth.
+- `birth_energy_bonus_emergency`: float, added linearly as scaffold engages.
+
+Bonus formula at birth (per parent, per child):
+```python
+factor = ddb_factor(species_count, threshold)   # 1 at high pop, 0 at full scaffold
+bonus  = bonus_global + bonus_emergency * (1 - factor)
+child_E       = parent_E * 0.4 + bonus           # K&D + bonus
+parent_E_post = parent_E * 0.6 + bonus           # K&D + bonus
+```
+
+Both child and parent get the *same* additive lift. The "extra" energy comes from the environment (paper-faithful conservation broken in service of extinction prevention — same philosophical move as DDB+DDM).
+
+**Why additive, not multiplicative.** A multiplier doesn't help when the source pool is tiny: parent E=10 with 2× multiplier still gives child only 8. Additive bonus injects fixed energy independent of parent E, which is exactly what the death-spiral regime needs.
+
+**Default config values for active axis runs (axis1/2/12, all four tiers each):**
+- `birth_energy_bonus_global = 0.0` → no effect at high pop (factor ≈ 1).
+- `birth_energy_bonus_emergency = 50.0` → at full scaffold engagement (factor = 0), both parent and child get +50. Parent E=10 → parent_post = 6 + 50 = 56, child = 4 + 50 = 54. Both clearly viable.
+
+**Implementation:**
+- [src/jax_evolution.py:105-108](src/jax_evolution.py#L105-L108): `spawn_offspring_jax` accepts `energy_bonus` kwarg, defaults to 0.
+- [src/jax_evolution.py:152-154](src/jax_evolution.py#L152-L154): `child_energy = parent_E * share + bonus`.
+- [src/jax_lifecycle.py:505-528](src/jax_lifecycle.py#L505-L528): `process_births_and_deaths_jax` reads the two bonus knobs, computes per-species DDB factors, threads bonus through the scan body.
+- [src/jax_lifecycle.py:574-580](src/jax_lifecycle.py#L574-L580): parent retains `(1 - share) * E + bonus` instead of bare `(1 - share) * E`.
+- All 12 axis configs (axis1/2/12 × tiny/small/med/full) get `birth_energy_bonus_global = 0` and `birth_energy_bonus_emergency = 50`.
+- Tests: 272 fast tests still pass (no regressions in DDB/DDM, phase0, evolution, lifecycle).
+
+**Predictions for the next axis1/small run:**
+1. The pop=15→0 cascade we just saw should be arrested at N ≈ 5–10. As scaffold engages (factor drops below ~0.5), each birth injects +25–50 energy into both parent and child, giving newborns time to learn to hunt before starving.
+2. Total energy in the system slowly grows when scaffold is engaged — at pop=10 with T=14, factor ≈ 0.34, bonus ≈ +33. So every birth adds ~66 energy (split between parent and child) to total system energy. Not a runaway — at high pop, factor → 1, bonus → 0.
+3. If population stabilizes at 5–10 predators with reward weights still drifting, that's the success signal. If it grows to predator_cap=35 and stays there, the bonus is over-tuned and we should reduce emergency from 50 → 25.
+
+**What this does NOT change:**
+- Paper-faithful K&D mechanics at high population (factor ≈ 1, bonus ≈ 0).
+- The §15.27 selection retune (T values, alpha=0.75) — those still apply.
+- Reward genome / hazard / physics — untouched.
+
+**Risks worth flagging:**
+- **Total system energy can grow unboundedly** if pop sits at scaffold-engaged levels for long. At pop=10 with bonus=33 per birth and ~80 births/10K, that's ~2640 energy injected per 10K steps. Mitigated by predator_cap and the fact that the bonus drops to 0 once pop reaches the threshold. Still worth monitoring — if mean E shoots up, the bonus is too large.
+- **Newborn energy can exceed `energy_capacity = 1000`** in extreme cases. Currently no clamp. With bonus=50 and parent_E ≈ 100, child_E = 90 — well below cap. Only a problem if bonus is set to >500.
+- **Parent's gain `+ bonus` could fight against the K&D depletion logic.** A parent with E=200 paying child 80, then getting +50 bonus, ends with E=170. So they actually *gain* a little energy at high pop with global_bonus > 0. This isn't catastrophic but technically non-paper-faithful even at high pop. Mitigation: keep `birth_energy_bonus_global = 0` in production configs.
+
+Bonus is a complement to §15.27's selection retune, not a replacement. Selection still drives evolution toward hunting genomes; the bonus prevents the cohort from dying before evolution can act.

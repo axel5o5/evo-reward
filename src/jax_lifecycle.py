@@ -502,6 +502,33 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
     prey_count = jnp.sum(new_is_active & (sim_state.species == 0))
     pred_count = jnp.sum(new_is_active & (sim_state.species == 1))
 
+    # §15.28: scaffold-aware additive birth-energy bonus. Both child and parent
+    # get +bonus at birth where bonus = bonus_global + bonus_emergency * (1 - factor),
+    # `factor` being the species-specific DDB factor (1 at high pop, 0 at full
+    # scaffold engagement). Rescues the death-spiral regime where parent E is
+    # too low to give a viable child via the bare K&D transfer (axis1/small
+    # extincted at step ~80K because newborns inherited starvation).
+    # Defaults 0.0 → paper-faithful K&D mechanics.
+    bonus_global = float(config.get("birth_energy_bonus_global", 0.0))
+    bonus_emergency = float(config.get("birth_energy_bonus_emergency", 0.0))
+    if bonus_global > 0.0 or bonus_emergency > 0.0:
+        bonus_floor_v = float(config.get(
+            "density_factor_floor", config.get("ddb_floor", 0.0)
+        ))
+        bonus_prey_thresh = float(config.get(
+            "density_breeding_threshold_prey",
+            config.get("ddb_prey_threshold", 30.0)
+        ))
+        bonus_pred_thresh = float(config.get(
+            "density_breeding_threshold_pred",
+            config.get("ddb_pred_threshold", 5.0)
+        ))
+        factor_prey_birth = _ddb_factor(prey_count, bonus_prey_thresh, bonus_floor_v)
+        factor_pred_birth = _ddb_factor(pred_count, bonus_pred_thresh, bonus_floor_v)
+    else:
+        factor_prey_birth = jnp.float32(1.0)
+        factor_pred_birth = jnp.float32(1.0)
+
     b_all = _batch_birth_prob_jax(
         sim_state.energies, sim_state.species, config,
         prey_count=prey_count, pred_count=pred_count,
@@ -567,12 +594,19 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
 
         do_spawn = should_spawn & has_slot
 
-        # Spawn offspring (always executes due to JIT, but result discarded if !do_spawn)
-        new_state = spawn_offspring_jax(state, parent_slot, first_free, spawn_key, config)
+        # Per-parent scaffold-aware energy bonus (§15.28).
+        factor_birth = jnp.where(parent_species == 0, factor_prey_birth, factor_pred_birth)
+        energy_bonus = bonus_global + bonus_emergency * (1.0 - factor_birth)
 
-        # Parent energy reduction
+        # Spawn offspring (always executes due to JIT, but result discarded if !do_spawn)
+        new_state = spawn_offspring_jax(
+            state, parent_slot, first_free, spawn_key, config,
+            energy_bonus=energy_bonus,
+        )
+
+        # Parent energy: K&D retains (1 - share) * E, plus the same bonus.
         parent_energy = state.energies[parent_slot]
-        new_parent_energy = parent_energy - parent_energy * energy_share_ratio
+        new_parent_energy = parent_energy * (1.0 - energy_share_ratio) + energy_bonus
         new_state = new_state.replace(
             energies=new_state.energies.at[parent_slot].set(
                 jnp.where(do_spawn, new_parent_energy, state.energies[parent_slot])

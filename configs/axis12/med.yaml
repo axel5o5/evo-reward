@@ -94,6 +94,14 @@ zeta_b_pred:        100.0
 energy_share_ratio: 0.4
 spawn_spread:       100.0
 
+# §15.28 — scaffold-aware additive birth-energy bonus. Both child AND parent
+# get +bonus at birth, where bonus = bonus_global + bonus_emergency * (1 - factor).
+# Rescues death-spiral regime where parent E is too low to give a viable child
+# via the bare K&D 0.4 transfer (axis1/small extincted at step ~80K because
+# newborns inherited starvation). Defaults 0.0 → paper-faithful K&D.
+birth_energy_bonus_global:    0.0    # always added at birth (paper-faithful: 0)
+birth_energy_bonus_emergency: 50.0   # added linearly as scaffold engages (factor→0)
+
 # ─── Reward Genome (linear + residual MLP — from axis1) ─────────────────────
 reward_weights_init_std:  0.1
 mutation_df:              2
