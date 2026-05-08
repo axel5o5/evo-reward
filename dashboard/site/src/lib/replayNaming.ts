@@ -559,7 +559,20 @@ export interface ReplayDisplay {
 
 export function describeReplay(entry: ReplayIndexEntry): ReplayDisplay {
   const parsed = parseExp(entry.exp);
-  const runLabel = displayRunTag(entry.run_tag);
+  // For bare-timestamp tags (`2026-05-04T0714Z`), `displayRunTag` collapses
+  // to "May 4", which is ambiguous when several same-day runs exist. Append
+  // HH:MMZ in that case so the Selected-replay card doesn't render multiple
+  // identically-labeled runs.
+  let runLabel = displayRunTag(entry.run_tag);
+  if (entry.run_tag) {
+    const stripped = runLabel
+      .replace(/^[A-Z][a-z]{2} \d{1,2}(?: · )?/, "")
+      .trim();
+    if (stripped.length === 0) {
+      const time = parseRunTagTimeOfDay(entry.run_tag);
+      if (time) runLabel = `${runLabel} · ${time}`;
+    }
+  }
   const chips: string[] = [parsed.variant];
   if (parsed.tier) chips.push(parsed.tier);
   chips.push(`Seed ${entry.seed}`);
