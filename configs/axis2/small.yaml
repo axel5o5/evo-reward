@@ -68,8 +68,8 @@ energy_capacity:        1000.0
 prey_e_food:            1.0
 prey_c_b:               1.0e-4
 prey_c_a:               2.5e-6
-predator_d_b:           4.0e-3
-predator_d_a:           5.0e-5
+predator_d_b:           4.5e-3       # §15.31: 4e-3 → 4.5e-3 (+12.5% passive — anti-lazy)
+predator_d_a:           4.0e-5       # §15.31: 5e-5 → 4e-5 (-20% active — anti-lazy)
 predator_eta:           0.50
 
 # ─── Predator Mouth — v10 widening ──────────────────────────────────────────

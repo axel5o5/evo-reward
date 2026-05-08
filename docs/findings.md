@@ -1753,3 +1753,53 @@ valid_food = contact & in_prey_mouth & prey_mask[:, None] & food_active[None, :]
 - Config keys added to all 16 configs in `configs/axis1/`, `axis2/`, `axis12/`, `baseline/`.
 
 **Status:** the §15.28b axis1/small run (currently at step ~3M) was launched BEFORE this fix. It will keep running with FOV-based prey eating until the next relaunch. New runs from this point forward will use paper-faithful tactile-bin prey eating.
+
+### 15.31 anti-lazy energetics — predator_d_b ↑, predator_d_a ↓ (2026-05-08)
+
+Bundled with §15.30 in the same relaunch. The two §15.27 → §15.28b iterations established that the predator population escapes the lazy-clusterer attractor but then drifts toward an "ambush" attractor (sit in dense prey area, wait for incidental prey contacts) — see §15.29 for the full diagnosis. The ambush phenotype's stability is energy-economic: passive metabolism is small enough that even ~5 catches per 10K (well below the active-hunter rate) sustains them, especially with the §15.28 birth-energy bonus subsidizing low-N predators.
+
+§15.31 is two coupled paper-departures aimed at making the active-hunter phenotype Pareto-better than ambush:
+
+| Knob | K&D paper | §15.31 | Direction |
+|---|---|---|---|
+| `predator_d_b` (passive metabolic cost) | 4.0e-3 | **4.5e-3** | +12.5% — sitting costs more |
+| `predator_d_a` (active per-motor cost) | 5.0e-5 | **4.0e-5** | −20% — moving costs less |
+
+**Math at typical operating point (pred E_med = 65, motor_norm avg ≈ 50/114):**
+
+| | passive cost / 10K | active cost / 10K (avg motion) | total / 10K | catch break-even (with bonus credit ≈7.5) |
+|---|---|---|---|---|
+| Pre-§15.31 | 40 | 12.5 | 52.5 (active) / 40 (sitting) | active 7.5 catches; sitting 5.4 |
+| §15.31 | 45 | 10 | 55 (active) / 45 (sitting) | active 7.9 catches; sitting 6.3 |
+
+The numerical shift is small in absolute terms but the **differential between active and sitting changed**. Pre-§15.31, sitting needed ~5.4 catches/10K to break even — at the lower edge of observed catch rates, so passive could just barely make it. Post-§15.31, sitting needs ~6.3 — closer to where the operating point usually sits, so passive is now Pareto-worse than active in many windows.
+
+**Why these specific values (conservative bump):**
+
+Risk profile: a too-aggressive d_b bump (e.g., 4e-3 → 7e-3) would push catch break-even high enough that *all* predators starve before adapting → extinction (similar dynamic to the §15.27 over-tightening we saw before §15.28). The +12.5% bump is the smallest move with a clear directional effect; we can iterate higher if §15.31 doesn't flip dynamics, can't easily come back from extinction.
+
+The d_a drop is symmetric — moving cheaper makes active hunters spend less of their margin on locomotion. With max_motor_norm = 114, full-throttle predator at d_a=5e-5 spent 5.7e-3 per step on active locomotion. At d_a=4e-5: 4.6e-3 per step. Over a 10K window with average 50% throttle, that's a ~5 energy savings per predator — small compared to the absolute pool but enough to tip the active-vs-passive Pareto comparison.
+
+**Coupled with §15.30:**
+- §15.30 makes prey eat less efficiently → fewer prey at steady state → fewer incidental prey-bumps for ambush predators.
+- §15.31 makes ambush more expensive directly.
+- Both push in the same direction (away from ambush) without doubling-down on any single mechanism.
+
+**Predicted dynamics from the §15.30+§15.31 bundle:**
+1. Predator pop oscillates in a similar 10–18 range. Likely some early starvation as the cohort adapts to the new energetics.
+2. `pred_w_act` drift trajectory should slow or reverse — moving has a clearer fitness advantage now.
+3. Catch rate per pred should rise as ambush becomes infeasible (predators have to find food rather than wait for it).
+4. Prey reward weights *might* start converging — selection pressure on prey aim/positioning is sharpened by the smaller eat zone.
+5. Lifespan: unclear. Active hunting burns more energy, so each individual lifespan might fall, but passive predators starve faster too. Net effect depends on which mechanism dominates.
+
+**Risks:**
+- **Extinction window between adaptation phases.** If current ambush predators are too far from the "active hunter" basin in genome-space, the energetics shift could starve them out before mutations/selection find the active basin. Mitigated by emergency_breeding floor + birth-energy bonus.
+- **Paper-alignment departure.** d_b=4e-3, d_a=5e-5 are K&D Appendix A defaults. We're now at +12.5% / -20% from paper. This should be flagged in any paper-claim comparison: our scaffold + bonus stack is already non-paper-faithful for stability reasons, this is a further deliberate departure for evolutionary expressiveness reasons. Documented as such.
+- **Overshoot toward "eager" phenotype.** At step 510K of the §15.28b run we briefly saw `w_act = +14.33` (extreme positive). If §15.31 over-pushes toward active, we could see chronic over-energization of movement. Watch the std on `w_act` — sustained convergence at extreme positive values would suggest we tipped too far.
+
+**Implementation pointers:**
+- All 16 axis configs (axis1/2/12/baseline × tiny/small/med/full) updated with the new d_b/d_a values + §15.31 marker comment.
+- No source code change — just config values.
+- Both `predator_d_b` and `predator_d_a` are read by `update_energies_jax` at [src/jax_lifecycle.py](src/jax_lifecycle.py); no schema changes.
+
+**Status:** §15.30 + §15.31 bundled for the next axis1/small relaunch. The current run (run tag `2026-05-08T0407Z`, step ~3M of 10.24M, ambush attractor stable) will be killed; new run uses both fixes from step 0. Open question: does the active-hunter phenotype emerge and *stay*, or do we end up in a third attractor we haven't seen yet (e.g., overactive "eager" phenotype, or another lazy variant we didn't anticipate)?
