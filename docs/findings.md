@@ -1499,3 +1499,172 @@ This is the result we wanted from §15.27. The retune chain (selection tightenin
 - `configs/baseline/med_linear_age.yaml`, `med_linear_age_predlr_r256.yaml`
 
 These are Gil's parallel design-grid cells (constant/linear age hazard × default/boosted predator LR). They expect specific scaffold values for clean comparison to each other; rolling the new scaffold under them mid-experiment would invalidate the ablation. Gil can pick up the new scaffold values when he next re-runs.
+
+### 15.29 axis1/small under §15.28b: hunting phenotype, ambush drift, lineage bottleneck (2026-05-08)
+
+The §15.28b launch on axis1/small (run tag `2026-05-08T0407Z`) is the first axis1 run that produced a non-pathological evolutionary outcome. Detailed observations and analysis follow. **Key takeaway:** the §15.27/§15.28/§15.28b stack works — predators escape the lazy-clusterer attractor and converge on a hunting phenotype — but lineage diversity is bottlenecked by sigmoid + alpha stacking, and the population subsequently drifts toward an "ambush" attractor that's energetically similar to lazy but behaviorally distinct (territorial, not clustering). All numbers below from `metrics.npz` (270 datapoints over 2.7M steps) and per-agent checkpoint inspection at step 2.70M.
+
+**Phenotype trajectory across 2.9M steps:**
+
+| step | pred | prey | predE | w_eat | w_act | w_prey | w_pred | regime |
+|---|---|---|---|---|---|---|---|---|
+| 10K | 34 | 199 | 130 | -0.09 | +0.02 | +0.14 | -0.01 | bootstrap (cap) |
+| 110K | 13 | 178 | 52 | +0.29 | -1.21 | +0.50 | -0.46 | settling |
+| 510K | 11 | 189 | 71 | +0.89 | **+14.33** | +0.89 | +0.75 | "eager" — moving heavily rewarded |
+| 1010K | 11 | 224 | 60 | -3.11 | +1.91 | +4.04 | -0.98 | mid-evolution |
+| 1510K | 12 | 224 | 52 | -1.29 | +1.47 | **+11.99** | +0.40 | active hunter, prey-locked |
+| 2010K | 11 | 225 | 53 | +0.20 | +4.33 | +9.52 | **-2.41** | active hunter, territorial |
+| 2510K | 12 | 224 | 51 | +0.06 | **-10.86** | +9.49 | -1.81 | ambush emerging |
+| 2700K | 12 | 249 | 73 | +0.81 | -8.37 | +11.10 | -2.65 | ambush stable |
+| 2900K | 11 | 201 | 43 | +2.30 | -8.31 | +9.20 | -0.27 | ambush + pos eat |
+
+The interesting transitions:
+- Cold-start cohort (predator_initial=14 + e_initial=150 + bonus) overshot to predator_cap=35 by step 10K, then settled to 10-13 by step 110K and stayed there for the rest of the run.
+- Around step 510K, w_act briefly spiked to +14 ("eager" predators that overweight movement reward). This was transient — std collapsed within a few hundred K and the population settled.
+- Active hunter phenotype emerged around 1.5-2M with `w_act = +4`, `w_prey = +9`, `w_pred = -2`, `w_eat ≈ 0`. Tight stds (0.4-1.7).
+- Ambush phenotype emerged 2.0-2.5M as `w_act` flipped from +4 to -10. Critically, `w_pred` stayed *negative* (territorial), unlike the §15.27 lazy clusterer's `w_pred = +19.87`.
+
+**Comparison of three attractors (this codebase has now produced all three):**
+
+| Weight | Lazy clusterer (§15.27, 7M) | Active hunter (§15.28b, 1.74M) | Ambush (§15.28b, 2.70M) |
+|---|---|---|---|
+| `w_eat` | **−5.59** | -0.32 | +0.81 |
+| `w_act` | -25.86 | **+4.25** | -8.37 |
+| `w_prey` | +13.57 | +8.57 | +11.10 |
+| `w_pred` | **+19.87 (cluster)** | -1.93 | -2.65 (territorial) |
+| pop pred | 18 (over-protected) | 14 | 12 |
+| pred E median | 45 | 64 | 73 |
+| catch rate / pred / 10K | 6.4 (passive) | 6.5 (active) | 4-5 (ambush) |
+| pred death p50 (PPO updates) | 13 | 37 | 49 |
+
+Behaviorally distinct mechanisms despite some surface-level similarity (e.g., ambush and lazy both have negative `w_act`):
+- **Lazy:** cluster in dense prey area, ignore eating events (gaslighting reward), survive on accidental prey-bumps.
+- **Active hunter:** patrol, chase, catch — high movement, moderate clustering aversion.
+- **Ambush:** position alone in dense prey area, sit, reward catches when they happen.
+
+The territorial signature (`w_pred = -2.65`) is the load-bearing differentiator from lazy. The fittest predators (highest E) are *more* territorial than median (top-2 had `w_pred ≤ -4`), so selection is actively pushing against cluster — different from §15.27 where cluster was reinforced by selection.
+
+**Lineage bottleneck analysis (per-agent inspection at step 2.70M, n=12 alive predators):**
+
+Two factors stack to produce per-step birth probability:
+
+```
+P_birth = (alpha-share) × (sigmoid)
+        = [kappa_b * boost * N * share_i] × [1 / (1 + exp(zeta_eff − beta_b * E))]
+```
+
+At our operating point (pop=12, T_pred=12, factor=0.5, zeta_eff=50, beta_b=0.4):
+
+| Pred | E | share (α=0.75) | sigmoid denom | P_birth/step | E[births in 10K] |
+|---|---|---|---|---|---|
+| 1 | 114.7 | 20.5% | 1/62.6 | 7.79e-5 | **0.54** |
+| 2 | 112.3 | 19.2% | 1/162 | 2.89e-5 | **0.25** |
+| 3 | 103.5 | 15.0% | 1/5,432 | 6.65e-7 | 0.01 |
+| 4 | 93.5 | 11.1% | 1/2.1e7 | tiny | ~0 |
+| ... | | | | | |
+| 12 | 14.0 | 0.0% | 1/3.6e19 | 4.6e-25 | 0 |
+
+The **K&D sigmoid is extremely steep** below the cliff (`E_cliff = 125`):
+- `exp(beta_b)` = `exp(0.4) ≈ 1.49` per unit E → ~2× per 2 units of E lost.
+- Predator at E=103.5 vs E=114.7 has ~90× worse sigmoid factor, even with similar alpha share.
+
+**Combined breeding dominance:**
+- **Pred 1 alone: 73% of all predator births.**
+- Pred 2: 27%.
+- Pred 3: 0.6%.
+- Pred 4-12: negligible.
+
+Effective breeders ≈ 1-2 individuals at any given time. **Population is essentially descendants of 1-3 ancestors over the last 1M steps**, with mutation noise adding the tight sub-population variance we see (std 0.5-1.4 on weights of magnitude 4-11).
+
+**Per-agent reward weight distribution at step 2.70M:**
+
+```
+                    age      E      w_eat    w_act    w_prey   w_pred
+Top by AGE:
+  Methuselah        99,260  112.3  +0.83    -8.86    +11.13   -2.46     mainstream ambush
+  2nd-oldest        94,803   19.5  +1.00    -8.89    +10.70   -2.50     mainstream
+  3rd-oldest        91,998   33.9  +0.44    -8.45    +10.74   +5.26     CLUSTER OUTLIER
+
+Top by ENERGY (the fittest = future breeders):
+  E=114.7           42,380  114.7  +0.71    -6.66    +11.28   -4.39     STRONG TERRITORIAL
+  E=112.3           99,260  112.3  +0.83    -8.86    +11.13   -2.46
+  E=103.5              775  103.5  +1.83    -9.69    +10.59   +0.19     newborn (~1 PPO upd)
+
+Median predator    37,201   78.2  +0.77    -8.20    +11.17   -3.44
+```
+
+Two sub-populations on `w_pred`:
+- ~80% mainstream territorial (`w_pred ≈ -2 to -5`)
+- ~20% cluster outliers (`w_pred > 0`) — relics of the lazy lineage that haven't been selected out.
+
+**The fittest predators are MORE territorial than median.** Both top-E predators have `w_pred ≤ -4`. This means selection is currently disadvantaging cluster genomes — the population is moving *away* from the lazy attractor on this dimension, even as `w_act` drifts toward it.
+
+**Population stability:**
+
+Predator pop has been at 10-13 since step 110K (2.6M steps of steady-state). Prey 180-260 in clean LV oscillation. Speed steady at ~58 sps. No drift toward extinction or cap. This is the most stable predator-prey dynamic this codebase has produced.
+
+**Lifespan progression:**
+
+| metric | §15.27 lazy (7M) | §15.28b (1.74M) | §15.28b (2.70M) |
+|---|---|---|---|
+| pred death p25 | 13K | 20.7K | 24.8K |
+| pred death p50 | 13K | 38.3K | 49.7K |
+| pred death p75 | 100K (elite) | 91.5K | 113K |
+| pred death max | 720K | 568K | 568K |
+
+Median dying predator at 2.70M gets ~48 PPO updates — **3.7× the lazy regime's 13** and significantly more useful policy training time per agent.
+
+**Prey side: weights remain unconverged (this is robust across runs).**
+
+| step | prey_w_eat | prey_w_act | prey_w_prey | prey_w_pred |
+|---|---|---|---|---|
+| 110K | -0.41 ±1.9 | -0.14 ±2.1 | -1.18 ±2.5 | +0.15 ±2.0 |
+| 1010K | +5.09 ±5.2 | +3.62 ±6.2 | -0.43 ±4.4 | +1.24 ±5.6 |
+| 2010K | +4.06 ±5.2 | +5.32 ±7.1 | +2.90 ±5.3 | +3.38 ±5.8 |
+| 2900K | +4.25 ±6.6 | +7.46 ±6.0 | +2.22 ±4.6 | +5.41 ±5.9 |
+
+Prey have evolved sensible-positive on `eat` (+4.25) and `act` (+7.46), mild flocking on `prey` (+2.22), but **the wrong sign on `pred` (+5.41)** — they're not evolving fear. Stds 4-7 throughout (vs predator stds 0.5-1.4) means the population is heterogeneous, not converged.
+
+Why prey aren't evolving fear (consistent across runs):
+1. Predator sparsity — 5-6% of population means most prey never encounter one
+2. Ambush predators don't chase — being in "predator territory" is essentially random
+3. Predation accounts for ~5% of all prey deaths (rest is starvation/age) — selection signal on `w_pred` is weak
+4. Same `mutation_scale = 0.4` as predators, but selection pressure on prey is order-of-magnitude weaker, so weights drift faster than they're pinned
+
+**Spatial position effect (anecdotal observation):**
+The user observed that "predator being in the middle of the map versus on the edge or corner probably constitutes like 80% of its success." Predators near map center see prey from 360°, edge predators only see 180°. This compounds the lineage-lottery effect: the highest-E predator (whose lineage dominates breeding) is partly winning via spatial luck, not just hunting skill. The population is converging not just on a phenotype but on the *spatial luck* of the dominant ancestor.
+
+**Drift trajectory of `pred_w_act`:**
+- 1.94M: +4.13 ±0.36
+- 2.10M: +2.31 ±5.68 (std blows up from newborn cohort with init weights)
+- 2.13M: -0.58 ±7.13
+- 2.55M: -10.86 ±0.65 (drift complete, std re-collapsed)
+- 2.70M-now: -8.3 to -8.6 (stable)
+
+The drift was real, not just sample noise. Initial active-hunter selection was Pareto-optimal, but as prey densities rose to 220-270 and the energy bonus paid metabolic bills, selection pressure on movement weakened. Predators that moved less had similar fitness without the active cost — gradient pulled `w_act` negative until the Pareto-optimum re-equilibrated at ambush.
+
+**Open questions / proposed levers:**
+
+1. **`predator_d_b` ↑ + `predator_d_a` ↓** (anti-lazy energetics). Make sitting more expensive, moving cheaper. Risk: extinction if too aggressive. Conservative proposal: `d_b 4e-3 → 4.5e-3`, `d_a 5e-5 → 4e-5`. Breaks paper alignment on K&D Appendix A energy parameters — should be documented as deliberate departure if applied.
+2. **Sigmoid softening: `beta_b` ↓ + `zeta_b_pred` ↓ together.** Reduce lineage bottleneck by spreading breeding across more predators. Discussed but deferred for future ablation.
+3. **`breeding_share_alpha` 0.75 → 0.7.** Slightly less concentrated on top-E. Discussed but deferred.
+4. **Mutation rate.** Considered raising but pushed back: the bottleneck is *which* lineages reproduce, not mutation magnitude. Increasing mutation just makes the same dominant lineage noisier.
+5. **Prey-side fear evolution.** Open. Possible levers: smaller predator mouth (axis-2 territory), faster prey, prey-fear observation channels. None implemented yet.
+
+**Methodological limitations:**
+- **Single seed.** All §15.28b conclusions come from one seed (axis1/small with `seed=0`). Some observations (lineage bottleneck on top-1 individual; specific phenotype attractor reached) are seed-luck-sensitive. For paper-claim, need 3-5 seeds at minimum.
+- **Single tier.** Only axis1/small was run. Whether the same retune produces equivalent dynamics on tiny/med/full is untested.
+- **Spatial dynamics not analyzed quantitatively.** "Middle vs edge" effect is anecdotal — would benefit from a heat map of catch density vs map position.
+
+**Status of the run:**
+At step ~2.9M of 10.24M (~28% complete). Run is healthy and producing stable LV dynamics. User has chosen to wait and observe whether the ambush attractor stabilizes or drifts further. Possible decisions ahead:
+- If `w_act` stops drifting and stabilizes around -8: ambush is the equilibrium, document and move on.
+- If `w_act` drifts further negative toward -25: applying `d_b`/`d_a` retune would push back toward active hunting before extinction.
+- If population starts oscillating wider or losing predators: something else (maybe lineage extinction event) is happening.
+
+**Implementation pointers:**
+- Live run: `evo-reward-gpu` GCP VM, tmux session `axis1small`, run tag `2026-05-08T0407Z`.
+- Analysis script: ad-hoc `~/scaffold_analysis.py` on VM (compares α=0.75 vs α=0.5 share concentration, computes per-agent P_birth).
+- Per-agent inspection: `analysis/checkpoint_explorer.load` reads `state.ages`, `state.energies`, `state.reward_weights[i]`.
+- Phenotype trajectory pulled from `metrics.npz` (270 datapoints over 2.7M steps).
+- Prior comparison data: `analysis/reward_nonlinearity_population_predator_step7M.png` (lazy attractor MLP probe).
