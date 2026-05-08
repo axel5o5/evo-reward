@@ -84,6 +84,15 @@ def check_eating_jax(sim_state, config, contact_mat):
     n_tactile_bins = config["n_tactile_sensors"]
     tactile_spacing_rad = math.radians(config["tactile_spacing_deg"])
     mouth_bin_indices = tuple(config.get("predator_mouth_tactile_bins", [0, 1, 17]))
+    # §15.30: prey foraging also uses tactile-bin gating (paper-faithful). Default
+    # matches emevo's `mouth_range="front"` → bins (0, n_tactile_bins-1) = ~40°
+    # forward arc with our 18-bin geometry. Pre-§15.30 we used a 120° FOV cone
+    # which gave prey ~3× the angular eat coverage of K&D and explains why prey
+    # were so abundant / fear didn't evolve.
+    prey_mouth_indices = tuple(
+        config.get("prey_mouth_tactile_bins", [0, n_tactile_bins - 1])
+    )
+
     eat_interval = config.get("predator_eat_interval", 10)
 
     # ---- Prey eating food ----
@@ -95,14 +104,26 @@ def check_eating_jax(sim_state, config, contact_mat):
     # Pre-D22 we used only prey_radius (effective contact area ≈ 51% of emevo's).
     contact = dists_food <= food_contact_dist
 
-    # FOV check
+    # §15.30: tactile-bin gate on food eating. Same convention as predator
+    # block below (subtract heading, subtract π/2 for phyjax2d's heading=+y
+    # convention, mod 2π, then bin = floor(angle / bin_width)).
     angles_to_food = jnp.arctan2(diffs_food[:, :, 1], diffs_food[:, :, 0])
-    angle_diffs_food = jnp.abs(_wrap_angle(angles_to_food - angles[:, None]))
-    in_fov = angle_diffs_food <= fov_half
+    TWO_PI = 2.0 * jnp.pi
+    angle_rel_food = (
+        angles_to_food - angles[:, None] - jnp.pi / 2.0
+    ) % TWO_PI                                                   # (A, F)
+    bin_width = TWO_PI / n_tactile_bins
+    nearest_bin_food = jnp.clip(
+        (angle_rel_food / bin_width).astype(jnp.int32), 0, n_tactile_bins - 1
+    )                                                            # (A, F)
+    is_prey_mouth_bin_food = jnp.zeros_like(nearest_bin_food, dtype=bool)
+    for b in prey_mouth_indices:
+        is_prey_mouth_bin_food = is_prey_mouth_bin_food | (nearest_bin_food == b)
+    in_prey_mouth = is_prey_mouth_bin_food                       # (A, F)
 
-    # Valid: active prey + active food + contact + in FOV
+    # Valid: active prey + active food + contact + in mouth bins
     prey_mask = (species == 0) & is_active                        # (A,)
-    valid_food = contact & in_fov & prey_mask[:, None] & food_active[None, :]  # (A, F)
+    valid_food = contact & in_prey_mouth & prey_mask[:, None] & food_active[None, :]  # (A, F)
 
     # Deduplication: each food eaten by nearest valid prey
     valid_food_dists = jnp.where(valid_food, dists_food, jnp.inf)

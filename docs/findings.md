@@ -1668,3 +1668,88 @@ At step ~2.9M of 10.24M (~28% complete). Run is healthy and producing stable LV 
 - Per-agent inspection: `analysis/checkpoint_explorer.load` reads `state.ages`, `state.energies`, `state.reward_weights[i]`.
 - Phenotype trajectory pulled from `metrics.npz` (270 datapoints over 2.7M steps).
 - Prior comparison data: `analysis/reward_nonlinearity_population_predator_step7M.png` (lazy attractor MLP probe).
+
+### 15.30 prey foraging mechanics aligned to K&D paper — tactile-bin gate + food_radius (2026-05-08)
+
+User flagged anomaly while watching axis1/small replays: prey appearing to walk over food and not eat it. Source review found two paper deviations in our prey-eating implementation that compound.
+
+**What K&D does** (`emevo_src/src/emevo/environments/circle_foraging.py`):
+
+```python
+# default mouth_range = "front"
+# Line 569-571: maps to bins (0, n_tactile_bins-1)
+elif mouth_range == "front":
+    self._foraging_indices = 0, n_tactile_bins - 1
+
+# Line 930: prey eat counts use these foraging_indices on food_tactile
+n_ate = jnp.sum(food_tactile[:, :, self._foraging_indices], axis=-1)
+
+# Line 504: default food_radius
+food_radius: float = 4.0,
+```
+
+So prey eating uses **tactile-bin contact via phyjax2d substep penetration**, restricted to the "front" indices `(0, n_tactile_bins - 1)`. With our 18-bin geometry, that's bins `(0, 17)` — a **40° forward arc**. Food has radius 4, giving prey a contact distance of `prey_radius + food_radius = 14`.
+
+**What we were doing** (pre-§15.30, `src/jax_food.py:96-105`):
+
+```python
+contact = dists_food <= prey_radius + food_radius  # food_radius defaulted to 0 → contact at 10
+in_fov = angle_diffs_food <= fov_half              # 60° (full forward FOV)
+valid_food = contact & in_fov & prey_mask & food_active
+```
+
+So we used:
+- **120° forward cone** instead of 40° (3× wider angular coverage)
+- **food_radius = 0** instead of 4 (40% shorter contact range)
+- No tactile-bin gating
+
+The two deviations partly cancel: wider angular reach but shorter distance. Effective eat zones:
+- Ours pre-§15.30: 120° wedge × radius 10 → **~105 units²**
+- K&D paper: 40° wedge × radius 14 → **~68 units²**
+
+So our prey eating area was ~1.5× the paper's, with the *shape* of the constraint being importantly different — paper requires aim, ours requires proximity.
+
+**Why this matters for evolutionary dynamics:**
+- Prey ate food too easily. Paper's prey have to face food to eat it; ours can scoop laterally up to 60° off-axis.
+- This contributed to prey populations being robust regardless of phenotype.
+- Prey reward weights stayed unconverged (std 4-7 across all weights, in particular `prey_w_pred = +5.41 ±5.9` instead of negative for fear).
+- With prey eating-as-easy, the selection pressure on prey-side reward genome was too weak. Paper-faithful eating mechanics impose a real "must aim" gradient that should pin some weight evolution.
+
+**Fix applied:**
+1. **`src/jax_food.py`** — replace prey FOV cone with tactile-bin gate. Same convention as predator block (heading-relative angle, π/2 phyjax2d offset, mod 2π, bin = floor(angle/bin_width)). Uses `prey_mouth_tactile_bins` config key with default `[0, n_tactile_bins-1]`.
+
+```python
+prey_mouth_indices = tuple(config.get("prey_mouth_tactile_bins",
+                                       [0, n_tactile_bins - 1]))
+
+angle_rel_food = (angles_to_food - angles[:, None] - jnp.pi / 2.0) % TWO_PI
+nearest_bin_food = jnp.clip((angle_rel_food / bin_width).astype(jnp.int32),
+                             0, n_tactile_bins - 1)
+is_prey_mouth_bin_food = jnp.zeros_like(nearest_bin_food, dtype=bool)
+for b in prey_mouth_indices:
+    is_prey_mouth_bin_food = is_prey_mouth_bin_food | (nearest_bin_food == b)
+in_prey_mouth = is_prey_mouth_bin_food
+
+valid_food = contact & in_prey_mouth & prey_mask[:, None] & food_active[None, :]
+```
+
+2. **All 16 axis configs** (axis1/2/12/baseline × tiny/small/med/full):
+   - Add `prey_mouth_tactile_bins: [0, 17]` (paper-faithful explicit)
+   - Add `food_radius: 4.0` (paper-faithful, was implicit 0)
+
+**Distance: kept the existing distance-based contact check** rather than plumbing the food contact_mat from phyjax2d. K&D uses `contact_mat["circle", "static_circle", contacts]` — a per-substep penetration check. We use `dists_food ≤ contact_dist` — an end-of-step check. For *stationary food* the two should agree to within sub-pixel precision (food doesn't move so substep contact = end-step contact). Worth flagging as a minor lingering deviation but not a meaningful behavior delta.
+
+**Predicted impact:**
+- Prey eat ~35% less food per step (smaller eat zone area).
+- Prey energy economy tightens — fewer marginal feedings, more variance in feeding success.
+- Prey populations slightly smaller at steady state (food_max=365 stays the same, but conversion rate from food contacts to prey energy gets less efficient).
+- Selection signal on prey reward weights *should* sharpen — `prey_w_eat` and `prey_w_act` (positioning to aim at food) become more critical.
+- Predator dynamics: prey are slightly less abundant → passive contact rate for ambush predators drops slightly → may push selection toward active hunting (which doesn't depend on prey density as much).
+
+**Tests:** 272 fast tests still pass after the change. No regressions in existing eat-mechanic tests.
+
+**Implementation pointers:**
+- Code change: [src/jax_food.py:83-122](src/jax_food.py#L83-L122).
+- Config keys added to all 16 configs in `configs/axis1/`, `axis2/`, `axis12/`, `baseline/`.
+
+**Status:** the §15.28b axis1/small run (currently at step ~3M) was launched BEFORE this fix. It will keep running with FOV-based prey eating until the next relaunch. New runs from this point forward will use paper-faithful tactile-bin prey eating.

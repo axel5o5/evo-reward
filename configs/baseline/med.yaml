@@ -62,6 +62,7 @@ n_physics_iter:     5
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
 food_max:               505        # §15.27 paper-density (axis1 alignment)
+food_radius:           4.0    # §15.30 paper-faithful (was implicit 0)
 food_initial:           34
 food_growth_rate_at_960sq: 0.5
 food_max_regen_per_step: 8         # §15.27 paper density-isometric (axis1 alignment)
@@ -76,6 +77,7 @@ predator_d_a:           5.0e-5
 predator_eta:           0.50
 
 # ─── Predator Mouth — v10 widening ──────────────────────────────────────────
+prey_mouth_tactile_bins:     [0, 17]    # §15.30 paper-faithful
 predator_mouth_tactile_bins: [0, 1, 17]
 predator_eat_interval:       10
 

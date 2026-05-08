@@ -106,6 +106,7 @@ n_physics_iter:     3
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
 food_max:               235        # 250 → 235 in §15.27 (paper-density: 360k×6.51e-4)
+food_radius:           4.0    # §15.30 paper-faithful (was implicit 0)
 food_initial:           17
 # At world=600 → effective rate 0.5 × (600/960)² ≈ 0.195 food/step.
 food_growth_rate_at_960sq: 0.5
@@ -121,6 +122,7 @@ predator_d_a:           5.0e-5
 predator_eta:           0.50
 
 # ─── Predator Mouth — v10 widening (kept; ~free) ────────────────────────────
+prey_mouth_tactile_bins:     [0, 17]    # §15.30 paper-faithful
 predator_mouth_tactile_bins: [0, 1, 17]
 predator_eat_interval:       10
 
