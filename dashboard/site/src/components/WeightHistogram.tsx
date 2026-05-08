@@ -4,6 +4,10 @@ import { ReplayData } from "../lib/replayLoader";
 interface Props {
   data: ReplayData;
   frameIdx: number;
+  // When set + alive at frameIdx, render a marker at the agent's current
+  // weight on the active axis. Lets the user read at a glance whether the
+  // selected individual is typical-of-species or a tail outlier.
+  selectedSlot?: number | null;
 }
 
 type Axis = 0 | 1 | 2 | 3;
@@ -67,13 +71,40 @@ function computeHistograms(
   };
 }
 
-export default function WeightHistogram({ data, frameIdx }: Props) {
+export default function WeightHistogram({ data, frameIdx, selectedSlot = null }: Props) {
   const [axis, setAxis] = useState<Axis>(3);
 
   const hist = useMemo(() => {
     if (!data.rewardWeights) return null;
     return computeHistograms(data, frameIdx, axis);
   }, [data, frameIdx, axis]);
+
+  // Selected agent's weight value + same-species percentile. We use mid-rank
+  // percentile (count below + half the ties) because tied phenotypes are
+  // common — early in training many agents share an inherited weight vector,
+  // and naive `count_below / total` would slam those onto 0% or 100%.
+  const selectedInfo = useMemo(() => {
+    if (selectedSlot === null || !data.rewardWeights) return null;
+    const N = data.meta.max_agents;
+    if (data.alive[frameIdx * N + selectedSlot] !== 1) return null;
+    const v = data.rewardWeights[(frameIdx * N + selectedSlot) * 4 + axis];
+    const isPred = data.species[selectedSlot] === 1;
+    let lower = 0;
+    let tied = 0;
+    let total = 0;
+    const w = data.rewardWeights;
+    for (let s = 0; s < N; s++) {
+      if (data.alive[frameIdx * N + s] !== 1) continue;
+      if ((data.species[s] === 1) !== isPred) continue;
+      const wv = w[(frameIdx * N + s) * 4 + axis];
+      total++;
+      if (wv < v) lower++;
+      else if (wv === v) tied++;
+    }
+    const percentile =
+      total > 0 ? ((lower + tied / 2) / total) * 100 : null;
+    return { value: v, isPred, percentile, total };
+  }, [data, frameIdx, axis, selectedSlot]);
 
   if (!data.rewardWeights) {
     return (
@@ -127,6 +158,27 @@ export default function WeightHistogram({ data, frameIdx }: Props) {
           pred n={predN} μ={predMean.toFixed(2)}
         </span>
       </div>
+      {selectedInfo && (
+        <div
+          className="text-[10px] font-mono mb-1 flex items-center gap-1.5"
+          style={{ color: selectedInfo.isPred ? COLOR_PRED : COLOR_PREY }}
+          title="The selected/pinned agent's value on this axis, and where it ranks within its species at this frame (mid-rank percentile)."
+        >
+          <span aria-hidden>▾</span>
+          <span>
+            selected: {AXIS_LABELS[axis]}={selectedInfo.value.toFixed(2)}
+            {selectedInfo.percentile !== null && (
+              <>
+                {" · "}
+                {Math.round(selectedInfo.percentile)}
+                <span className="opacity-70">
+                  th pct of {selectedInfo.isPred ? "pred" : "prey"}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+      )}
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -182,6 +234,15 @@ export default function WeightHistogram({ data, frameIdx }: Props) {
         {/* Mean markers */}
         <MeanTick value={preyMean} color={COLOR_PREY} H={H} />
         <MeanTick value={predMean} color={COLOR_PRED} H={H} />
+        {/* Selected-agent marker — drawn last so it sits on top of bars
+            and mean ticks. */}
+        {selectedInfo && (
+          <SelectedTick
+            value={selectedInfo.value}
+            color={selectedInfo.isPred ? COLOR_PRED : COLOR_PREY}
+            H={H}
+          />
+        )}
       </svg>
 
       <div className="mt-1 text-[10px] font-mono text-gray-500 flex justify-between">
@@ -207,5 +268,31 @@ function MeanTick({ value, color, H }: { value: number; color: string; H: number
       vectorEffect="non-scaling-stroke"
       opacity={0.9}
     />
+  );
+}
+
+// Selected-agent tick. Distinguished from MeanTick by a downward triangle
+// pointer at the top edge — easier to read at a glance than a thicker line
+// against the same colored bars.
+function SelectedTick({ value, color, H }: { value: number; color: string; H: number }) {
+  const v = Math.max(-HIST_RANGE, Math.min(HIST_RANGE, value));
+  const x = ((v + HIST_RANGE) / (2 * HIST_RANGE)) * 480;
+  const HEAD = 6;
+  return (
+    <g>
+      <line
+        x1={x}
+        x2={x}
+        y1={HEAD}
+        y2={H}
+        stroke={color}
+        strokeWidth={2}
+        vectorEffect="non-scaling-stroke"
+      />
+      <polygon
+        points={`${x - HEAD},0 ${x + HEAD},0 ${x},${HEAD}`}
+        fill={color}
+      />
+    </g>
   );
 }

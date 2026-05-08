@@ -556,7 +556,11 @@ export default function Replay() {
                   />
                 )}
                 {data.rewardWeights && (
-                  <WeightHistogram data={data} frameIdx={frameIdx} />
+                  <WeightHistogram
+                    data={data}
+                    frameIdx={frameIdx}
+                    selectedSlot={pinnedSlot ?? selectedSlot}
+                  />
                 )}
               </div>
             )}
