@@ -58,10 +58,10 @@ coevolution_mode:   "concurrent"
 # selection knob — sharpens energy-weighted breeding share). Same intervention
 # as med (L3); see findings.md §15.27 for the lazy-clusterer diagnosis.
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           14.0    # 17 → 14 in §15.27
-density_breeding_threshold_prey:           140.0   # 170 → 140 in §15.27
-density_metabolism_threshold_pred:         14.0    # 17 → 14 in §15.27
-density_metabolism_threshold_prey:         140.0   # 170 → 140 in §15.27
+density_breeding_threshold_pred:           12.0    # 17 → 14 (§15.27) → 12 (§15.28b)
+density_breeding_threshold_prey:           120.0   # 170 → 140 (§15.27) → 120 (§15.28b)
+density_metabolism_threshold_pred:         12.0    # 17 → 14 (§15.27) → 12 (§15.28b)
+density_metabolism_threshold_prey:         120.0   # 170 → 140 (§15.27) → 120 (§15.28b)
 density_factor_floor:                      0.0
 breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 — unified
                                                    # across tiers; sharpens energy-

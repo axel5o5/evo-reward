@@ -25,10 +25,10 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; §15.23 rename; tier L1) ────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           10.0    # 12 → 10 in §15.27
-density_breeding_threshold_prey:           100.0   # 120 → 100 in §15.27
-density_metabolism_threshold_pred:         10.0    # 12 → 10 in §15.27
-density_metabolism_threshold_prey:         100.0   # 120 → 100 in §15.27
+density_breeding_threshold_pred:           9.0    # 12 → 10 (§15.27) → 9 (§15.28b)
+density_breeding_threshold_prey:           90.0   # 120 → 100 (§15.27) → 90 (§15.28b)
+density_metabolism_threshold_pred:         9.0    # 12 → 10 (§15.27) → 9 (§15.28b)
+density_metabolism_threshold_prey:         90.0   # 120 → 100 (§15.27) → 90 (§15.28b)
 density_factor_floor:                      0.0
 breeding_share_alpha:                      0.75    # 0.3 → 0.75 in §15.27 (unified)
 
