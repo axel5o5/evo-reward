@@ -253,10 +253,18 @@ export default function AgentInspector({
         <div className="col-span-2">
           pos <span className="text-gray-500">({x.toFixed(1)}, {y.toFixed(1)})</span>
         </div>
-        {birthStep !== null && (
+        {age !== null && age >= 0 && (
           <div className="col-span-2">
-            born <span className="text-gray-500">step {birthStep.toLocaleString()}</span>
-            <span className="text-gray-500"> · age {age}</span>
+            age{" "}
+            <span className="text-gray-700 dark:text-gray-300 tabular-nums">
+              {age.toLocaleString()}
+            </span>
+            <span className="text-gray-500"> steps</span>
+            {birthStep !== null && (
+              <span className="text-gray-500">
+                {" "}· born @ step {birthStep.toLocaleString()}
+              </span>
+            )}
           </div>
         )}
         <div className="col-span-2 flex items-center gap-2">
