@@ -57,11 +57,11 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     4
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               438        # §15.32 tier-graduated: paper-density × 1.20
+food_max:               400        # §15.32b tier-graduated: paper-density × 1.10
 food_radius:           4.0    # §15.30 paper-faithful (was implicit 0)
-food_initial:           31
+food_initial:           28
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 7         # §15.32 tier-graduated × 1.20
+food_max_regen_per_step: 7         # §15.32b tier-graduated × 1.10
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0
@@ -70,7 +70,7 @@ prey_c_b:               1.0e-4
 prey_c_a:               2.5e-6
 predator_d_b:           4.5e-3       # §15.31: 4e-3 → 4.5e-3 (+12.5% passive — anti-lazy)
 predator_d_a:           4.0e-5       # §15.31: 5e-5 → 4e-5 (-20% active — anti-lazy)
-predator_eta:           0.65       # §15.32 tier-graduated: paper 0.5 (full) / 0.575 (med) / 0.65 (small) / 0.70 (tiny)
+predator_eta:           0.6       # §15.32b (over-energization walkback): paper 0.5 / 0.55 / 0.60 / 0.65 by tier
 
 # ─── Predator Mouth — v10 widening ──────────────────────────────────────────
 prey_mouth_tactile_bins:     [0, 17]    # §15.30 paper-faithful

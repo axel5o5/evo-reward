@@ -1896,3 +1896,64 @@ Each is documented as a deliberate departure. For paper-claim phase, the framing
 - `predator_eta` is read in `update_energies_jax` at [src/jax_lifecycle.py](src/jax_lifecycle.py); `food_max` and `food_max_regen_per_step` in food regen logic.
 
 **Status:** §15.32 bundled with §15.30 + §15.31 for next launch. Current run (step ~250K, 2.5% of 10.24M) is being killed; new run starts fresh with the full stack.
+
+### 15.32b §15.32 walkback — η + food_max overcorrected, dialing back (2026-05-08)
+
+The §15.32 launch (η=0.65 small / 0.70 tiny, food×1.20 small / ×1.25 tiny) over-energized predators within 100K steps. Observations from the run (killed at step ~120K):
+
+- Pred E median climbed to **175** at step 10K (vs 130 in §15.30+§15.31, +35%) and stayed elevated (146 at 20K, 105 at 50K).
+- Pred pop pegged at cap=35 for first 30K steps before slowly correcting (35→34→31→21→14 over 20K-50K).
+- Catches surged 389/10K at first window vs 284 in §15.30+§15.31 (+37%).
+- Predator weights drifting toward LAZY direction faster than even §15.27:
+  - `pred_w_eat`: -0.03 → **-0.23** in 90K steps
+  - `pred_w_act`: -0.17 → **-0.38** (drifting negative — laziness signature)
+  - `pred_w_prey`: -0.20 → **-0.54** (anti-prey, similar to ambush direction)
+  - `pred_w_pred`: oscillating around +0.3 (mild cluster-leaning)
+- Median pred death-age 41K vs 28K in prior run — predators living longer due to surplus energy.
+
+The §15.32 mathematical prediction was "+3.5 net with bonus" → essentially balanced. Empirically it produced **strong surplus** because the catch rate boost from food×1.20 was bigger than expected (system found more catches than 7.5/pred predicted, likely closer to 10+/pred per 10K during the over-energized phase). With η=0.65 amplifying each catch by 30%, the effective energy injection was ~50-60% above what was needed.
+
+Actionable lesson: **§15.32 paper-departures need to be tier-graduated AND smaller in magnitude.** Cutting both knobs roughly in half:
+
+**§15.32b values (tier-graduated, halved magnitude):**
+
+| Tier | η was | η new | food was | food scaler new | food_max | food_initial | food_regen |
+|---|---|---|---|---|---|---|---|
+| full | 0.50 | 0.50 | 600 | ×1.00 (paper) | 600 | 40 | 10 |
+| med | 0.575 | **0.55** | 555 | ×1.05 | 530 | 35 | 8 |
+| small | 0.65 | **0.60** | 438 | ×1.10 | 400 | 28 | 7 |
+| tiny | 0.70 | **0.65** | 294 | ×1.15 | 270 | 19 | 5 |
+
+Other §15.31 changes preserved unchanged:
+- `predator_d_b = 4.5e-3` (no further bump — user explicitly: "d_b bump can just stay the same")
+- `predator_d_a = 4.0e-5`
+
+**Predicted energy budget at small tier (η=0.60, food×1.10):**
+
+| | catches/10K | E/catch | cost | bonus | net |
+|---|---|---|---|---|---|
+| Pre-§15.32 (§15.30+§15.31) | 6 × 0.5 × 13 = 39 | 6.5 | 65 | +7.5 | **−18.5** |
+| §15.32 (η=0.65, food×1.20) | 7.5 × 0.65 × 13 = 63 | 8.5 | 65 | +7.5 | **+5.5 (over-energized)** |
+| §15.32b (η=0.60, food×1.10) | 6.6 × 0.6 × 13 = 51 | 7.8 | 65 | +7.5 | **−6.5 (small deficit, bonus has role)** |
+
+This puts us at small deficit again — bonus is back to providing margin rather than being load-bearing. Selection pressure on hunting genome should be present (need to catch ≥7 to break even on average) without driving the lazy attractor.
+
+Tier-graduated philosophy preserved: full = paper, smaller = more sustainability help. But all bumps halved.
+
+**Predicted dynamics:**
+- Cold-start cohort still bumps to cap initially but corrects faster (lower energy reserves).
+- Pred steady-state should be 10-14 again, similar to §15.30+§15.31.
+- Anti-lazy pressure preserved via §15.31 d_b/d_a (sitting more expensive, moving cheaper).
+- Catch rate improvement should still help — modest boost not killing the active-hunter selection signal.
+- Per-tier scaling lets us study how the sustainability-bump magnitude affects evolution: full = most paper-faithful, tiny = most stable. If we see clearly different attractors at different tiers under same observations, that tells us which knob matters.
+
+**Risks:**
+- We could under-correct (still over-energized) — would manifest as pred pop sticking at cap > 30K steps and pred E median > 80 at steady state. If so, walk back further (η small=0.55 maybe).
+- We could over-correct (back to deficit-extinct) — would manifest as pred dropping below 5 within 100K and emergency_breeding firing constantly. If so, walk forward to η small=0.625 or food×1.15.
+
+**Implementation pointers:**
+- All 16 axis configs (axis1/2/12/baseline × tiny/small/med/full) updated.
+- d_b/d_a unchanged from §15.31.
+- §15.32 was the first run-and-iterate cycle on energy economics; §15.32b is the corrective.
+
+**Status:** §15.32 run killed at step ~120K. §15.32b applied + deploying for next axis1/small launch. Stack now: §15.30 (prey paper-faithful eating) + §15.31 (anti-lazy d_b/d_a) + §15.32b (modest sustainability bump). Open question: does §15.32b's energy economy land near the §15.30+§15.31 equilibrium with mild improvement, or does the small η+food bump also drive lazy drift?
