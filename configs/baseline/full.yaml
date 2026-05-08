@@ -24,12 +24,12 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (matches axis1/full §15.22 retune; tier full) ──────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           22.0
-density_breeding_threshold_prey:           220.0
-density_metabolism_threshold_pred:         22.0
-density_metabolism_threshold_prey:         220.0
+density_breeding_threshold_pred:           15.0    # §15.22→§15.27→§15.28b retune (axis1 alignment)
+density_breeding_threshold_prey:           150.0   # §15.22→§15.27→§15.28b retune (axis1 alignment)
+density_metabolism_threshold_pred:         15.0    # §15.22→§15.27→§15.28b retune (axis1 alignment)
+density_metabolism_threshold_prey:         150.0   # §15.22→§15.27→§15.28b retune (axis1 alignment)
 density_factor_floor:                      0.0
-breeding_share_alpha:                      0.5
+breeding_share_alpha:                      0.75    # §15.27 unified at 0.75 (axis1 alignment)
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 obs_dim:            205
@@ -40,11 +40,13 @@ total_steps:        10_240_000
 
 # ─── Population (paper) ─────────────────────────────────────────────────────
 prey_initial:       150
-predator_initial:   11
-prey_cap:           450
+predator_initial:   30        # §15.26 cold-start parity (axis1 alignment)
+prey_cap:           450        # §15.27 paper-density (axis1 alignment)
 predator_cap:       50
 prey_e_initial:     100.0
-predator_e_initial: 100.0
+predator_e_initial: 150.0    # §15.26 cold-start parity (axis1 alignment)
+emergency_breeding_n_pred: 3   # §15.26 (axis1 alignment)
+emergency_breeding_n_prey: 10  # §15.26 (axis1 alignment)
 
 # ─── Agent Bodies ────────────────────────────────────────────────────────────
 prey_radius:        10.0
@@ -64,10 +66,10 @@ tactile_spacing_deg:    20.0
 n_physics_iter:     5
 
 # ─── Food Dynamics ───────────────────────────────────────────────────────────
-food_max:               600
+food_max:               600        # §15.27 paper-density (axis1 alignment)
 food_initial:           40
 food_growth_rate_at_960sq: 0.5
-food_max_regen_per_step: 10
+food_max_regen_per_step: 10         # §15.27 paper density-isometric (axis1 alignment)
 
 # ─── Energy ──────────────────────────────────────────────────────────────────
 energy_capacity:        1000.0
@@ -100,6 +102,10 @@ zeta_b_pred:        100.0
 # ─── Offspring ───────────────────────────────────────────────────────────────
 energy_share_ratio: 0.4
 spawn_spread:       100.0
+birth_energy_bonus_global_prey:    1.0    # §15.28 (axis1 alignment)
+birth_energy_bonus_global_pred:    5.0    # §15.28 (axis1 alignment)
+birth_energy_bonus_emergency_prey: 5.0    # §15.28 (axis1 alignment)
+birth_energy_bonus_emergency_pred: 50.0   # §15.28 (axis1 alignment)
 
 # ─── Reward Genome (linear only) ─────────────────────────────────────────────
 reward_weights_init_std:  0.1

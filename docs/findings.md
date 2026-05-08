@@ -1465,3 +1465,37 @@ Both child and parent get the *same* additive lift. The "extra" energy comes fro
 - **Parent's gain `+ bonus` could fight against the K&D depletion logic.** A parent with E=200 paying child 80, then getting +50 bonus, ends with E=170. So they actually *gain* a little energy at high pop with global_bonus > 0. This isn't catastrophic but technically non-paper-faithful even at high pop. Mitigation: keep `birth_energy_bonus_global = 0` in production configs.
 
 Bonus is a complement to §15.27's selection retune, not a replacement. Selection still drives evolution toward hunting genomes; the bonus prevents the cohort from dying before evolution can act.
+
+**§15.28b — T values pulled tighter (2026-05-08).** First §15.28 launch on axis1/small over-energized at cap within 20K steps because the (1-factor) gradient stays large at high pop when T is high relative to caps. Pulled T values back across all tiers to shrink high-pop bonus contribution and tighten selection a touch more:
+
+| Tier  | T_pred (§15.27 → §15.28b) | T_prey | factor at cap before/after |
+|-------|---------------------------|--------|---------------------------|
+| tiny  | 10 → 9                    | 100 → 90  | 0.80 → 0.83 |
+| small | 14 → 12                   | 140 → 120 | 0.86 → 0.895 |
+| med   | 15 → 13                   | 150 → 130 | 0.85 → 0.89 |
+| full  | 17 → 15                   | 170 → 150 | 0.87 → 0.90 |
+
+**Result on axis1/small at step 2.1M (the second relaunch):** the run successfully escaped the lazy-clusterer attractor and converged on an active hunting phenotype:
+- `pred_w_act = +4.2 ± 0.5` (rewards moving — flipped from −25.86)
+- `pred_w_prey = +9.5 ± 0.7` (strong, less extreme than lazy +13.57)
+- `pred_w_pred = −2.5 ± 0.7` (territorial — flipped from +19.87 cluster)
+- `pred_w_eat = +0.5 ± 0.5` (mildly positive — flipped from −5.59)
+- Predator pop oscillates 10–20 (well below cap=35), prey 180–270, classic LV cycle.
+- Median pred death age 40K-42K (~40 PPO updates) — 3× the lazy regime, 12× the §15.27 starvation cohort.
+- pred E median 55-90 — sustainable, not over-energized.
+
+This is the result we wanted from §15.27. The retune chain (selection tightening + density normalize + per-species birth-energy bonus + T pullback) successfully produced the textbook predator-prey dynamics: predators chase, predator-predator clustering negatively rewarded, real LV oscillation.
+
+**§15.28c — propagated to baseline configs (2026-05-08).** axis1 ran the experimental sequence; baseline (K&D linear reward, no MLP residual) was deliberately left in §15.22-only state during the iteration so it wouldn't interfere with Gil's parallel ablation runs (`baseline/med_constant_age*`, `baseline/med_linear_age*`). With the axis1/small results now showing the §15.27/§15.28/§15.28b stack works, propagated the same parameters to `baseline/{tiny,small,med,full}.yaml` so axis1-vs-baseline A/B comparisons share identical scaffold/density and the only difference is the reward genome (linear vs `linear_plus_mlp_residual`).
+
+**Files updated for §15.28c (4 files):**
+- `configs/baseline/tiny.yaml` — same values as `axis1/tiny.yaml`
+- `configs/baseline/small.yaml` — same values as `axis1/small.yaml`
+- `configs/baseline/med.yaml` — same values as `axis1/med.yaml`
+- `configs/baseline/full.yaml` — same values as `axis1/full.yaml`
+
+**Files deliberately NOT touched (Gil's experimental ablations):**
+- `configs/baseline/med_constant_age.yaml`, `med_constant_age_predlr.yaml`
+- `configs/baseline/med_linear_age.yaml`, `med_linear_age_predlr_r256.yaml`
+
+These are Gil's parallel design-grid cells (constant/linear age hazard × default/boosted predator LR). They expect specific scaffold values for clean comparison to each other; rolling the new scaffold under them mid-experiment would invalidate the ablation. Gil can pick up the new scaffold values when he next re-runs.
