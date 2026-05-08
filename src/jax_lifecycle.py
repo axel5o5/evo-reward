@@ -502,16 +502,23 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
     prey_count = jnp.sum(new_is_active & (sim_state.species == 0))
     pred_count = jnp.sum(new_is_active & (sim_state.species == 1))
 
-    # §15.28: scaffold-aware additive birth-energy bonus. Both child and parent
-    # get +bonus at birth where bonus = bonus_global + bonus_emergency * (1 - factor),
-    # `factor` being the species-specific DDB factor (1 at high pop, 0 at full
-    # scaffold engagement). Rescues the death-spiral regime where parent E is
-    # too low to give a viable child via the bare K&D transfer (axis1/small
-    # extincted at step ~80K because newborns inherited starvation).
-    # Defaults 0.0 → paper-faithful K&D mechanics.
-    bonus_global = float(config.get("birth_energy_bonus_global", 0.0))
-    bonus_emergency = float(config.get("birth_energy_bonus_emergency", 0.0))
-    if bonus_global > 0.0 or bonus_emergency > 0.0:
+    # §15.28: scaffold-aware additive birth-energy bonus, per species.
+    # Both child and parent get +bonus at birth where:
+    #   bonus = bonus_global_<species> + bonus_emergency_<species> * (1 - factor)
+    # Per-species split so prey (which reproduce easily) and predators (which
+    # struggle in the death-spiral regime) can be tuned independently.
+    # Legacy single-key fallback `birth_energy_bonus_{global,emergency}` applies
+    # to BOTH species if species-specific keys are absent. Defaults 0.0 →
+    # paper-faithful K&D mechanics.
+    _b_g_legacy = float(config.get("birth_energy_bonus_global", 0.0))
+    _b_e_legacy = float(config.get("birth_energy_bonus_emergency", 0.0))
+    bonus_global_prey = float(config.get("birth_energy_bonus_global_prey", _b_g_legacy))
+    bonus_global_pred = float(config.get("birth_energy_bonus_global_pred", _b_g_legacy))
+    bonus_emergency_prey = float(config.get("birth_energy_bonus_emergency_prey", _b_e_legacy))
+    bonus_emergency_pred = float(config.get("birth_energy_bonus_emergency_pred", _b_e_legacy))
+    any_bonus = (bonus_global_prey > 0.0 or bonus_global_pred > 0.0 or
+                 bonus_emergency_prey > 0.0 or bonus_emergency_pred > 0.0)
+    if any_bonus:
         bonus_floor_v = float(config.get(
             "density_factor_floor", config.get("ddb_floor", 0.0)
         ))
@@ -594,9 +601,10 @@ def process_births_and_deaths_jax(sim_state, config, rollout_ptrs_for_done=None)
 
         do_spawn = should_spawn & has_slot
 
-        # Per-parent scaffold-aware energy bonus (§15.28).
-        factor_birth = jnp.where(parent_species == 0, factor_prey_birth, factor_pred_birth)
-        energy_bonus = bonus_global + bonus_emergency * (1.0 - factor_birth)
+        # Per-parent scaffold-aware energy bonus (§15.28), species-specific.
+        prey_bonus = bonus_global_prey + bonus_emergency_prey * (1.0 - factor_prey_birth)
+        pred_bonus = bonus_global_pred + bonus_emergency_pred * (1.0 - factor_pred_birth)
+        energy_bonus = jnp.where(parent_species == 0, prey_bonus, pred_bonus)
 
         # Spawn offspring (always executes due to JIT, but result discarded if !do_spawn)
         new_state = spawn_offspring_jax(
