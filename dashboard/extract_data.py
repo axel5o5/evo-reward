@@ -11,8 +11,50 @@ Outputs to: dashboard/site/src/data/
 import json
 import re
 import subprocess
-import yaml
 from pathlib import Path
+
+# pyyaml isn't reliably available on Vercel's Node build container, so we
+# parse the (intentionally flat) baseline_faithful.yaml with stdlib regex.
+# Anything beyond key: scalar (lists, nested maps) would need a real parser.
+_VALUE_RE = re.compile(r"^(\w+):\s*(.+?)(?:\s*#.*)?$")
+
+
+def _coerce_yaml_scalar(raw: str):
+    s = raw.strip()
+    if not s:
+        return None
+    low = s.lower()
+    if low == "true":
+        return True
+    if low == "false":
+        return False
+    if low in ("null", "~"):
+        return None
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        return s[1:-1]
+    cleaned = s.replace("_", "")
+    try:
+        return int(cleaned)
+    except ValueError:
+        pass
+    try:
+        return float(cleaned)
+    except ValueError:
+        pass
+    return s
+
+
+def _load_flat_yaml(path: Path) -> dict:
+    out: dict = {}
+    with open(path) as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            m = _VALUE_RE.match(stripped)
+            if m:
+                out[m.group(1)] = _coerce_yaml_scalar(m.group(2))
+    return out
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = Path(__file__).resolve().parent / "site" / "src" / "data"
@@ -27,9 +69,8 @@ def extract_config_schema():
     with open(config_path) as f:
         raw_lines = f.readlines()
 
-    # Parse YAML values
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
+    # Parse YAML values (stdlib — see _load_flat_yaml note about pyyaml).
+    config = _load_flat_yaml(config_path)
 
     # Extract comments as metadata
     entries = []
