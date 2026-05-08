@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 import { ReplayData } from "../lib/replayLoader";
+import {
+  buildLineageIndex,
+  lineageDepth,
+  offspringCount,
+} from "../lib/lineage";
 import RewardLandscape from "./RewardLandscape";
 import RewardMlpDiagram from "./RewardMlpDiagram";
 
@@ -150,6 +155,10 @@ export default function AgentInspector({
   onJumpToParent,
 }: Props) {
   const series = useMemo(() => computeAgentSeries(data, slot), [data, slot]);
+  // Walk the (frame × slot) grid once per replay to build id→parent and
+  // id→children maps. Cheap (~5M cells max in practice) and lets the
+  // per-agent lineage stats below be O(depth).
+  const lineage = useMemo(() => buildLineageIndex(data), [data]);
   const W = 240;
   const H = 40;
   const HA = 24;
@@ -194,6 +203,18 @@ export default function AgentInspector({
         data.rewardWeights.subarray((frameIdx * N + slot) * 4, (frameIdx * N + slot + 1) * 4),
       )
     : null;
+
+  // Lineage facts for the selected agent. `offspring` counts distinct
+  // children observed alive in the window; `depth` walks up the parent
+  // chain. Both null when v1 replay (no agentIds/parentIds) or when the
+  // agent itself isn't yet observed in the window.
+  const lineageStats = useMemo(() => {
+    if (!lineage || agentId === null || agentId < 0) return null;
+    return {
+      offspring: offspringCount(lineage, agentId),
+      depth: lineageDepth(lineage, agentId),
+    };
+  }, [lineage, agentId]);
 
   const playX =
     series.energy.length > 1 ? (frameIdx / (series.energy.length - 1)) * W : 0;
@@ -284,6 +305,31 @@ export default function AgentInspector({
             </button>
           )}
         </div>
+        {lineageStats && (
+          <div className="col-span-2">
+            offspring{" "}
+            <span className="text-gray-700 dark:text-gray-300 tabular-nums">
+              {lineageStats.offspring}
+            </span>
+            <span className="text-gray-500"> · </span>
+            <span title={
+              lineageStats.depth.reachedFounder
+                ? `${lineageStats.depth.depthInWindow} ancestors back to a founder (parent_id < 0) seen in this replay window`
+                : `≥ ${lineageStats.depth.depthInWindow} ancestors visible in this window — chain runs off the start, founder is older than the recording`
+            }>
+              gen{" "}
+              <span className="text-gray-700 dark:text-gray-300 tabular-nums">
+                {lineageStats.depth.reachedFounder ? "" : "≥ "}
+                {lineageStats.depth.depthInWindow}
+              </span>
+              <span className="text-gray-500">
+                {lineageStats.depth.reachedFounder
+                  ? " from founder"
+                  : " (window-bounded)"}
+              </span>
+            </span>
+          </div>
+        )}
         {series.aliveFirst >= 0 && (
           <div className="col-span-2 text-[10px] text-gray-500">
             alive frames {series.aliveFirst}–{series.aliveLast} of {data.meta.n_frames}
