@@ -18,10 +18,10 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; tier tiny) ─────────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           9.0    # 12 → 10 (§15.27) → 9 (§15.28b)
-density_breeding_threshold_prey:           90.0   # 120 → 100 (§15.27) → 90 (§15.28b)
-density_metabolism_threshold_pred:         9.0    # 12 → 10 (§15.27) → 9 (§15.28b)
-density_metabolism_threshold_prey:         90.0   # 120 → 100 (§15.27) → 90 (§15.28b)
+density_breeding_threshold_pred:           3.00    # §15.33: T/3 scafthird ablation
+density_breeding_threshold_prey:           30.00   # §15.33: T/3 scafthird ablation
+density_metabolism_threshold_pred:         3.00    # §15.33: T/3 scafthird ablation
+density_metabolism_threshold_prey:         30.00   # §15.33: T/3 scafthird ablation
 density_factor_floor:                      0.0
 breeding_share_alpha:                      0.75    # 0.3 → 0.75 in §15.27 (unified)
 
