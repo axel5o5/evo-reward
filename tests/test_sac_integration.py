@@ -28,7 +28,7 @@ import numpy as np
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from src.sac_state import init_sacstate, reset_sac_slot
+from src.sac_state import init_sacstate, reset_sac_slot, save_sac_state, load_sac_state
 from src.sac_runtime import build_sac_runtime
 from src.sac_networks import QNetwork
 
@@ -246,6 +246,100 @@ def test_reset_sac_slot_clears_replay_and_randomizes_actor():
         assert int(state.replay_size[i]) == 0  # they were never written either
 
 
+def test_save_load_roundtrip(tmp_path=None):
+    """Save and load a SacState and verify it reconstructs identically.
+
+    Drive a few sample/write/update cycles first so the state isn't
+    trivially zeros — any silent shape mismatch in the loader would then
+    show up as a value diff.
+    """
+    import tempfile
+    cfg = _config()
+    cfg["sac_minibatch_size"] = 8
+    cfg["sac_replay_min_size"] = 8
+
+    rng = jax.random.PRNGKey(1)
+    state = init_sacstate(cfg, rng)
+    runtime = build_sac_runtime(cfg)
+    n = _max_agents(cfg)
+
+    is_active = jnp.ones((n,), dtype=jnp.bool_)
+    ages = jnp.zeros((n,), dtype=jnp.int32)
+    species = jnp.zeros((n,), dtype=jnp.int32)
+    rng = jax.random.PRNGKey(99)
+    for t in range(20):
+        rng, k_act, k_obs, k_upd = jax.random.split(rng, 4)
+        obs = jax.random.normal(k_obs, (n, cfg["obs_dim"]))
+        actions = runtime["sample_actions"](state, obs, k_act)
+        rewards = obs.sum(axis=1)
+        next_obs = jnp.zeros((n, cfg["obs_dim"]))
+        dones = jnp.zeros((n,))
+        state = runtime["write_transitions"](
+            state, obs, actions, rewards, next_obs, dones, is_active,
+        )
+        state = runtime["step_update"](state, is_active, ages, species, k_upd)
+
+    # Snapshot all leaves to numpy BEFORE save (which uses np.asarray
+    # internally — that's fine, but the post-load comparison needs a
+    # stable reference).
+    pre_leaves = {
+        "actor_params": jax.tree_util.tree_map(np.asarray, state.actor_params),
+        "q1_params": jax.tree_util.tree_map(np.asarray, state.q1_params),
+        "q2_params": jax.tree_util.tree_map(np.asarray, state.q2_params),
+        "q1_target_params": jax.tree_util.tree_map(np.asarray, state.q1_target_params),
+        "q2_target_params": jax.tree_util.tree_map(np.asarray, state.q2_target_params),
+        "log_alpha": np.asarray(state.log_alpha),
+        "replay_obs": np.asarray(state.replay_obs),
+        "replay_action": np.asarray(state.replay_action),
+        "replay_reward": np.asarray(state.replay_reward),
+        "replay_next_obs": np.asarray(state.replay_next_obs),
+        "replay_done": np.asarray(state.replay_done),
+        "replay_ptr": np.asarray(state.replay_ptr),
+        "replay_size": np.asarray(state.replay_size),
+    }
+
+    with tempfile.TemporaryDirectory() as tdir:
+        path = Path(tdir) / "sac.npz"
+        save_sac_state(state, path)
+        loaded = load_sac_state(path, cfg)
+
+    # Per-field comparison.
+    for name in pre_leaves:
+        v = getattr(loaded, name)
+        if isinstance(v, dict):  # params pytree
+            old_leaves = jax.tree_util.tree_leaves(pre_leaves[name])
+            new_leaves = jax.tree_util.tree_leaves(jax.tree_util.tree_map(np.asarray, v))
+            for a, b in zip(old_leaves, new_leaves):
+                assert np.array_equal(a, b), f"{name}: leaf mismatch after roundtrip"
+        else:
+            assert np.array_equal(pre_leaves[name], np.asarray(v)), \
+                f"{name}: array mismatch after roundtrip"
+
+
+def test_save_load_mismatched_config_raises():
+    """Saving with one config, loading with an incompatible one should
+    raise ValueError rather than silently corrupting state. Changing
+    obs_dim doesn't add/remove pytree leaves — it just resizes some —
+    so the loader's shape check (not just leaf-count) is what catches
+    this case."""
+    import tempfile
+    cfg = _config()
+    state = init_sacstate(cfg, jax.random.PRNGKey(0))
+
+    bad_cfg = dict(cfg)
+    bad_cfg["obs_dim"] = cfg["obs_dim"] + 1   # changes per-leaf shape
+
+    with tempfile.TemporaryDirectory() as tdir:
+        path = Path(tdir) / "sac.npz"
+        save_sac_state(state, path)
+        try:
+            load_sac_state(path, bad_cfg)
+            raise AssertionError("expected ValueError on config mismatch")
+        except ValueError as e:
+            assert "shape" in str(e) or "leaf count" in str(e), \
+                f"unexpected error message: {e}"
+
+
 def test_end_to_end_critic_learns_through_runtime():
     """init → 200 cycles of (sample, write, update) on synthetic, fixed-
     reward transitions. With γ=0 and α≈0, the Bellman target is just r,
@@ -306,5 +400,7 @@ if __name__ == "__main__":
     test_write_transitions_advances_ptr_and_size_for_active_only(); print("ok: write gating")
     test_replay_wraparound_at_capacity();                print("ok: ring wraparound")
     test_reset_sac_slot_clears_replay_and_randomizes_actor(); print("ok: birth reset")
+    test_save_load_roundtrip();                          print("ok: save/load roundtrip")
+    test_save_load_mismatched_config_raises();           print("ok: save/load config-mismatch error")
     test_end_to_end_critic_learns_through_runtime();     print("ok: end-to-end critic learns")
-    print("\nAll SAC integration (chunk-2) tests passed.")
+    print("\nAll SAC integration tests passed.")

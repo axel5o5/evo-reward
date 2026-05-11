@@ -20,16 +20,17 @@ The replay write is performed INSIDE this function, so by the time the
 caller gets sac_state back, the latest (s, a, r, s', d) is already
 queued.
 
-Known limitation vs PPO:
+Birth handling:
   - When a slot is reused by birth (a newborn takes over a dead agent's
-    slot), this step zeros that slot's REPLAY BUFFER but inherits the
-    actor / critic networks from the previous occupant. PPO instead
-    re-initializes the entire policy at birth via init_policy. Network
-    inheritance under SAC means the newborn starts with a partially-
-    trained policy. Document this in any paper / blog about results.
-    A fix would call src.sac_state.reset_sac_slot for each birth_mask
-    slot, but doing that vmap-style inside JIT requires initializing
-    fresh networks for ALL slots every step (most discarded) — pricey.
+    slot), this step fully resets the slot — both the replay buffer
+    AND all networks (actor / Q1 / Q2 / target Q1 / target Q2) plus
+    their optimizer states and log_alpha. Matches PPO's "fresh policy
+    at birth" semantics.
+  - Implementation: at every step we vmap-init fresh networks for ALL
+    slots (most are discarded), then jnp.where-select between
+    old-network and fresh-network based on birth_mask. The per-step
+    init cost is small (each network is ~13k params, zero-state Adam
+    init) and amortizes across the rest of the step's work.
 
 Reused unchanged from jax_sim.py:
   - Physics step (force application + n-substep velocity solver).
@@ -48,10 +49,12 @@ import jax.numpy as jnp
 import phyjax2d as pj
 
 from src.sac_networks import SACActorNetwork, reparam_sample
+from src.sac_state import _init_single_agent_nets
 from src.observations import _build_obs_fn
 from src.jax_food import check_eating_jax, remove_eaten_food_jax, regenerate_food_jax
 from src.jax_lifecycle import update_energies_jax, process_births_and_deaths_jax
 from src.environment import N_PHYSICS_ITER, CHANNEL_PREY, CHANNEL_PREDATOR
+import jax.tree_util as jtu
 
 
 def build_sim_step_sac(config, space):
@@ -73,6 +76,17 @@ def build_sim_step_sac(config, space):
     n_channels = config.get("n_proximity_channels", 4)
     F_max = config["max_motor_norm"]
     replay_capacity = int(config.get("sac_replay_capacity", 4096))
+    rollout_steps = int(config["rollout_steps"])
+
+    # Closure-captured config dict — used by the vmap'd birth-init call.
+    # Putting `_init_single_agent_nets` inside vmap means each slot
+    # independently runs the actor/critic/alpha init. The output is a
+    # stacked pytree {actor_params: (n, ...), ...} that we jnp.where
+    # against the existing sac_state values via birth_mask.
+    _config_ref = config
+
+    def _fresh_one_agent(rng):
+        return _init_single_agent_nets(rng, _config_ref)
 
     obs_fn = _build_obs_fn(config, max_agents, food_max)
 
@@ -361,30 +375,64 @@ def build_sim_step_sac(config, space):
             sac_state.replay_size,
         )
 
-        # === 12. Birth-slot replay reset ===
+        # === 12. Birth-slot full reset ===
         # When a slot is reused by birth (post_active=True AND agent_id
-        # changed), zero out the replay ring for that slot so the newborn
-        # doesn't train on the dead predecessor's transitions. Networks
-        # are intentionally NOT reset here — see file docstring.
+        # changed, OR was inactive and is now active), reset BOTH:
+        #   (a) the replay buffer for that slot — newborn shouldn't train
+        #       on the dead predecessor's transitions.
+        #   (b) the actor / Q1 / Q2 / target Q1 / target Q2 networks +
+        #       optimizer states + log_alpha — matches PPO's "fresh
+        #       policy at birth" semantics.
         birth_mask = (~pre_is_active & post_is_active) | slot_replaced
 
-        def _zero_if_birth(arr, mask, shape_after_batch):
-            # arr: (n, *shape_after_batch). mask: (n,). Broadcast mask
-            # across all but the leading axis.
-            m = mask
+        def _zero_if_birth(arr):
+            m = birth_mask
             for _ in range(arr.ndim - 1):
                 m = m[..., None]
             return jnp.where(m, jnp.zeros_like(arr), arr)
 
-        new_replay_obs = _zero_if_birth(new_replay_obs, birth_mask, (replay_capacity, obs_dim))
-        new_replay_action = _zero_if_birth(new_replay_action, birth_mask, (replay_capacity, 2))
-        new_replay_reward = _zero_if_birth(new_replay_reward, birth_mask, (replay_capacity,))
-        new_replay_next_obs = _zero_if_birth(new_replay_next_obs, birth_mask, (replay_capacity, obs_dim))
-        new_replay_done = _zero_if_birth(new_replay_done, birth_mask, (replay_capacity,))
+        new_replay_obs = _zero_if_birth(new_replay_obs)
+        new_replay_action = _zero_if_birth(new_replay_action)
+        new_replay_reward = _zero_if_birth(new_replay_reward)
+        new_replay_next_obs = _zero_if_birth(new_replay_next_obs)
+        new_replay_done = _zero_if_birth(new_replay_done)
         new_ptr = jnp.where(birth_mask, 0, new_ptr)
         new_size = jnp.where(birth_mask, 0, new_size)
 
+        # (b) Network reset. Vmap-init fresh per-slot networks, then select
+        # per-leaf between old (stacked) and fresh (stacked) via birth_mask.
+        # Most slots' fresh init is discarded — but the init is cheap (a
+        # few small matmul-shaped random draws + zero opt-state) and XLA
+        # may fuse parts of it away when birth_mask is all-False.
+        rng, birth_rng = jax.random.split(rng)
+        birth_keys = jax.random.split(birth_rng, max_agents)
+        fresh = jax.vmap(_fresh_one_agent)(birth_keys)
+
+        def _select_per_slot(old_stacked, fresh_stacked):
+            m = birth_mask
+            for _ in range(old_stacked.ndim - 1):
+                m = m[..., None]
+            return jnp.where(m, fresh_stacked, old_stacked)
+
+        new_actor = jtu.tree_map(_select_per_slot, sac_state.actor_params, fresh["actor_params"])
+        new_q1 = jtu.tree_map(_select_per_slot, sac_state.q1_params, fresh["q1_params"])
+        new_q2 = jtu.tree_map(_select_per_slot, sac_state.q2_params, fresh["q2_params"])
+        new_q1_t = jtu.tree_map(_select_per_slot, sac_state.q1_target_params, fresh["q1_target_params"])
+        new_q2_t = jtu.tree_map(_select_per_slot, sac_state.q2_target_params, fresh["q2_target_params"])
+        new_log_alpha = jnp.where(birth_mask, fresh["log_alpha"], sac_state.log_alpha)
+        new_actor_opt = jtu.tree_map(_select_per_slot, sac_state.actor_opt_state, fresh["actor_opt_state"])
+        new_q1_opt = jtu.tree_map(_select_per_slot, sac_state.q1_opt_state, fresh["q1_opt_state"])
+        new_q2_opt = jtu.tree_map(_select_per_slot, sac_state.q2_opt_state, fresh["q2_opt_state"])
+        new_alpha_opt = jtu.tree_map(_select_per_slot, sac_state.alpha_opt_state, fresh["alpha_opt_state"])
+
         sac_state = sac_state.replace(
+            actor_params=new_actor,
+            q1_params=new_q1, q2_params=new_q2,
+            q1_target_params=new_q1_t, q2_target_params=new_q2_t,
+            log_alpha=new_log_alpha,
+            actor_opt_state=new_actor_opt,
+            q1_opt_state=new_q1_opt, q2_opt_state=new_q2_opt,
+            alpha_opt_state=new_alpha_opt,
             replay_obs=new_replay_obs,
             replay_action=new_replay_action,
             replay_reward=new_replay_reward,
@@ -394,7 +442,29 @@ def build_sim_step_sac(config, space):
             replay_size=new_size,
         )
 
-        sim_state = sim_state.replace(rng_key=rng, step=sim_state.step + 1)
+        # === 13. Replay-recorder compatibility: write the action that
+        # drove this step into sim_state.rollout_actions, mod-indexed by
+        # rollout_ptrs. The replay recorder reads
+        # rollout_actions[arange, (ptrs-1) % rollout_size] each frame to
+        # surface "the action this agent just took." SAC never reads this
+        # buffer for learning; it's a passive log.
+        ptrs = sim_state.rollout_ptrs
+        safe_ptrs = jnp.clip(ptrs % rollout_steps, 0, rollout_steps - 1)
+        agent_idx = jnp.arange(max_agents)
+        new_rollout_actions = sim_state.rollout_actions.at[agent_idx, safe_ptrs].set(all_actions)
+        new_rollout_ptrs = jnp.where(
+            pre_is_active, (ptrs + 1) % rollout_steps, ptrs,
+        )
+        # On birth or catch, reset that slot's rollout ptr to 0 (matches
+        # PPO's reset-on-life-event behavior so the recorder reads a
+        # clean window for the newborn).
+        new_rollout_ptrs = jnp.where(birth_mask, 0, new_rollout_ptrs)
+        sim_state = sim_state.replace(
+            rollout_actions=new_rollout_actions,
+            rollout_ptrs=new_rollout_ptrs,
+            rng_key=rng,
+            step=sim_state.step + 1,
+        )
         return sim_state, sac_state
 
     return sim_step_core_sac

@@ -66,6 +66,14 @@ class TrainingState:
     # probe failed (e.g. CPU-only dev box, psutil not installed).
     gpu: dict | None = None         # {util_pct, mem_util_pct, mem_used_mb, mem_total_mb}
     host: dict | None = None        # {cpu_pct, ram_pct, ram_used_mb, ram_total_mb}
+    # Learner identity — "ppo" (default for legacy progress.json) or
+    # "sac" (set by scripts/run_experiment_sac.py). Lets the dashboard
+    # know which block to render in the live panel.
+    learner_type: str = "ppo"
+    # SAC-specific live metrics from the runner's "sac" block in
+    # progress.json. None for PPO runs. Schema:
+    #   {alpha_mean_active, replay_size_mean_active, replay_size_max}
+    sac: dict | None = None
 
 
 @dataclasses.dataclass
@@ -322,6 +330,8 @@ def probe_training(
         evolution_detected=evolution_detected,
         gpu=data.get("gpu"),
         host=data.get("host"),
+        learner_type=str(data.get("learner_type", "ppo")),
+        sac=data.get("sac"),
     )
 
 

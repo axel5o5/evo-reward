@@ -177,6 +177,64 @@ def init_sacstate(config: dict, rng_key) -> SacState:
     )
 
 
+# ---------------------------------------------------------------------------
+# Checkpoint save / load
+# ---------------------------------------------------------------------------
+#
+# Mirrors the SimState checkpoint pattern in scripts/run_experiment_jax.py:
+# flatten the pytree to a list of leaves, save each as `leaf_<i>` in an
+# .npz. To load, we rebuild a fresh template via init_sacstate and then
+# tree_unflatten with the saved leaves. The template is needed because
+# the .npz doesn't preserve the pytree structure on its own.
+#
+# This means: on resume, the user must pass the same config (so the
+# template matches the saved shapes). Mismatch → unflatten fails loudly
+# rather than silently restoring wrong-shaped state.
+
+def save_sac_state(sac_state: SacState, path) -> None:
+    """Flatten SacState to leaves and np.savez. The .npz will contain
+    `leaf_0` ... `leaf_N`; the count varies with optimizer + network
+    pytree structure."""
+    import numpy as np
+    leaves = jtu.tree_leaves(sac_state)
+    np.savez(
+        str(path),
+        **{f"leaf_{i}": np.asarray(l) for i, l in enumerate(leaves)},
+    )
+
+
+def load_sac_state(path, config: dict) -> SacState:
+    """Rebuild a SacState from a .npz produced by save_sac_state.
+
+    Requires `config` so we can construct a template SacState of the
+    right shape (init_sacstate). Verifies the saved leaf count matches
+    the template's leaf count and raises ValueError on mismatch — this
+    is the common signal that the config drifted between save and load.
+    """
+    import numpy as np
+    template = init_sacstate(config, jax.random.PRNGKey(0))
+    full_leaves, treedef = jtu.tree_flatten(template)
+
+    data = np.load(str(path), allow_pickle=False)
+    n = sum(1 for k in data.files if k.startswith("leaf_"))
+    if n != len(full_leaves):
+        raise ValueError(
+            f"sac checkpoint {path}: leaf count {n} != template {len(full_leaves)}. "
+            f"Config must match the one used at save time."
+        )
+    loaded = []
+    for i, expected in enumerate(full_leaves):
+        arr = data[f"leaf_{i}"]
+        if arr.shape != expected.shape:
+            raise ValueError(
+                f"sac checkpoint {path}: leaf_{i} shape {arr.shape} != "
+                f"template {expected.shape}. Config must match the one "
+                f"used at save time."
+            )
+        loaded.append(jnp.asarray(arr))
+    return jtu.tree_unflatten(treedef, loaded)
+
+
 def reset_sac_slot(sac_state: SacState, slot_idx, rng_key, config: dict) -> SacState:
     """Re-initialize one slot at agent birth.
 

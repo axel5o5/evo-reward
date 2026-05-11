@@ -12,16 +12,16 @@ Usage:
         --seed 0 \\
         --max-steps 10000
 
-Scope deviations from run_experiment_jax.py (chunk-3 minimum):
-  - No --resume / --resume-from. SacState is reset on each run.
-    SimState checkpoints are written for inspection but not consumed
-    as restart points.
-  - No replay recording (the replay-recorder pipeline assumes PPO's
-    log_probs in rollout_log_probs; SAC doesn't store those).
+Scope deviations from run_experiment_jax.py:
   - No `metrics.npz` time-series; only the basic progress.json that the
     dashboard monitor reads (step / population / sps / log_alpha mean).
   - No GCS upload sidecar — bring your own (the launcher script's
     gcs-sync tmux session works unchanged if the results layout matches).
+  - --resume works for both states. Each checkpoint writes a pair:
+        step_NNNNNNNN.npz       — SimState (PPO-compatible leaf layout)
+        step_NNNNNNNN_sac.npz   — SacState (separate file because the
+                                  schemas are independent)
+    The resume path picks the latest step number that has BOTH files.
 
 The results layout matches the PPO runner so existing tooling
 (progress.json discovery, checkpoint browsing) continues to work:
@@ -50,10 +50,11 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 from src.config_utils import resolve_scale_dependent_params
 from src.jax_state import init_simstate
-from src.sac_state import init_sacstate
+from src.sac_state import init_sacstate, save_sac_state, load_sac_state
 from src.sac_runtime import build_sac_runtime
 from src.jax_sim_sac import build_sim_step_sac
 from src.environment import _build_physics
+from scripts.replay_recorder import ReplayRecorder
 
 
 DEFAULT_RUNTIME = _REPO_ROOT / "configs" / "runtime" / "default.yaml"
@@ -73,9 +74,56 @@ def _resolve_run_tag(out_dir: str, exp: str, seed: int, explicit: str | None) ->
 def _save_simstate_checkpoint(sim_state, path: Path) -> None:
     """Flatten SimState to leaf arrays and np.savez. Mirrors the PPO
     runner's layout so analysis/checkpoint_explorer.py can read these
-    too — note that it'll need a matching template SimState to unflatten."""
+    too — it rebuilds a template SimState via init_simstate to unflatten."""
     leaves = jtu.tree_leaves(sim_state)
     np.savez(path, **{f"leaf_{i}": np.asarray(l) for i, l in enumerate(leaves)})
+
+
+def _load_simstate_checkpoint(path: Path, config: dict, seed: int):
+    """Reverse of _save_simstate_checkpoint — build a fresh template
+    via init_simstate, then unflatten the saved leaves."""
+    template = init_simstate(config, jax.random.PRNGKey(seed))
+    full_leaves, treedef = jtu.tree_flatten(template)
+    data = np.load(str(path), allow_pickle=False)
+    n = sum(1 for k in data.files if k.startswith("leaf_"))
+    if n != len(full_leaves):
+        raise ValueError(
+            f"sim checkpoint {path}: leaf count {n} != template {len(full_leaves)}. "
+            f"Config must match the run that produced it."
+        )
+    loaded = [jnp.asarray(data[f"leaf_{i}"]) for i in range(n)]
+    return jtu.tree_unflatten(treedef, loaded)
+
+
+def _find_latest_resume_pair(ckpt_dir: Path) -> tuple[int, Path, Path] | None:
+    """Look in ckpt_dir for the highest-numbered step where both a
+    step_NNNNNNNN.npz AND step_NNNNNNNN_sac.npz exist. Returns
+    (step, sim_path, sac_path) or None."""
+    if not ckpt_dir.is_dir():
+        return None
+    sims = {}
+    sacs = {}
+    for p in ckpt_dir.iterdir():
+        name = p.name
+        if not name.startswith("step_") or not name.endswith(".npz"):
+            continue
+        if name.endswith("_sac.npz"):
+            try:
+                step = int(name[len("step_"):-len("_sac.npz")])
+            except ValueError:
+                continue
+            sacs[step] = p
+        else:
+            try:
+                step = int(name[len("step_"):-len(".npz")])
+            except ValueError:
+                continue
+            sims[step] = p
+    paired = sorted(set(sims.keys()) & set(sacs.keys()))
+    if not paired:
+        return None
+    s = paired[-1]
+    return s, sims[s], sacs[s]
 
 
 def main():
@@ -90,6 +138,9 @@ def main():
     ap.add_argument("--out-dir", default="results")
     ap.add_argument("--run-tag", default=None,
                     help="Subdir under <out_dir>/<exp>/seed_<N>/. Default: UTC timestamp.")
+    ap.add_argument("--resume", action="store_true",
+                    help="Resume from the latest paired (sim, sac) checkpoint in "
+                         "the seed's output dir.")
     args = ap.parse_args()
 
     cfg = _load_yaml(args.config)
@@ -125,11 +176,24 @@ def main():
     print()
 
     # ---- Build state + step + runtime ----
-    print("Initializing SimState...")
-    sim_state = init_simstate(cfg, jax.random.PRNGKey(args.seed))
-
-    print("Initializing SacState (this allocates the per-agent replay ring)...")
-    sac_state = init_sacstate(cfg, jax.random.PRNGKey(args.seed + 1))
+    start_step = 0
+    resume_pair = _find_latest_resume_pair(ckpt_dir) if args.resume else None
+    if resume_pair is not None:
+        step_loaded, sim_path, sac_path = resume_pair
+        print(f"Resuming from step {step_loaded:,}:")
+        print(f"  sim → {sim_path.name}")
+        print(f"  sac → {sac_path.name}")
+        sim_state = _load_simstate_checkpoint(sim_path, cfg, args.seed)
+        sac_state = load_sac_state(sac_path, cfg)
+        start_step = int(sim_state.step)
+    else:
+        if args.resume:
+            print("--resume requested but no paired (sim, sac) checkpoint found; "
+                  "starting fresh.")
+        print("Initializing SimState...")
+        sim_state = init_simstate(cfg, jax.random.PRNGKey(args.seed))
+        print("Initializing SacState (this allocates the per-agent replay ring)...")
+        sac_state = init_sacstate(cfg, jax.random.PRNGKey(args.seed + 1))
 
     max_agents = cfg["prey_cap"] + cfg["predator_cap"]
     space, _ = _build_physics(cfg, n_agent_slots=max_agents)
@@ -137,6 +201,23 @@ def main():
     print("JIT-compiling sim_step_core_sac (first step will be slow)...")
     sim_step = build_sim_step_sac(cfg, space)
     runtime = build_sac_runtime(cfg)
+
+    # ---- Replay recorder (dashboard-compatible) ----
+    # sim_step_core_sac writes rollout_actions/rollout_ptrs each step
+    # (passive, not used for learning) so the existing recorder can read
+    # per-frame actions exactly like under PPO. Setting
+    # replay_record_interval_steps=0 in the config disables it.
+    replay_root = run_root / "replays"
+    recorder = ReplayRecorder(
+        cfg, exp_name, args.seed, replay_root,
+        bucket=cfg.get("replay_bucket") or None,
+        run_tag=run_tag,
+    )
+    if recorder.enabled:
+        print(f"  replay recorder: every {recorder.schedule[0][1]:,} steps, "
+              f"length {recorder.length:,} frames")
+    else:
+        print("  replay recorder: disabled (set replay_record_interval_steps > 0 to enable)")
 
     # ---- Main loop ----
     start_time = time.time()
@@ -203,21 +284,29 @@ def main():
     # Initial progress so dashboard sees the run as alive even pre-warmup.
     write_progress(step=-1)
 
-    for step in range(total_steps):
+    for step in range(start_step, total_steps):
         rng, sub = jax.random.split(rng)
         sim_state, sac_state = sim_step(sim_state, sac_state)
         sac_state = runtime["step_update"](
             sac_state, sim_state.is_active, sim_state.ages, sim_state.species, sub,
         )
 
+        # Replay capture / flush. No-op when disabled.
+        recorder.step(sim_state, step_after=step + 1)
+
         if (step + 1) % log_interval == 0:
             write_progress(step)
 
         if (step + 1) % checkpoint_interval == 0:
-            ckpt_path = ckpt_dir / f"step_{step+1:08d}.npz"
-            print(f"  checkpoint → {ckpt_path}")
+            sim_ckpt = ckpt_dir / f"step_{step+1:08d}.npz"
+            sac_ckpt = ckpt_dir / f"step_{step+1:08d}_sac.npz"
+            print(f"  checkpoint → {sim_ckpt.name} + {sac_ckpt.name}")
             jax.block_until_ready(sim_state.step)
-            _save_simstate_checkpoint(sim_state, ckpt_path)
+            # Write sim first, then sac. _find_latest_resume_pair only
+            # picks step N when BOTH files exist, so a crash mid-write
+            # leaves an unpaired sim_ckpt that gets ignored next run.
+            _save_simstate_checkpoint(sim_state, sim_ckpt)
+            save_sac_state(sac_state, sac_ckpt)
 
         # Hard stop if everyone died (avoids burning compute on dead runs).
         if not bool(jnp.any(sim_state.is_active)):
