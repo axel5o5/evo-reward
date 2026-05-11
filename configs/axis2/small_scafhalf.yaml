@@ -1,22 +1,23 @@
-# Axis 1 + 2 (combined) — Residual reward MLP + social heading obs — small
+# Axis 2 — Bin-aligned heading observation (v10) — small
 # ===================================================================
-# Combines axis1's residual MLP reward + axis2's approach-angle/speed obs
-# (§15.24). Tier small: intermediate scale (750² world, caps 300/35).
+# Tier small: intermediate scale (750² world, caps 300/35). Faster than
+# med, more paper-shaped than tiny. Use for overnight-cycle runs that
+# need more pop fidelity than tiny but don't have med's wall-clock budget.
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis12_residual_reward_mlp_social_heading_small"
+experiment_name:    "axis2_social_heading_small_scafhalf"
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
-reward_type:        "linear_plus_poly"        # from axis1
+reward_type:        "linear"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; tier small) ────────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           4.00    # §15.33: T/3 scafthird ablation
-density_breeding_threshold_prey:           40.00   # §15.33: T/3 scafthird ablation
-density_metabolism_threshold_pred:         4.00    # §15.33: T/3 scafthird ablation
-density_metabolism_threshold_prey:         40.00   # §15.33: T/3 scafthird ablation
+density_breeding_threshold_pred:           6.00    # §15.33b: scafhalf variant (T/2 of §15.28b base)
+density_breeding_threshold_prey:           60.00   # §15.33b: scafhalf variant (T/2 of §15.28b base)
+density_metabolism_threshold_pred:         6.00    # §15.33b: scafhalf variant
+density_metabolism_threshold_prey:         60.00   # §15.33b: scafhalf variant
 density_factor_floor:                      0.0
 breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 (unified)
 
@@ -105,16 +106,11 @@ birth_energy_bonus_global_pred:    5.0    # always added at predator birth
 birth_energy_bonus_emergency_prey: 5.0    # added linearly as prey scaffold engages
 birth_energy_bonus_emergency_pred: 50.0   # added linearly as predator scaffold engages
 
-# ─── Reward Genome (linear + residual MLP — from axis1) ─────────────────────
+# ─── Reward Genome (linear) ─────────────────────────────────────────────────
 reward_weights_init_std:  0.1
 mutation_df:              2
 mutation_scale:           0.4
 weight_clip:              100.0
-residual_hidden_size:     4
-residual_mutation_scale:  0.03
-residual_weight_clip:     5.0
-poly_mutation_scale:      0.05    # §15.33 — poly residual replaces MLP
-poly_weight_clip:         5.0     # §15.33
 
 # ─── Policy ──────────────────────────────────────────────────────────────────
 policy_hidden_size:   64                  # axis2 keeps 64 — bigger obs (333d)

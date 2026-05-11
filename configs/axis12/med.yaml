@@ -8,7 +8,7 @@
 experiment_name:    "axis12_residual_reward_mlp_social_heading_med"
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
-reward_type:        "linear_plus_mlp_residual"        # from axis1
+reward_type:        "linear_plus_poly"        # from axis1
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
@@ -114,6 +114,8 @@ weight_clip:              100.0
 residual_hidden_size:     4
 residual_mutation_scale:  0.03
 residual_weight_clip:     5.0
+poly_mutation_scale:      0.05    # §15.33 — poly residual replaces MLP
+poly_weight_clip:         5.0     # §15.33
 
 # ─── Policy ──────────────────────────────────────────────────────────────────
 policy_hidden_size:   64

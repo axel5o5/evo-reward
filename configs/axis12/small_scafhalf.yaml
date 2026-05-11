@@ -4,7 +4,7 @@
 # (§15.24). Tier small: intermediate scale (750² world, caps 300/35).
 
 # ─── Identity ────────────────────────────────────────────────────────────────
-experiment_name:    "axis12_residual_reward_mlp_social_heading_small"
+experiment_name:    "axis12_residual_reward_mlp_social_heading_small_scafhalf"
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
 reward_type:        "linear_plus_poly"        # from axis1
@@ -13,10 +13,10 @@ coevolution_mode:   "concurrent"
 
 # ─── Stability mechanism (§15.22 retune; tier small) ────────────────────────
 stability_mechanism:                       "ddb_ddm"
-density_breeding_threshold_pred:           4.00    # §15.33: T/3 scafthird ablation
-density_breeding_threshold_prey:           40.00   # §15.33: T/3 scafthird ablation
-density_metabolism_threshold_pred:         4.00    # §15.33: T/3 scafthird ablation
-density_metabolism_threshold_prey:         40.00   # §15.33: T/3 scafthird ablation
+density_breeding_threshold_pred:           6.00    # §15.33b: scafhalf variant (T/2 of §15.28b base)
+density_breeding_threshold_prey:           60.00   # §15.33b: scafhalf variant (T/2 of §15.28b base)
+density_metabolism_threshold_pred:         6.00    # §15.33b: scafhalf variant
+density_metabolism_threshold_prey:         60.00   # §15.33b: scafhalf variant
 density_factor_floor:                      0.0
 breeding_share_alpha:                      0.75    # 0.5 → 0.75 in §15.27 (unified)
 
