@@ -1,0 +1,190 @@
+# SAC + Scaffold-Half + Predator LR 5× — tier med
+# ===================================================================
+# Forks baseline_05-11_scafhalf_med_sac.yaml with one knob different:
+# lr_pred_multiplier 1.0 → 5.0. Same scaffold (T=6.5 / T=65), same SAC
+# defaults otherwise, same energetics.
+#
+# Motivation: the no-multiplier SAC scafhalf run at step 200k had 7
+# active predators with reward weights converged onto an avoidant
+# pattern — mean w_prey = -0.57 (86% negative) and mean w_eat = +0.14
+# (only 43% positive). Predators evolved to flee from prey instead
+# of chasing. Bumping their gradient step size 5× should let the
+# few catches they do make have a larger effect on the actor, giving
+# the chase-prey policy a stronger pull against the K&D-weight
+# selection pressure.
+#
+# Effective predator actor LR at age 0: 5 × lr_schedule_initial
+# = 5 × 1e-3 = 5e-3. Higher than the 3× the PPO predlr config
+# settled on, lower than the original 10× that was flagged for
+# Adam instability. SAC's stochastic actor is generally more
+# robust than PPO's clipped surrogate to higher LRs, so 5× should
+# be safe — but watch for α spikes or sudden population swings.
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "baseline_05-11_scafhalf_med_sac_predlr5"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+policy_type:        "mlp"
+learner_type:       "sac"
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism (1/2 thresholds — was 13.0 / 130.0 in baseline/med) ─
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           6.5
+density_breeding_threshold_prey:           65.0
+density_metabolism_threshold_pred:         6.5
+density_metabolism_threshold_prey:         65.0
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.75
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── World (med-large scale) ─────────────────────────────────────────────────
+world_size:         880
+total_steps:        10_240_000
+
+# ─── Population (med-large scale) ────────────────────────────────────────────
+prey_initial:       125
+predator_initial:   20
+prey_cap:           375
+predator_cap:       40
+prey_e_initial:     100.0
+predator_e_initial: 150.0
+emergency_breeding_n_pred: 3
+emergency_breeding_n_prey: 10
+
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    120.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Physics (paper-faithful) ───────────────────────────────────────────────
+n_physics_iter:     5
+
+# ─── Food Dynamics ───────────────────────────────────────────────────────────
+food_max:               530
+food_radius:            4.0
+food_initial:           35
+food_growth_rate_at_960sq: 0.5
+food_max_regen_per_step: 8
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.5e-3
+predator_d_a:           4.0e-5
+predator_eta:           0.55
+
+# ─── Mouths ──────────────────────────────────────────────────────────────────
+prey_mouth_tactile_bins:     [0, 17]
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval:       10
+
+# ─── Hazard (baseline exponential, unchanged) ───────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+birth_energy_bonus_global_prey:    1.0
+birth_energy_bonus_global_pred:    5.0
+birth_energy_bonus_emergency_prey: 5.0
+birth_energy_bonus_emergency_pred: 50.0
+
+# ─── Reward Genome (linear only) ─────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy ──────────────────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO (baseline defaults — no rollout/minibatch modifications) ───────────
+gamma:              0.999
+rollout_steps:      1024
+minibatch_size:     256
+ppo_epochs:         10
+clip_epsilon:       0.2
+entropy_coef:       0.001
+gae_lambda:         0.95
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true
+vf_coef:            0.5
+
+# ─── Per-agent age-keyed LR schedule (shared with SAC) ─────────────────────
+lr_schedule_enable:       true
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+
+# ─── Per-species LR multiplier — predators get 5× to fight off the
+#     avoidant-policy collapse the no-multiplier run produced. Stacks
+#     multiplicatively on top of the age schedule above.
+lr_prey_multiplier:       1.0
+lr_pred_multiplier:       5.0
+
+# ─── SAC-specific knobs — module defaults ──────────────────────────────────
+sac_actor_lr:             3.0e-4
+sac_critic_lr:            3.0e-4
+sac_alpha_lr:             3.0e-4
+sac_target_tau:           0.005
+sac_minibatch_size:       64
+sac_replay_capacity:      4096
+sac_replay_min_size:      256
+sac_target_entropy:       -2.0
+sac_initial_log_alpha:    0.0
+
+# ─── Death-age ring buffer (v10) ────────────────────────────────────────────
+death_age_ring_size:      256
+
+# ─── Action Space ────────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Replay recording ────────────────────────────────────────────────────────
+replay_record_interval_steps:
+  - {after: 0,         interval: 20_000}
+  - {after: 200_000,   interval: 50_000}
+  - {after: 1_000_000, interval: 100_000}
+replay_record_length_steps:   10_000
+replay_quantize: true
+replay_bucket: "evo-reward-replays-public"
+replay_retention_policy: "milestones"
+replay_retention_config:
+  keep_last_n: 100
+  keep_at_steps:
+    [0, 20_000, 40_000, 60_000, 80_000, 100_000, 150_000, 200_000,
+     300_000, 500_000, 800_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000]
+  tolerance: 5_000
+
+# ─── Reproducibility ─────────────────────────────────────────────────────────
+seed:               0
