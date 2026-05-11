@@ -1,0 +1,8 @@
+# Runtime profile for GCP L4 SAC runs.
+# Mirrors gcp_l4.yaml but with flat ints — the SAC runner doesn't yet
+# support the tapered checkpoint_interval list. Tighter checkpoint
+# cadence too, because SAC's per-agent network state is more volatile
+# than PPO's and shorter recovery windows matter more.
+
+checkpoint_interval_steps: 50_000
+log_interval_steps:        10_000
