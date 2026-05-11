@@ -31,6 +31,10 @@ export interface ParsedExp {
   variant: ExpVariant;
   mechanism: string | null;
   tier: ExpTier | null;
+  // Optional qualifier following the tier word, e.g. "scafhalf" in
+  // `axis1_residual_reward_mlp_small_scafhalf`. Surfaced as its own chip
+  // so it doesn't get lost in the tier label.
+  tierSuffix: string | null;
   category: ExpCategory;
   isLegacy: boolean;
   // Pretty title; tier rendered as a separate chip, not in the title.
@@ -45,8 +49,15 @@ const MONTHS = [
 // Order matters for the prefix alternation: `axis12` must come before `axis1`
 // so it isn't shadowed. (Backtracking would still rescue it, but explicit
 // ordering avoids the costly retry.)
+//
+// Optional trailing `_<suffix>` (e.g. `_scafhalf`) lets sweep-variants live
+// alongside the canonical tier without inventing a new tier word. Example:
+//   axis1_residual_reward_mlp_small_scafhalf
+//   → prefix=axis1, mech=residual_reward_mlp, tier=small, suffix=scafhalf
+// Greedy `(.+)` for mech backtracks once the tier-then-optional-suffix tail
+// is anchored, so simple cases (e.g. `_med` ending) still parse correctly.
 const NEW_SCHEMA_RE =
-  /^(axis12|axis1|axis2|baseline)(?:_(.+))?_(tiny|small|med|full)$/;
+  /^(axis12|axis1|axis2|baseline)(?:_(.+))?_(tiny|small|med|full)(?:_([a-zA-Z][a-zA-Z0-9]*))?$/;
 
 // Pretty rendering for known mechanism stems. Multi-mechanism combinations
 // (e.g. axis12) are matched as full keys here so the joiner is explicit.
@@ -164,17 +175,19 @@ export function parseExp(exp: string): ParsedExp {
       variant: "Baseline (paper)",
       mechanism: null,
       tier: null,
+      tierSuffix: null,
       category: "active",
       isLegacy: false,
       title: "Baseline — K&D Paper-faithful",
     };
   }
 
-  // 2. New schema (axis1/axis2/axis12/baseline + tier).
+  // 2. New schema (axis1/axis2/axis12/baseline + tier [+ optional suffix]).
   const m = exp.match(NEW_SCHEMA_RE);
   if (m) {
-    const [, prefix, mechStem, tierRaw] = m;
+    const [, prefix, mechStem, tierRaw, suffixRaw] = m;
     const tier = tierRaw as ExpTier;
+    const tierSuffix = suffixRaw ?? null;
     const variant: ExpVariant =
       prefix === "axis1" ? "Axis 1" :
       prefix === "axis2" ? "Axis 2" :
@@ -191,6 +204,7 @@ export function parseExp(exp: string): ParsedExp {
       variant,
       mechanism,
       tier,
+      tierSuffix,
       category: "active",
       isLegacy: false,
       title,
@@ -204,6 +218,7 @@ export function parseExp(exp: string): ParsedExp {
       variant: legacy.variant,
       mechanism: legacy.mechanism,
       tier: null,
+      tierSuffix: null,
       category: "archive",
       isLegacy: true,
       title: legacy.title,
@@ -223,6 +238,7 @@ export function parseExp(exp: string): ParsedExp {
       variant,
       mechanism: null,
       tier: null,
+      tierSuffix: null,
       category: "archive",
       isLegacy: true,
       title: prettyId(exp),
@@ -233,6 +249,7 @@ export function parseExp(exp: string): ParsedExp {
       variant: "Baseline",
       mechanism: null,
       tier: null,
+      tierSuffix: null,
       category: "archive",
       isLegacy: true,
       title: prettyId(exp),
@@ -243,6 +260,7 @@ export function parseExp(exp: string): ParsedExp {
       variant: "Demo",
       mechanism: null,
       tier: null,
+      tierSuffix: null,
       category: "archive",
       isLegacy: true,
       title: prettyId(exp),
@@ -252,6 +270,7 @@ export function parseExp(exp: string): ParsedExp {
     variant: "Custom",
     mechanism: null,
     tier: null,
+    tierSuffix: null,
     category: "archive",
     isLegacy: true,
     title: prettyId(exp),
@@ -522,8 +541,13 @@ export function tagPickerLabel(
   let expBlurb: string | null = null;
   if (expsHere.length === 1) {
     const parsed = parseExp(expsHere[0]);
-    expBlurb = parsed.tier
-      ? `${parsed.variant} (${parsed.tier})`
+    const tierLabel = parsed.tier
+      ? parsed.tierSuffix
+        ? `${parsed.tier}/${parsed.tierSuffix}`
+        : parsed.tier
+      : null;
+    expBlurb = tierLabel
+      ? `${parsed.variant} (${tierLabel})`
       : parsed.variant;
   } else if (expsHere.length > 1) {
     const variants = Array.from(new Set(expsHere.map((e) => parseExp(e).variant)));
@@ -575,6 +599,7 @@ export function describeReplay(entry: ReplayIndexEntry): ReplayDisplay {
   }
   const chips: string[] = [parsed.variant];
   if (parsed.tier) chips.push(parsed.tier);
+  if (parsed.tierSuffix) chips.push(parsed.tierSuffix);
   chips.push(`Seed ${entry.seed}`);
   chips.push(`Step ${entry.start_step.toLocaleString()}`);
   chips.push(`${entry.n_frames.toLocaleString()} frames`);
