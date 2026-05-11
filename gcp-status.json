@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-11T03:24:53+00:00",
+  "updated_at": "2026-05-11T04:03:06+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-05-05T00:40:44.168-07:00",
-        "runtime_hours_current": 139.7343,
+        "runtime_hours_current": 140.3715,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 118.7742,
+        "estimated_current_run_usd": 119.3158,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 801,
         "latest_step": 4780000,
-        "latest_age_hours": 175.094,
+        "latest_age_hours": 175.731,
         "total_gb": 222.7391
       },
       "costs": {
-        "compute_current_run": 118.7742,
-        "nat_since_active": 23.46,
-        "storage_current": 1.4844,
-        "live_estimate_total": 143.72,
+        "compute_current_run": 119.3158,
+        "nat_since_active": 23.49,
+        "storage_current": 1.4883,
+        "live_estimate_total": 144.29,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 143.973,
+        "progress_file_age_hours": 144.61,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 98,
@@ -99,7 +99,9 @@
           "ram_pct": 16.7,
           "ram_used_mb": 5619,
           "ram_total_mb": 33652
-        }
+        },
+        "learner_type": "ppo",
+        "sac": null
       },
       "errors": []
     },
@@ -124,14 +126,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 422,
         "latest_step": 7700000,
-        "latest_age_hours": 43.982,
+        "latest_age_hours": 44.618,
         "total_gb": 116.202
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.7744,
-        "live_estimate_total": 0.77,
+        "storage_current": 0.7764,
+        "live_estimate_total": 0.78,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -188,7 +190,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 1.63,
+        "progress_file_age_hours": 2.267,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 100,
@@ -201,7 +203,9 @@
           "ram_pct": 17.6,
           "ram_used_mb": 5907,
           "ram_total_mb": 33652
-        }
+        },
+        "learner_type": "ppo",
+        "sac": null
       },
       "errors": []
     }
