@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-11T13:43:57+00:00",
+  "updated_at": "2026-05-11T14:51:01+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-05-05T00:40:44.168-07:00",
-        "runtime_hours_current": 150.0508,
+        "runtime_hours_current": 151.1686,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 127.5432,
+        "estimated_current_run_usd": 128.4933,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 801,
         "latest_step": 4780000,
-        "latest_age_hours": 185.411,
+        "latest_age_hours": 186.529,
         "total_gb": 222.7391
       },
       "costs": {
-        "compute_current_run": 127.5432,
-        "nat_since_active": 23.91,
-        "storage_current": 1.5473,
-        "live_estimate_total": 153.0,
+        "compute_current_run": 128.4933,
+        "nat_since_active": 23.96,
+        "storage_current": 1.5541,
+        "live_estimate_total": 154.01,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 154.29,
+        "progress_file_age_hours": 155.408,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 98,
@@ -126,14 +126,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 435,
         "latest_step": 7700000,
-        "latest_age_hours": 54.299,
+        "latest_age_hours": 55.417,
         "total_gb": 140.0019
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.9726,
-        "live_estimate_total": 0.97,
+        "storage_current": 0.9769,
+        "live_estimate_total": 0.98,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -141,25 +141,25 @@
       "training": {
         "experiment_name": "baseline_sac_tiny_slowtau",
         "seed": 0,
-        "step": 70000,
+        "step": 100000,
         "total_steps": 10240000,
-        "progress_frac": 0.00684,
-        "sps": 13.889,
-        "eta_hours": 203.4,
+        "progress_frac": 0.00977,
+        "sps": 13.932,
+        "eta_hours": 202.17,
         "population": {
-          "prey": 173,
-          "pred": 14,
-          "food": 269
+          "prey": 176,
+          "pred": 8,
+          "food": 270
         },
         "reward_weights": {},
-        "progress_file_age_hours": 0.139,
+        "progress_file_age_hours": 0.667,
         "evolution_detected": false,
         "gpu": null,
         "host": null,
         "learner_type": "sac",
         "sac": {
-          "alpha_mean_active": 0.1571376770734787,
-          "replay_size_mean_active": 6635.438502673796,
+          "alpha_mean_active": 0.051155637949705124,
+          "replay_size_mean_active": 7767.103260869565,
           "replay_size_max": 8192
         }
       },
