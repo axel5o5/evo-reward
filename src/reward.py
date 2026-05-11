@@ -170,6 +170,77 @@ def compute_residual_reward(linear_genome, residual_genome, stimuli):
     return linear_part + residual_part
 
 
+# ─── Polynomial residual reward genome (Axis 1 v11) ─────────────────────────
+#
+# Replaces the small MLP residual ("linear_plus_mlp_residual") with explicit
+# polynomial features: K&D linear + quadratic + pairwise interactions over
+# the 4 stimuli. 10 evolvable params per agent (4 quadratic + 6 interaction)
+# vs 25 for the MLP residual. Interpretable (each weight has a meaning) and
+# better evolutionary search structure than a black-box MLP — every direction
+# in genome space directly perturbs a meaningful reward feature.
+#
+# Layout (poly_genome shape (10,)):
+#   indices 0..3 → w_sq_i for x_i^2, i in [0, 1, 2, 3]
+#   indices 4..9 → w_xy_ij for x_i * x_j, pairs in canonical order
+#                  (0,1), (0,2), (0,3), (1,2), (1,3), (2,3)
+#
+# Reward = K&D linear (with fixed coefs [1.0, 0.01, 0.1, 0.1]) + sum(w_sq * x^2)
+#        + sum(w_xy * x_i * x_j over the 6 ordered pairs).
+#
+# Zero-init at birth → residual = 0 → starts at exact K&D linear baseline,
+# evolution adds nonlinear structure if useful.
+
+# Canonical pair indices for the 6 pairwise interaction terms. Kept as a
+# module-level constant so compute_poly_reward and tests share the order.
+_POLY_PAIRS = jnp.array(
+    [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]], dtype=jnp.int32
+)
+
+
+def init_poly_genome(rng_key, config: dict) -> jnp.ndarray:
+    """Initialize polynomial residual genome: shape (10,), all zeros.
+
+    Zero-init so the residual contributes 0 to the reward at birth (system
+    starts at exact K&D linear baseline). rng_key is accepted for API
+    symmetry with init_residual_genome but unused.
+    """
+    del rng_key, config  # unused — zero init has no randomness
+    return jnp.zeros((10,), dtype=jnp.float32)
+
+
+def compute_poly_reward(
+    linear_genome: jnp.ndarray,
+    poly_genome: jnp.ndarray,
+    stimuli: jnp.ndarray,
+) -> jnp.ndarray:
+    """Combined K&D linear + polynomial (quadratic + interaction) reward.
+
+    Args:
+        linear_genome: shape (4,) float32 — [w_eat, w_act, w_prey, w_pred].
+        poly_genome:   shape (10,) float32 — first 4 are quadratic weights,
+                       last 6 are pairwise interaction weights in pair order
+                       (0,1),(0,2),(0,3),(1,2),(1,3),(2,3).
+        stimuli:       shape (4,) float32 — [n_eaten, motor_norm, max_s_prey,
+                       max_s_pred].
+
+    Returns:
+        Scalar float32 reward.
+    """
+    coefs = jnp.array([1.0, 0.01, 0.1, 0.1])
+    linear_part = jnp.sum(linear_genome * stimuli * coefs)
+
+    w_sq = poly_genome[:4]                       # (4,)
+    sq_part = jnp.sum(w_sq * stimuli * stimuli)
+
+    w_xy = poly_genome[4:]                       # (6,)
+    # Gather x_i and x_j for each canonical pair, then dot with w_xy.
+    xi = stimuli[_POLY_PAIRS[:, 0]]              # (6,)
+    xj = stimuli[_POLY_PAIRS[:, 1]]              # (6,)
+    interaction_part = jnp.sum(w_xy * xi * xj)
+
+    return linear_part + sq_part + interaction_part
+
+
 # ─── Temporal reward genome (Axis 3) ────────────────────────────────────────
 
 class TemporalRewardMLP(nn.Module):

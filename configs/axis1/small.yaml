@@ -49,7 +49,7 @@
 experiment_name:    "axis1_residual_reward_mlp_small"   # v10 tier: small
 policy_mode:        "independent"
 lifecycle_mode:     "continuous"
-reward_type:        "linear_plus_mlp_residual"
+reward_type:        "linear_plus_poly"
 policy_type:        "mlp"
 coevolution_mode:   "concurrent"
 
@@ -158,7 +158,21 @@ mutation_df:              2
 mutation_scale:           0.4
 weight_clip:              100.0
 
-# ─── Reward Genome (residual MLP part) ───────────────────────────────────────
+# ─── Reward Genome (polynomial residual — Axis 1 v11) ──────────────────────
+# Replaces the MLP residual with explicit polynomial features over the 4
+# stimuli: 4 quadratic terms (w_sq_i * x_i^2) + 6 pairwise interactions
+# (w_xy_ij * x_i * x_j) = 10 evolvable params per agent. Zero-init at birth
+# so the system starts at the exact K&D linear baseline. The ΔR² nonlinear-
+# over-linear probe on v10 found the MLP residual barely engaged (0.019);
+# explicit polynomial basis gives evolution direct levers on each named
+# nonlinearity instead of a low-rank black box.
+poly_mutation_scale:      0.05
+poly_weight_clip:         5.0
+
+# Kept-but-ignored: residual_* keys describe the prior MLP residual
+# variant. The current run uses reward_type=linear_plus_poly so these are
+# unread, but we keep them around so flipping reward_type back to
+# linear_plus_mlp_residual reverts cleanly without a config diff.
 residual_hidden_size:     4
 residual_mutation_scale:  0.03
 residual_weight_clip:     5.0

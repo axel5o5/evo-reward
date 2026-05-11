@@ -111,6 +111,21 @@ def build_sim_step(config, space):
                 stimuli,
             )
             return r, sim_state
+    elif reward_type == "linear_plus_poly":
+        # Polynomial residual (axis 1 v11): K&D linear + 4 quadratic +
+        # 6 pairwise-interaction terms (10 evolvable params/agent on top
+        # of the 4 linear ones). Zero-init at birth → starts at K&D
+        # baseline; explicit polynomial features replace the small MLP
+        # residual for better evolutionary search structure.
+        from src.reward import compute_poly_reward
+
+        def _compute_rewards(sim_state, stimuli):
+            r = jax.vmap(compute_poly_reward)(
+                sim_state.reward_weights,
+                sim_state.reward_poly_params,
+                stimuli,
+            )
+            return r, sim_state
     elif reward_type == "temporal":
         from src.reward import compute_temporal_reward
 

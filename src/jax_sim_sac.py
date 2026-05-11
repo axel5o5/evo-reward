@@ -126,6 +126,17 @@ def build_sim_step_sac(config, space):
                 stimuli,
             )
             return r, sim_state
+    elif reward_type == "linear_plus_poly":
+        # Polynomial residual (axis 1 v11) — mirrors PPO path in jax_sim.py.
+        from src.reward import compute_poly_reward
+
+        def _compute_rewards(sim_state, stimuli):
+            r = jax.vmap(compute_poly_reward)(
+                sim_state.reward_weights,
+                sim_state.reward_poly_params,
+                stimuli,
+            )
+            return r, sim_state
     elif reward_type == "temporal":
         from src.reward import compute_temporal_reward
 

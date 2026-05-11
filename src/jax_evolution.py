@@ -102,6 +102,21 @@ def mutate_temporal_genome_jax(parent_params, rng_key, config):
     )
 
 
+def mutate_poly_genome_jax(parent_poly, rng_key, config):
+    """Mutate a polynomial residual genome (shape (10,) ndarray).
+
+    Mirrors mutate_residual_genome_jax but operates on a flat (10,) array
+    instead of a Flax PyTree — no ravel_pytree needed. Uses Student's t
+    (df=2) with `poly_mutation_scale` (default 0.05) and clips to
+    ±`poly_weight_clip` (default 5.0).
+    """
+    scale = config.get("poly_mutation_scale", 0.05)
+    clip_val = config.get("poly_weight_clip", 5.0)
+    df = config.get("mutation_df", 2.0)
+    delta = sample_students_t(rng_key, parent_poly.shape, df=df, scale=scale)
+    return jnp.clip(parent_poly + delta, -clip_val, clip_val)
+
+
 def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energy_bonus=0.0):
     """Spawn one offspring into new_slot from parent_slot. Operates on SimState arrays.
 
@@ -148,7 +163,7 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energ
     # reward dispatch, so leaving it equal to the parent's value keeps
     # logged linear stats quiet instead of showing a drifting "ghost
     # evolution" the simulator is ignoring.
-    if reward_type in ("linear", "linear_plus_mlp_residual"):
+    if reward_type in ("linear", "linear_plus_mlp_residual", "linear_plus_poly"):
         child_genome = mutate_genome_jax(parent_genome, k3, config)
     else:
         child_genome = parent_genome
@@ -198,11 +213,13 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energ
     pred_ratio = (pred_radius ** 2) / (prey_radius ** 2)
     child_act_ratio = jnp.where(parent_species == 1, pred_ratio, 1.0)
 
-    # MLP / temporal genome mutation + scatter into the per-agent stacked
-    # params. Branch on the static config flag so the entire path stays
-    # in JIT. Linear runs leave both empty dicts as no-ops.
+    # MLP / temporal / poly genome mutation + scatter into the per-agent
+    # stacked params. Branch on the static config flag so the entire path
+    # stays in JIT. Linear runs leave both empty dicts as no-ops; non-poly
+    # runs leave reward_poly_params (a zero-filled array) untouched.
     new_reward_mlp_params = sim_state.reward_mlp_params
     new_reward_temporal_params = sim_state.reward_temporal_params
+    new_reward_poly_params = sim_state.reward_poly_params
     if reward_type == "mlp":
         parent_mlp = jtu.tree_map(
             lambda leaf: leaf[parent_slot], sim_state.reward_mlp_params
@@ -230,6 +247,10 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energ
             lambda stack, single: stack.at[new_slot].set(single),
             sim_state.reward_temporal_params, child_temporal,
         )
+    elif reward_type == "linear_plus_poly":
+        parent_poly = sim_state.reward_poly_params[parent_slot]
+        child_poly = mutate_poly_genome_jax(parent_poly, k5, config)
+        new_reward_poly_params = sim_state.reward_poly_params.at[new_slot].set(child_poly)
 
     return sim_state.replace(
         is_active=sim_state.is_active.at[new_slot].set(True),
@@ -241,6 +262,7 @@ def spawn_offspring_jax(sim_state, parent_slot, new_slot, rng_key, config, energ
         reward_weights=sim_state.reward_weights.at[new_slot].set(child_genome),
         reward_mlp_params=new_reward_mlp_params,
         reward_temporal_params=new_reward_temporal_params,
+        reward_poly_params=new_reward_poly_params,
         policy_params=new_params,
         policy_opt_states=new_opt,
         rollout_obs=sim_state.rollout_obs.at[new_slot].set(0.0),

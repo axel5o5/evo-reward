@@ -45,6 +45,16 @@ class SimState:
     # Same shape contract as reward_mlp_params, but for the (k*4 → h → h → 1)
     # temporal MLP genome (Axis 3). Empty {} for linear/mlp runs.
     reward_temporal_params: dict
+    # Axis 1 v11 polynomial residual genome: (max_agents, 10) float32.
+    # Used when reward_type == "linear_plus_poly"; zero-filled and unread
+    # for other reward types. Layout per agent:
+    # [w_sq_0..w_sq_3, w_xy_01, w_xy_02, w_xy_03, w_xy_12, w_xy_13, w_xy_23].
+    # Zero-initialized at birth so the system starts at the exact K&D
+    # linear baseline; evolution adds nonlinear structure if useful.
+    # We always allocate the array (with zeros for non-poly runs) so the
+    # SimState pytree structure is invariant across reward_type — keeps
+    # tree ops, JIT cache, and checkpoint shapes simple.
+    reward_poly_params: jnp.ndarray
 
     # --- Policy params & optimizer (stacked pytrees, each leaf (max_agents, ...)) ---
     policy_params: dict
@@ -216,6 +226,11 @@ def init_simstate(config: dict, rng_key) -> SimState:
     reward_type = config.get("reward_type", "linear")
     reward_mlp_params: dict = {}
     reward_temporal_params: dict = {}
+    # Always allocate the poly genome array so the SimState pytree shape
+    # is invariant across reward_type (matches the policy_params pattern).
+    # Zero-filled for non-poly runs; the dispatch in jax_sim.py only reads
+    # it when reward_type == "linear_plus_poly".
+    reward_poly_params = jnp.zeros((max_agents, 10), dtype=jnp.float32)
     if reward_type == "linear":
         pass
     elif reward_type == "mlp":
@@ -235,6 +250,13 @@ def init_simstate(config: dict, rng_key) -> SimState:
         reward_mlp_params = jax.vmap(
             lambda k: init_residual_genome(k, config)
         )(mlp_keys)
+    elif reward_type == "linear_plus_poly":
+        # Polynomial residual (axis 1 v11). Linear weights already
+        # initialized above; poly genome (4 quadratic + 6 interaction
+        # weights = 10 params/agent) is zero-init so the system starts
+        # at the exact K&D linear baseline. The (max_agents, 10) zeros
+        # array was pre-allocated above; nothing more to do here.
+        pass
     elif reward_type == "temporal":
         from src.reward import init_temporal_genome
         rng_key, t_key = jax.random.split(rng_key)
@@ -345,6 +367,7 @@ def init_simstate(config: dict, rng_key) -> SimState:
         reward_weights=reward_weights,
         reward_mlp_params=reward_mlp_params,
         reward_temporal_params=reward_temporal_params,
+        reward_poly_params=reward_poly_params,
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,
@@ -501,6 +524,7 @@ def worldstate_to_simstate(world, config: dict) -> SimState:
         reward_weights=reward_weights,
         reward_mlp_params={},
         reward_temporal_params={},
+        reward_poly_params=jnp.zeros((max_agents, 10), dtype=jnp.float32),
         policy_params=all_params,
         policy_opt_states=all_opt,
         rollout_obs=rollout_obs,
