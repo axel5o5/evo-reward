@@ -1,0 +1,163 @@
+# K&D Baseline — tier tiny + SAC learner
+# ===================================================================
+# Same scale and dynamics as baseline/tiny.yaml, but `learner_type: sac`
+# routes through src/jax_sim_sac.py and scripts/run_experiment_sac.py
+# instead of the PPO pipeline.
+#
+# All PPO-specific knobs (rollout_steps, minibatch_size, ppo_epochs,
+# clip_epsilon, gae_lambda, entropy_coef, vf_coef) are unused under SAC
+# but kept for compatibility — init_simstate still touches some of them.
+# New SAC-only knobs at the bottom.
+#
+# Run:
+#   python scripts/run_experiment_sac.py --config configs/baseline/tiny_sac.yaml \\
+#     --seed 0 --max-steps 50000
+
+# ─── Identity ────────────────────────────────────────────────────────────────
+experiment_name:    "baseline_sac_tiny_lr1e3"
+policy_mode:        "independent"
+lifecycle_mode:     "continuous"
+reward_type:        "linear"
+policy_type:        "mlp"
+learner_type:       "sac"           # NEW — routes to SAC runner
+coevolution_mode:   "concurrent"
+
+# ─── Stability mechanism (matches baseline/tiny.yaml) ───────────────────────
+stability_mechanism:                       "ddb_ddm"
+density_breeding_threshold_pred:           9.0
+density_breeding_threshold_prey:           90.0
+density_metabolism_threshold_pred:         9.0
+density_metabolism_threshold_prey:         90.0
+density_factor_floor:                      0.0
+breeding_share_alpha:                      0.75
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+obs_dim:            205
+
+# ─── World — L1 ──────────────────────────────────────────────────────────────
+world_size:         600
+total_steps:        10_240_000
+
+# ─── Population — L1 ─────────────────────────────────────────────────────────
+prey_initial:       60
+predator_initial:   10
+prey_cap:           180
+predator_cap:       20
+prey_e_initial:     100.0
+predator_e_initial: 150.0
+emergency_breeding_n_pred: 3
+emergency_breeding_n_prey: 10
+
+# ─── Agent Bodies ────────────────────────────────────────────────────────────
+prey_radius:        10.0
+predator_radius:    14.0
+max_motor_norm:     114.0
+
+# ─── Sensors ─────────────────────────────────────────────────────────────────
+n_proximity_sensors:    32
+n_proximity_channels:   4
+proximity_fov_deg:      120.0
+proximity_max_range:    100.0
+n_tactile_sensors:      18
+n_tactile_channels:     4
+tactile_spacing_deg:    20.0
+
+# ─── Physics ────────────────────────────────────────────────────────────────
+n_physics_iter:     5
+
+# ─── Food ───────────────────────────────────────────────────────────────────
+food_max:               270
+food_radius:            4.0
+food_initial:           18
+food_growth_rate_at_960sq: 0.5
+food_max_regen_per_step: 4
+
+# ─── Energy ──────────────────────────────────────────────────────────────────
+energy_capacity:        1000.0
+prey_e_food:            1.0
+prey_c_b:               1.0e-4
+prey_c_a:               2.5e-6
+predator_d_b:           4.5e-3
+predator_d_a:           4.0e-5
+predator_eta:           0.55
+
+# ─── Mouths ──────────────────────────────────────────────────────────────────
+prey_mouth_tactile_bins:     [0, 17]
+predator_mouth_tactile_bins: [0, 1, 17]
+predator_eat_interval:       10
+
+# ─── Hazard ──────────────────────────────────────────────────────────────────
+kappa_h:            0.01
+alpha_e:            0.02
+beta_h:             0.2
+alpha_t_prey:       4.0e-7
+alpha_t_pred:       2.0e-7
+beta_t_prey:        4.0e-6
+beta_t_pred:        4.0e-6
+
+# ─── Birth ───────────────────────────────────────────────────────────────────
+kappa_b:            1.0e-3
+beta_b:             0.4
+zeta_b_prey:        15.0
+zeta_b_pred:        100.0
+
+# ─── Offspring ───────────────────────────────────────────────────────────────
+energy_share_ratio: 0.4
+spawn_spread:       100.0
+birth_energy_bonus_global_prey:    1.0
+birth_energy_bonus_global_pred:    5.0
+birth_energy_bonus_emergency_prey: 5.0
+birth_energy_bonus_emergency_pred: 50.0
+
+# ─── Reward genome (linear) ─────────────────────────────────────────────────
+reward_weights_init_std:  0.1
+mutation_df:              2
+mutation_scale:           0.4
+weight_clip:              100.0
+
+# ─── Policy / shared LR ─────────────────────────────────────────────────────
+policy_hidden_size:   64
+policy_n_hidden_layers: 2
+
+# ─── PPO knobs (unused by SAC but required by init_simstate) ────────────────
+gamma:              0.99           # SAC reads this too
+rollout_steps:      1024           # unused by SAC; size used by SimState alloc
+minibatch_size:     256            # unused by SAC
+ppo_epochs:         10             # unused by SAC
+clip_epsilon:       0.2            # unused
+entropy_coef:       0.001          # unused
+gae_lambda:         0.95           # unused
+lr:                 3.0e-4
+adam_eps:           1.0e-7
+vf_clip:            true           # unused
+vf_coef:            0.5            # unused
+
+# ─── Per-agent age-keyed LR schedule (shared with PPO) ──────────────────────
+lr_schedule_enable:       false    # SAC tests passed with this off; enable later if needed
+lr_schedule_initial:      1.0e-3
+lr_schedule_final:        3.0e-4
+lr_schedule_decay_steps:  30000
+lr_prey_multiplier:       1.0
+lr_pred_multiplier:       1.0
+
+# ─── SAC-specific knobs ─────────────────────────────────────────────────────
+sac_actor_lr:             1.0e-3
+sac_critic_lr:            1.0e-3
+sac_alpha_lr:             3.0e-4
+sac_target_tau:           0.005
+sac_minibatch_size:       64
+sac_replay_capacity:      4096     # per-agent ring; tiny-tier has 200 agents → ~640 MB total
+sac_replay_min_size:      256
+sac_target_entropy:       -2.0
+sac_initial_log_alpha:    0.0
+
+# ─── Death-age ring ─────────────────────────────────────────────────────────
+death_age_ring_size:      256
+
+# ─── Action space ───────────────────────────────────────────────────────────
+action_clip_low:    -20.0
+action_clip_high:   80.0
+action_mapping:     "sigmoid"
+
+# ─── Reproducibility ────────────────────────────────────────────────────────
+seed:               0
