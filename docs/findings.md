@@ -2004,3 +2004,42 @@ The honest reading: prey fear was strongly selected from 600k-2.6M (when pred po
 - Multi-seed scafhalf to confirm the regime-switching is reproducible, or whether some seeds get stuck in one basin.
 - axis12/small_scafhalf (poly + social obs) to see whether the social observation lets prey re-evolve persistent fear.
 - A per-agent lineage trace (parent ID → child ID) so the regime transitions can be tied to specific founder/extinct events rather than aggregate weight statistics.
+
+### 15.34b axis1/small_scafhalf — fourth regime emerges at 5.9M (hyper-territorial drifter) (2026-05-12)
+
+**What happened.** Continued polling the live run (now at ~7.3M / 10.24M) via the §15.34 metrics+checkpoint pull. The "three internally clonal regimes" claim in §15.34 was wrong by one — a **fourth, distinctively different predator regime** emerged between 5.9M and 6.5M and is the current attractor. The §15.34 figure annotated `social hunter v2` as running through 4.8M; in reality that regime ended around step 5.3M, transitioned through a brief intermediate at 5.4M-5.85M, then locked in at a new attractor at 5.9M. Reproducing the corrected timeline:
+
+|step|regime|w_eat|w_act|w_prey|w_pred|signature|
+|---|---|---|---|---|---|---|
+|0-600k|emergence|~0|~0|~0|~0|noise|
+|600k-1.51M|social hunter v1|+0.4|+1.5 (lazy)|0.7→3.1|+1.5|clustering, mild chase|
+|1.51M-2.69M|fearful loner|-3.5 peak|-0.5 to -1|+4.2|-1.4|hunger-driven, anti-rival|
+|2.92M-**5.30M**|social hunter v2|+1.0|**-3 to -4**|+3-5|+1.6 to +2.7|deeply anti-lazy, clustering|
+|5.30M-5.85M|transition|+1.5-3.5|-0.5 to -1.5|+2.5-3.0|-0.7 to -2.8|drift through fearful-loner shape|
+|**5.90M-now**|**hyper-territorial drifter**|+1.7-2.6|**+1.5 to +2.5** (lazy)|+3.5-5.2|**-4 to -7.3**|deeply anti-rival, mild laziness, low catch throughput|
+
+**The fourth regime's polynomial fingerprint.** Per-agent inspection of step_07300000.npz (n=10 active predators; full breakdown in conversation analysis run on 2026-05-12):
+
+|term|social-v2 (4.7M)|hyper-territorial (7.3M)|interpretation|
+|---|---|---|---|
+|`prey^2`|+0.31|**-0.97**|squared prey signal *flipped sign* — strong prey-signal becomes aversive (avoid dense prey clusters?)|
+|`pred^2`|+0.14|**-0.52**|squared rival signal also negative — reinforces linear -7|
+|`prey*pred`|+0.32|**+0.81**|reward when both visible — possibly "intercept when chasing prey near another pred" or just artifact|
+|`act*prey`|+1.33|**+1.48**|chase signal continued to strengthen|
+|`act*pred`|-1.09|-0.85|relaxed slightly — less avoidance-via-motion|
+|`eat^2`|+0.88|+1.00|stronger convex eat bonus|
+|`eat*act`|+0.74|+0.90|eat-while-moving|
+|`eat*pred`|+0.15|+0.16|stable (anti-steal mostly absent in this regime)|
+
+**Clonal check.** Pairwise L2 distance between predators' 10-dim poly vectors at 7.3M: median 0.47, max 0.85 — moderately tight but looser than social-v2 (which had per-coord stds ≤0.1). The current regime is *one* lineage but with more internal variation, likely because the elder (slot 280, age 223k) is a holdover from earlier sweeps while the rest are newer descendants.
+
+**Behavioral interpretation.** Linear "chase, lazy, deeply anti-rival" + poly "avoid dense prey clusters, avoid rivals via convex squared terms, +prey*pred crosstalk." The net behavior is dispersed solo intercept hunting at low efficiency: predators spread out to avoid each other AND avoid dense prey, so they end up tagging isolated prey one-at-a-time. Catches per pred per 10k-window crashed from ~5-7 (social-v2) to ~3 (hyper-territorial). It's a strict efficiency regression on the catch-rate metric.
+
+**Why might evolution prefer this?** Selection here is on *individual* survival, not group hunting. The §15.27-style lazy-clusterer collapsed because grouped predators slowed each other down. In social-v2 (4.7M-5.3M), the strong anti-motion-near-rivals (`a*d ≈ -1.09`) was the mechanism; here it migrated into convex squared signals (`p^2 -0.97`, `d^2 -0.52`) and a much deeper linear `w_pred`. Crucially, *all current 10 predators have linear w_pred ≤ -6.86 and ≥ -8.70* — extreme convergence on the anti-rival direction. Some hypothesis space: at this prey density (130-180), lone hunters catch enough to live, and being anti-rival lets the lineage outcompete any pair-hunting upstart (the pair-hunter cooperates with a rival who gets penalized for being there). It's a "spread-out is robust" basin.
+
+**Implications for the paper narrative.**
+- The §15.34 figure showing 3 regimes is now incomplete — needs a fourth bar at 5.9M-7.3M+ and the social-v2 bar truncated to ~5.3M.
+- The "interpretable poly weights" claim gets richer: the regime-encoding *concept* (anti-rival) is preserved across 3 of the 4 regimes (fearful-loner, social-v2, hyper-territorial) but the *mechanism* is re-encoded each time — via linear `w_pred`, then via `act*pred`, then via `prey^2 + pred^2 + w_pred`. The genome is finding multiple equivalent functional forms.
+- The catch-rate degradation in the fourth regime is a real cost. If this regime is stable for the next 3M, the paper's "hunting phenotype emerged" story needs to be qualified: "emerged, then evolution drifted toward dispersed-intercept which is less efficient but apparently more robust under co-evolutionary selection."
+
+**Figures regenerated** (`paper/scripts/plot_predator_genome_evolution.py` to be updated with 4 regime bars + extended-x-axis layout). Snapshot count in `paper/data/axis1_small_scafhalf_trajectory.json` as of 2026-05-12 11:05Z: 18 entries, last step 7.2M. Auto-poll continues every ~28 min via `paper/scripts/poll_trajectory.sh` (running as monitor task `b78e9gj1r`).
