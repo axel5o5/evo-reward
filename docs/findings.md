@@ -2102,7 +2102,7 @@ This is the section that puts the §15.34a-c narrative in its proper context. Th
 | axis1/med (§15.27) | med | linear+MLP residual | 4.33 | 16 | **+17.49** | lazy clusterer (loves rivals) |
 | axis1/small_scafhalf (this run) | small | linear+poly | 6 | **8** | **-11.59** | hyper-territorial (hates rivals) |
 
-These two runs converged to *opposite* signs of w_pred at similar density (axis1/med = 51.7 pred/Mm² at cap, scafhalf = 62.2). The reward type is different (MLP vs poly) but more importantly the **predator population median differs by 2×** (16 vs 8). With pop=16, lineage replacement is gradual; with pop=8, a single bad LV cycle can kill 4-6 individuals and the survivors define the lineage.
+These two runs converged to *opposite* signs of w_pred at similar density (axis1/med = 51.7 pred/Mm² at cap, scafhalf = 62.2). The reward type is different (MLP vs poly) but more importantly the **predator population median differs by 2×** (16 vs 8). With pop=16, lineage replacement is gradual; with pop=8, a single bad LV cycle can kill 4-6 individuals and the survivors define the lineage. **Figure 4** (`paper/figures/cross_run_w_pred.{pdf,png}`) renders both w_pred trajectories with std bands and an inset of the per-run predator-population histograms — the opposite-sign drift and the bottleneck-exposure asymmetry are visible in a single panel.
 
 **2. Bottleneck exposure is dramatically different across configurations.**
 
@@ -2147,3 +2147,8 @@ c. **The lazy-clusterer attractor was reproducible at small_scafhalf** — *it's
 - Per-agent reward decomposition: of the catch-event rewards a predator received last 10k steps, what fraction came from the linear part vs each polynomial term?
 
 **Comparison data captured:** `paper/data/cross_run_comparison.json` (to be generated from `tmp/cross_run_analysis.py`). Both metrics files (scafhalf trajectory + axis1/med metrics.npz) are available in `paper/data/` and `paper/downloaded_results/` respectively.
+
+**Figures refreshed (2026-05-12 evening, data through 8.3M).**
+- **Figure 2** (`paper/figures/predator_genome_evolution.{pdf,png}`): hyper-territorial regime bar extended to 8.3M; w_pred y-axis extended to -13 to fit the new -11.91 floor at 8.28M; third encoding-swap annotation added for eat·prey collapse (+0.06 → -2.55 over 7.6M-7.9M); title now reports the actual w_pred minimum reached.
+- **Figure 3** (`paper/figures/ecology_and_prey_fear.{pdf,png}`): hyper-territorial bar extended to 8.3M; new annotation for the LV crash at 8.16M-8.23M (pred 19→4 then emergency_breeding rescues to 7) sits at the right edge of the upper panel.
+- **Figure 4 NEW** (`paper/figures/cross_run_w_pred.{pdf,png}`): cross-run w_pred trajectories with std bands (scafhalf descending to -11.91; med climbing to +21.09 / final +17.09); inset histogram shows predator-pop distribution per run with the 34.8% vs 0.1% bottleneck-exposure gap visible. Headline visual for the cross-run claim in §4.3.1.
