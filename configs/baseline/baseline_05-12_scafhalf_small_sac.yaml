@@ -159,7 +159,7 @@ sac_critic_lr:            3.0e-4
 sac_alpha_lr:             3.0e-4
 sac_target_tau:           0.005
 sac_minibatch_size:       64
-sac_replay_capacity:      4096
+sac_replay_capacity:      2048
 sac_replay_min_size:      256
 sac_target_entropy:       -2.0
 sac_initial_log_alpha:    0.0
