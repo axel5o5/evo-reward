@@ -2090,3 +2090,60 @@ The 8.16M-8.23M LV crash brought pred to within 1 of `emergency_breeding_n_pred`
 Track this over the next 1-2M steps. If we see another crash near `emergency_breeding`, the hyper-territorial regime is at the edge of viability and the paper should frame it as "an evolved attractor that exists *because* of the safety net, not despite it."
 
 **Data captured.** Snapshot count in `paper/data/axis1_small_scafhalf_trajectory.json` as of 2026-05-12 15:30Z: 27 poly snapshots up through step 8.1M. Auto-poll continues. Both figures (`predator_genome_evolution`, `ecology_and_prey_fear`) will pick up the new datapoints on the next render — the regime bar in the figure already extends to 8.0M, so the 8.16M-8.25M crash will appear at the right edge.
+
+### 15.34d Deeper dive — cross-run comparison, scaffold effects, and the case for caution (2026-05-12)
+
+This is the section that puts the §15.34a-c narrative in its proper context. The headline finding so far has been "polynomial genome produces interpretable, evolving phenotypes" — but a careful look at the *mechanism* of the trajectory raises a major caveat: **a substantial fraction of what we've been calling "evolution" is plausibly small-population bottleneck drift purified by emergency breeding**. This run is a single seed. Without replicates we cannot distinguish "polynomial genome lets evolution find named functional forms" from "the polynomial basis has 10 dimensions of variance and small populations randomly fix particular forms by chance."
+
+**1. Cross-run comparison: identical genome under different conditions yields opposite attractors.**
+
+| run | tier | reward | T_pred | pred pop median | w_pred final | regime |
+|---|---|---|---|---|---|---|
+| axis1/med (§15.27) | med | linear+MLP residual | 4.33 | 16 | **+17.49** | lazy clusterer (loves rivals) |
+| axis1/small_scafhalf (this run) | small | linear+poly | 6 | **8** | **-11.59** | hyper-territorial (hates rivals) |
+
+These two runs converged to *opposite* signs of w_pred at similar density (axis1/med = 51.7 pred/Mm² at cap, scafhalf = 62.2). The reward type is different (MLP vs poly) but more importantly the **predator population median differs by 2×** (16 vs 8). With pop=16, lineage replacement is gradual; with pop=8, a single bad LV cycle can kill 4-6 individuals and the survivors define the lineage.
+
+**2. Bottleneck exposure is dramatically different across configurations.**
+
+|run|fraction at pop≤5|fraction at pop≤7|fraction at emergency floor (≤3)|
+|---|---|---|---|
+|axis1/med (§15.27, 7.5M steps)|**0.0%**|0.1%|0.0%|
+|axis1/small_scafhalf|**5.7%**|**34.8%**|0.1%|
+
+The scafhalf run spends *over a third of its lifetime* at populations of 7 or fewer predators. axis1/med essentially never went there. Every time scafhalf passes through pop=5-7, lineage diversity drops by ~50% and selection on whatever residual variance exists is amplified. **This is the regime where small-population drift is comparable in magnitude to true selection.**
+
+**3. Why scafhalf is small-pop biased.** The combination is the issue:
+- `small` tier: predator cap 35 (vs med's 40, full's 50) and predator_initial bumped to 14 from paper's 9.
+- `scafhalf`: T_pred=6, meaning DDB scaffold engages strongly only once pop drops below ~6. That's a different operating point than scafthird (T=4) where the scaffold is active basically all the time, or §15.28b base (T=12) where it kicks in much earlier.
+- `emergency_breeding_n_pred=3` is constant across tiers — but at small tier, that's 8.6% of cap (vs 6% at full). The "safety net" is relatively *stronger* at small tier, which makes deep bottlenecks survivable.
+
+So small_scafhalf is the worst-of-both: bottlenecks happen frequently (because T is large enough that the scaffold isn't always firing) but the population always rescues to ~6-8 (because emergency_breeding is generous). Each rescue is a 30-50% population replacement event with strong purifying selection on whatever the survivors look like. The genome trajectory is partly evolution, partly random sampling, and the two are hard to separate at N=1.
+
+**4. The poly fingerprint shift 7.6M→7.9M tells the same story.** Between checkpoint 7.6M and 7.9M (a 300k-step window), `eat*prey` collapsed from -0.13 to **-2.55** — a 20× jump. That isn't gradual evolution; that's a single dominant lineage with `eat*prey ≈ -2.5` displacing the previous lineage in ~3 LV cycles. The same period saw `pred^2` go from -0.49 to -1.12 — also abrupt. These are *founder effects* not gradient ascent.
+
+**5. What scafhalf+small *would* have looked like with bigger pops.** axis1/med ran the lazy-clusterer attractor at pop ~16; presumably small_scafhalf with the polynomial genome but at med-tier scale (pop ~20) would have stayed in `social hunter v2` longer, with less frequent regime hopping. The "four regimes in one seed" finding is partly an artifact of the bottleneck rate. At larger populations we would still expect regime transitions but they should be slower and tied to longer ecological cycles, not single-cycle crashes.
+
+**6. What we can defensibly claim.** Even with these caveats, several findings hold:
+
+a. **The polynomial genome IS readable in a way the MLP wasn't.** Whether the trajectory through `eat*pred`, `act*pred`, `prey^2`, `pred^2` is driven by selection or by drift, the resulting fingerprints are decipherable. A reader can look at `prey^2 = -1.0` and `act*pred = -0.8` and predict "avoids dense prey, avoids motion near rivals." That's a real interpretability win regardless of how the lineage got there.
+
+b. **Multiple equivalent functional forms exist.** Regardless of whether evolution or drift drove the transitions, the run demonstrates that 3-4 different polynomial fingerprints all produce viable predator behavior. This is informative for the design space, even at N=1.
+
+c. **The lazy-clusterer attractor was reproducible at small_scafhalf** — *it's just not the attractor we landed in*. We don't have evidence that the polynomial genome eliminates lazy-clusterer-style stuck states; we have evidence that scafhalf+small drives the system into a *different* stuck state.
+
+**7. What we cannot claim from this run alone.**
+- That polynomial > MLP for finding good predator policies. (Both produce stable ecologies. We see different aesthetic outcomes, not measurably better hunting performance — in fact catches per pred per 10k were *lower* in hyper-territorial than in social-v2.)
+- That hyper-territorial is a generic attractor for the polynomial genome. (Could be specific to small_scafhalf bottleneck dynamics.)
+- That the regime sequence is reproducible. (Different seeds will probably visit different sets of attractors in different orders. Stochasticity is high at this pop scale.)
+- That the encoding-swap phenomenon is universal. (Could just be high-dim genome searching equivalent forms because there's nothing forcing it to commit.)
+
+**8. Paper narrative recommendation.** Lead with the interpretability win (a) as the main finding. Use the regime sequence as illustrative of "the polynomial basis makes co-evolutionary trajectories legible," not as proof of any specific evolutionary law. Be explicit that small populations + emergency_breeding produce significant drift that we can't fully separate from selection. Anchor the strongest quantitative claim in the contrast with axis1/med's MLP run (lazy-clusterer at w_pred=+17 vs scafhalf hyper-territorial at -11) — different attractors emerged under different conditions; both are interpretable in the polynomial basis.
+
+**Follow-up work that *would* strengthen this story (post-deadline):**
+- 3-5 seed scafhalf runs to estimate variance in regime sequences.
+- Match scafhalf at med-tier scale to disentangle population effect from scaffold effect.
+- A trajectory-displacement / lineage-trace tool that captures *which* survivors of each crash defined the next regime's fingerprint.
+- Per-agent reward decomposition: of the catch-event rewards a predator received last 10k steps, what fraction came from the linear part vs each polynomial term?
+
+**Comparison data captured:** `paper/data/cross_run_comparison.json` (to be generated from `tmp/cross_run_analysis.py`). Both metrics files (scafhalf trajectory + axis1/med metrics.npz) are available in `paper/data/` and `paper/downloaded_results/` respectively.
