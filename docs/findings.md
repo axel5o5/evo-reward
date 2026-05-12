@@ -1957,3 +1957,48 @@ Tier-graduated philosophy preserved: full = paper, smaller = more sustainability
 - §15.32 was the first run-and-iterate cycle on energy economics; §15.32b is the corrective.
 
 **Status:** §15.32 run killed at step ~120K. §15.32b applied + deploying for next axis1/small launch. Stack now: §15.30 (prey paper-faithful eating) + §15.31 (anti-lazy d_b/d_a) + §15.32b (modest sustainability bump). Open question: does §15.32b's energy economy land near the §15.30+§15.31 equilibrium with mild improvement, or does the small η+food bump also drive lazy drift?
+
+### 15.34 axis1/small_scafhalf overnight — multi-regime phenotype history, prey fear evolves then erodes (2026-05-11→12)
+
+**Run setup.** First overnight run on the polynomial reward genome (replacing MLP residual, §15.33), with Gil's scafhalf scaffold (T_pred=6, T_prey=60 — half the §15.27 thresholds). Other config: axis1/small_scafhalf.yaml (world=750, prey_cap=275, pred_cap=35, n_physics_iter=4, η_pred=0.6, food_max=400, scaffold-aware birth bonuses from §15.28, anti-lazy d_b/d_a from §15.31). Started 2026-05-11 ~05:12Z on `evo-reward-gpu` (L4), targeting 10.24M steps; at the time of this writing (4.7M steps in, ~22h wall) the run is mid-flight and we expect it to land around 5.5-6.5M before the GECCO deadline (2026-05-13 night, with late window 2026-05-14).
+
+**What we observed: three distinct predator regimes in one seed.** The single-line summary statistics from `metrics.npz` (linear weight means/stds at 10k-step intervals) reveal that this seed visited at least three internally-coherent predator phenotypes during 0–4.7M, with sharp transitions between them. The "lazy clusterer" attractor from §15.27 (axis1/med 7M) did NOT recur here; instead we see two visits to a "social hunter" basin separated by a "fearful loner" detour:
+
+| step range | regime | w_eat | w_act | w_prey | w_pred | std(w_prey) |
+|---|---|---|---|---|---|---|
+| 0–600k | emergence | ~0 | ~0 | ~0 | ~0 | noise |
+| 600k–1.51M | "social hunter v1" | +0.4 | +1.5 (lazy!) | 0.7→3.1 | +1.5 avg | tightening |
+| 1.51M–2.69M | "fearful loner" | -3.5 peak | -0.5 to -1 | +4.2 (tight 0.3-0.5) | -1.4 avg | very tight |
+| 2.7M–2.84M | brief flip | -1.3 | ~0 | +3.4 | +0.5 | — |
+| 2.92M–4.7M (now) | "social hunter v2" | +1.0 | -3 to -4 (strong anti-lazy!) | +3-5 | +1.6 to +2.7 | tight |
+
+Each transition coincides with a population bottleneck — the regimes are clonal lineages, not policy drift inside a stable lineage. The "fearful loner" lineage drove w_eat to -4.29 (hunger pressure) and w_pred to -2.50 (anti-rival) at peak. The current "social hunter v2" lineage couples positive w_pred (social/clustering) with extremely strong anti-laziness (w_act around -3 to -4), and catches sustain at 30-70 per 10k-step window over 6-10 predators. Pred mean energy stays at 60-130 (well below cap, hunger-pressure present), so this is genuine hunting, not the lazy attractor.
+
+**Polynomial weight evolution — clonal, named, and shifting.** The strongest validation of the polynomial-genome decision (§15.33) is that the surviving predators converge to very tight poly stds (≤0.1 on most coordinates) while linear-weight stds remain wide. Evolution is selecting for **specific named interactions**, not for the linear scaffolding:
+
+|term|3.0M|3.2M|4.5M|4.7M|interpretation|
+|---|---|---|---|---|---|
+|act*prey (chase)|+1.23|+1.22|+1.27|**+1.33**|"move when prey near" — strengthening over time|
+|eat*pred (anti-steal)|-0.61|-0.61|-0.03|**+0.15**|FLIPPED — anti-steal lost between 3.2M and 4.5M|
+|act*pred (avoid rivals)|-0.60|-0.60|-1.07|**-1.09**|DEEPENED — spatial separation replaces eat-time penalty|
+|eat^2|+0.69|+0.69|+0.79|**+0.88**|convex eating bonus strengthening|
+|eat*prey|+0.31|+0.31|+0.14|**+0.02**|crashed to ~0|
+
+Between step 3.2M and 4.5M the lineage rewrote its anti-rival mechanism: it stopped penalizing *eating* near rivals (e*d: -0.61→+0.15) and instead deepened a penalty on *moving* near rivals (a*d: -0.60→-1.09). Both encode rival-avoidance, but they predict different behavior — eat-near-rival-ok suggests opportunistic kill-stealing is allowed; move-far-from-rivals suggests sustained spatial dispersion. The chase term (a*p) strengthened monotonically across the four datapoints. This is a textbook case of evolution rediscovering an equivalent encoding with different downstream behavior — exactly the kind of finding the polynomial genome makes legible that the MLP residual did not (§15.33: ΔR² nonlinear=0.019 on v10 MLP, vs. these clonal poly weights that read like interpretable behavior rules).
+
+**Prey fear evolves, then erodes.** Linear w_pred (prey) trajectory: ~0 at start → drifted to **-9.24** by 1.8M (with std 19.8 — extreme variance, lineage explosion) → drifted BACK toward 0 → currently **+2-3** (prey *reward* proximity to predators!) for the last 2M+ steps. Poly prey at 4.7M shows similar pattern: `act*pred` (flee response) is only **+1.25** while `act*prey` (herd response) dominates at **+4.07**, AND `pred^2` evolved from +0.50 (3.0M) to **+1.36** (4.7M) — predator-magnitude is rewarding, not aversive. The "panic-feed" term (`eat*pred`) was at +2.23 at 3.2M and crashed to +0.40 by 4.5M.
+
+The honest reading: prey fear was strongly selected from 600k-2.6M (when pred pop was higher and dilution lower), then eroded as pred pop settled at 6-10 with ~30-45 catches per 10k steps over 130-180 prey (≈3% per-prey-per-window predation rate). Starvation pressure dominates predation pressure at this dilution, so selection sharpens "find food + herd" over "avoid predator." This is a real co-evolutionary equilibrium, not just a slow first-order phenotype.
+
+**Methodological miss: we weren't tracking poly weights in metrics.npz.** All four pred-regime tables above relied on the linear weight timeseries (470 samples at 10k intervals). Poly weights only existed in rolling checkpoints, and only 3 of those survived the retention policy (4.5M/4.6M/4.7M); two more snapshots (3.0M, 3.2M) were captured ad-hoc into conversation state earlier today, so we got 5 datapoints to reconstruct the poly trajectory. This was an oversight when adding `linear_plus_poly` (§15.33): `src/jax_metrics.py` only emitted the linear weight mean/std, not poly. Fixed in this session: `JaxMetrics` now has `{prey,pred}_{mean,std}_poly` fields populated every log step. `load()` backfills NaN-of-correct-length when a saved file is missing the poly fields, so resume on the current run picks up tracking from whatever step the next restart happens without breaking index alignment. Verified via `tests/test_jax_metrics.py` (10 passed) + full fast suite (113 passed).
+
+**Implications for the paper.**
+- This run alone is a multi-regime case study: 3 predator phenotypes visited in a single seed, with a non-monotonic prey-fear arc. Compelling figure: 4-axis linear weights over time + 3 regime bars + pop overlay.
+- The polynomial-genome win is interpretability under clonal convergence. We can write a sentence like "between 3.2M and 4.5M the lineage swapped one rival-avoidance encoding for another (eat*pred -0.61→+0.15, act*pred -0.60→-1.09)" — that's a sentence the MLP residual could never have produced.
+- Negative result also useful: prey fear did NOT permanently embed at this scaffold/density. Selection pressure depends on dilution, and at scafhalf with pred ≈ 7-10 it eroded.
+- The "lazy clusterer" attractor from §15.27 did not recur under scafhalf + polynomial. We can claim §15.27→§15.33 as a successful intervention chain, though with a single seed.
+
+**Open follow-ups (after deadline):**
+- Multi-seed scafhalf to confirm the regime-switching is reproducible, or whether some seeds get stuck in one basin.
+- axis12/small_scafhalf (poly + social obs) to see whether the social observation lets prey re-evolve persistent fear.
+- A per-agent lineage trace (parent ID → child ID) so the regime transitions can be tied to specific founder/extinct events rather than aggregate weight statistics.

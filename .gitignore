@@ -40,6 +40,10 @@ ckpts/
 # SSH credentials pulled from VMs (never commit private keys)
 .ssh-from-vm/
 
+# Paper-writing scratch dir (drafts, analysis scripts, downloaded results, notes).
+# Local only — final manuscript will live elsewhere (Overleaf / submission repo).
+paper/
+
 # Dashboard — auto-generated data indexes.
 # Regenerated on every build by `npm run extract` (dashboard/extract_data.py).
 # Build now fails hard if extract fails (we removed the `|| true` fallback),
@@ -50,3 +54,4 @@ dashboard/site/src/data/git-timeline.json
 dashboard/site/src/data/module-deps.json
 dashboard/site/src/data/obs-layout.json
 dashboard/site/src/data/sim-loop-steps.json
+.vercel
