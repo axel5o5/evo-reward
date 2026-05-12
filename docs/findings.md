@@ -2051,3 +2051,42 @@ The honest reading: prey fear was strongly selected from 600k-2.6M (when pred po
 - The catch-rate degradation in the fourth regime is a real cost. If this regime is stable for the next 3M, the paper's "hunting phenotype emerged" story needs to be qualified: "emerged, then evolution drifted toward dispersed-intercept which is less efficient but apparently more robust under co-evolutionary selection."
 
 **Figures regenerated** (`paper/scripts/plot_predator_genome_evolution.py` to be updated with 4 regime bars + extended-x-axis layout). Snapshot count in `paper/data/axis1_small_scafhalf_trajectory.json` as of 2026-05-12 11:05Z: 18 entries, last step 7.2M. Auto-poll continues every ~28 min via `paper/scripts/poll_trajectory.sh` (running as monitor task `b78e9gj1r`).
+
+### 15.34c hyper-territorial regime deepens to w_pred = -11 + first LV crash (2026-05-12, 7.3M→8.25M)
+
+**Same regime, much deeper.** Between step 7.3M and 8.2M the hyper-territorial lineage continued drifting along its anti-rival axis. Linear weights at 8.25M (n=8 active predators, very tight stds):
+
+| | 7.3M | 8.25M | Δ |
+|---|---|---|---|
+| `w_eat` | +2.4 ±0.7 | +1.0 ±0.7 | weakened |
+| `w_act` | +1.8 ±0.2 | **+3.25 ±0.55** | **doubled** (deeper lazy) |
+| `w_prey` | +4.7 ±0.3 | **+6.68 ±0.72** | strengthened (chase still rewarded) |
+| `w_pred` | -7.3 ±0.4 | **-11.28 ±1.09** | **~60% deeper anti-rival** |
+
+The fingerprint shape matches §15.34b — chase + lazy + deeply anti-rival — just amplified. Linear `w_pred = -11` is the deepest territoriality we've seen in any run, ours or comparable. No sign-flip, no new mechanism — this looks like continued drift within the hyper-territorial attractor, not a fifth regime.
+
+**Population dynamics broke down briefly at 8.16M-8.23M.** A predator overshoot (pred 13 → 19) was followed by a sharp catch surge to 103 per 10k window — much higher than the regime's normal ~30-50. Then the LV crash hit hard: pred 19 → 17 → 14 → 9 → 7 → 5 → **4** by step 8.23M, brushing the `emergency_breeding_n_pred=3` floor. Emergency breeding fired, pred recovered to 7-8 by 8.24M-8.25M. Catches collapsed during the crash (33 → 12 → 13) and recovered to 39 by 8.25M.
+
+Two interpretations of the catch spike:
+
+1. **"Ambush" interpretation.** With `w_act = +3.7` (lazy) and `w_pred = -11` (anti-rival), predators stay still and far apart. When prey happen to walk into a stationary predator, the catch is easy — no chase needed. Bursts of 100+ catches in a single window suggest a sudden alignment between prey movement and stationary predator positions, not a hunting strategy.
+
+2. **Density artifact.** The catch surge coincided with the predator overshoot to pop=19 (highest in the regime). More predators = more catches by area-coverage alone. The catch/pred ratio at the peak (103/19 ≈ 5.4) is back in social-v2 territory, but only briefly — when pred dropped to 5, catch/pred fell to ~3.
+
+I lean toward (1) plus an LV mechanism: the deeper territoriality forces predators apart, leaving the per-predator catch rate fragile to local density fluctuations. When prey rebound to ~150 the spatial dice can occasionally roll well, but most of the time per-pred throughput stays at ~3 catches per 10k.
+
+**Prey side also escalated.** Linear means at 8.25M:
+
+- `prey_w_eat = +8.3`, `prey_w_act = +9.0` — extremely active foraging
+- `prey_w_prey = +11.7` (was +7 at 7.3M, now nearly **2× higher**) — herding super-strong
+- `prey_w_pred = +4.0 ±13.0` — still positive on average (anti-fear) but with huge variance; some prey strongly avoid predators, most don't
+
+The prey lineage is converging on hyper-active foraging-with-herd, with predator-proximity treated more like a spatial cue than a threat. This continues the §15.34 finding that prey at this dilution don't evolve fear.
+
+**Open question: is the hyper-territorial regime stable or self-extincting?**
+
+The 8.16M-8.23M LV crash brought pred to within 1 of `emergency_breeding_n_pred`. If the next overshoot crashes harder, the lineage could go extinct entirely. Hypothesis: at `w_pred = -11`, predators avoid each other so aggressively that they can't share prey-dense regions, and when prey are scarce they can't coordinate. The catch surge → crash → recovery cycle may be the regime's natural failure mode — it survives by emergency breeding hits, not by ecological resilience.
+
+Track this over the next 1-2M steps. If we see another crash near `emergency_breeding`, the hyper-territorial regime is at the edge of viability and the paper should frame it as "an evolved attractor that exists *because* of the safety net, not despite it."
+
+**Data captured.** Snapshot count in `paper/data/axis1_small_scafhalf_trajectory.json` as of 2026-05-12 15:30Z: 27 poly snapshots up through step 8.1M. Auto-poll continues. Both figures (`predator_genome_evolution`, `ecology_and_prey_fear`) will pick up the new datapoints on the next render — the regime bar in the figure already extends to 8.0M, so the 8.16M-8.25M crash will appear at the right edge.
