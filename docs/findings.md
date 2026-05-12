@@ -1995,10 +1995,18 @@ The honest reading: prey fear was strongly selected from 600k-2.6M (when pred po
 **Methodological miss: we weren't tracking poly weights in metrics.npz.** All four pred-regime tables above relied on the linear weight timeseries (470 samples at 10k intervals). Poly weights only existed in rolling checkpoints, and only 3 of those survived the retention policy (4.5M/4.6M/4.7M); two more snapshots (3.0M, 3.2M) were captured ad-hoc into conversation state earlier today, so we got 5 datapoints to reconstruct the poly trajectory. This was an oversight when adding `linear_plus_poly` (§15.33): `src/jax_metrics.py` only emitted the linear weight mean/std, not poly. Fixed in this session: `JaxMetrics` now has `{prey,pred}_{mean,std}_poly` fields populated every log step. `load()` backfills NaN-of-correct-length when a saved file is missing the poly fields, so resume on the current run picks up tracking from whatever step the next restart happens without breaking index alignment. Verified via `tests/test_jax_metrics.py` (10 passed) + full fast suite (113 passed).
 
 **Implications for the paper.**
-- This run alone is a multi-regime case study: 3 predator phenotypes visited in a single seed, with a non-monotonic prey-fear arc. Compelling figure: 4-axis linear weights over time + 3 regime bars + pop overlay.
+- This run alone is a multi-regime case study: 3 (now 4 — see §15.34b) predator phenotypes visited in a single seed, with a non-monotonic prey-fear arc. Compelling figure: 4-axis linear weights over time + regime bars + pop overlay.
 - The polynomial-genome win is interpretability under clonal convergence. We can write a sentence like "between 3.2M and 4.5M the lineage swapped one rival-avoidance encoding for another (eat*pred -0.61→+0.15, act*pred -0.60→-1.09)" — that's a sentence the MLP residual could never have produced.
 - Negative result also useful: prey fear did NOT permanently embed at this scaffold/density. Selection pressure depends on dilution, and at scafhalf with pred ≈ 7-10 it eroded.
 - The "lazy clusterer" attractor from §15.27 did not recur under scafhalf + polynomial. We can claim §15.27→§15.33 as a successful intervention chain, though with a single seed.
+
+**Figures generated (paper/figures/):**
+- `predator_genome_evolution.{pdf,png}` — top: linear-weight trajectories with regime bars; bottom: poly interaction terms across surviving checkpoint snapshots, with encoding-swap annotations. Source: `paper/scripts/plot_predator_genome_evolution.py`.
+- `ecology_and_prey_fear.{pdf,png}` — top: prey/pred populations + pred mean E with regime bars; bottom: prey `w_pred` arc with peak-fear and erosion-through-zero marks. Source: `paper/scripts/plot_ecology_and_prey.py`.
+
+**Data + automation:**
+- `paper/data/axis1_small_scafhalf_trajectory.json` — 480+ linear timeseries rows + 18 poly snapshots (auto-growing).
+- `paper/scripts/poll_trajectory.sh` — every ~28 min: extract on VM → scp JSON → re-render figures. Currently running as local Monitor task `b78e9gj1r`.
 
 **Open follow-ups (after deadline):**
 - Multi-seed scafhalf to confirm the regime-switching is reproducible, or whether some seeds get stuck in one basin.
