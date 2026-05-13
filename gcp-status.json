@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-13T15:22:12+00:00",
+  "updated_at": "2026-05-13T16:20:12+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -13,23 +13,23 @@
         "provisioning": "STANDARD",
         "created_at": "2026-04-23T08:54:36.579-07:00",
         "last_started_at": "2026-05-05T00:40:44.168-07:00",
-        "runtime_hours_current": 199.6833,
+        "runtime_hours_current": 200.6559,
         "hourly_rate_usd": 0.85,
-        "estimated_current_run_usd": 169.7308,
+        "estimated_current_run_usd": 170.5575,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
         "count": 801,
         "latest_step": 4780000,
-        "latest_age_hours": 235.044,
+        "latest_age_hours": 236.016,
         "total_gb": 222.7391
       },
       "costs": {
-        "compute_current_run": 169.7308,
-        "nat_since_active": 26.1,
-        "storage_current": 1.85,
-        "live_estimate_total": 197.68,
+        "compute_current_run": 170.5575,
+        "nat_since_active": 26.14,
+        "storage_current": 1.8559,
+        "live_estimate_total": 198.55,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 203.925,
+        "progress_file_age_hours": 204.895,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 98,
@@ -126,14 +126,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 103.935,
+        "latest_age_hours": 104.904,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 2.1487,
-        "live_estimate_total": 2.15,
+        "storage_current": 2.1555,
+        "live_estimate_total": 2.16,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -152,7 +152,7 @@
           "food": 400
         },
         "reward_weights": {},
-        "progress_file_age_hours": 1.68,
+        "progress_file_age_hours": 2.647,
         "evolution_detected": false,
         "gpu": null,
         "host": null,
