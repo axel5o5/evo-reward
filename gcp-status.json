@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-15T19:21:11+00:00",
+  "updated_at": "2026-05-15T20:03:53+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -22,14 +22,14 @@
         "bucket": "evo-reward-ckpts",
         "count": 816,
         "latest_step": 8500000,
-        "latest_age_hours": 50.888,
+        "latest_age_hours": 51.6,
         "total_gb": 244.0568
       },
       "costs": {
         "compute_current_run": 0.0,
-        "nat_since_active": 28.38,
-        "storage_current": 2.3744,
-        "live_estimate_total": 30.75,
+        "nat_since_active": 28.42,
+        "storage_current": 2.3792,
+        "live_estimate_total": 30.8,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 48.264,
+        "progress_file_age_hours": 48.976,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 93,
@@ -111,7 +111,7 @@
       "allow_actions": false,
       "vm": {
         "name": "sac-scafhalf",
-        "status": "MISSING",
+        "status": "UNKNOWN",
         "zone": null,
         "machine_type": null,
         "provisioning": "UNKNOWN",
@@ -126,44 +126,29 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 155.92,
+        "latest_age_hours": 156.632,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 2.5169,
+        "storage_current": 2.5219,
         "live_estimate_total": 2.52,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
       },
-      "training": {
-        "experiment_name": "baseline_05-12_scafhalf_small_sac",
-        "seed": 0,
-        "step": 1190000,
-        "total_steps": 10240000,
-        "progress_frac": 0.11621,
-        "sps": 19.389,
-        "eta_hours": 129.66,
-        "population": {
-          "prey": 144,
-          "pred": 7,
-          "food": 400
+      "training": null,
+      "errors": [
+        {
+          "stage": "vm",
+          "message": "403 GET https://compute.googleapis.com/compute/v1/projects/rl-bio-sims-494715/zones/us-central1-a/instances/sac-scafhalf: This API method requires billing to be enabled. Please enable billing on project #rl-bio-sims-494715 by visiting https://console.developers.google.com/billing/enable?project=rl-bio-sims-494715 then retry. If you enabled billing for this project recently, wait a few minutes for the action to propagate to our systems and retry."
         },
-        "reward_weights": {},
-        "progress_file_age_hours": 53.663,
-        "evolution_detected": false,
-        "gpu": null,
-        "host": null,
-        "learner_type": "sac",
-        "sac": {
-          "alpha_mean_active": 0.07068014144897461,
-          "replay_size_mean_active": 2006.3576158940398,
-          "replay_size_max": 2048
+        {
+          "stage": "training",
+          "message": "403 GET https://storage.googleapis.com/download/storage/v1/b/rl-bio-sims-494715-ckpts/o/results%2Fbaseline_05-12_scafhalf_small_sac%2Fseed_0%2F2026-05-12T2037Z%2Fprogress.json?generation=1778679683664599&alt=media: The billing account for the owning project is disabled in state closed: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"
         }
-      },
-      "errors": []
+      ]
     }
   ]
 }
