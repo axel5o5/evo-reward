@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-05-30T14:39:30+00:00",
+  "updated_at": "2026-05-30T15:10:06+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -22,14 +22,14 @@
         "bucket": "evo-reward-ckpts",
         "count": 816,
         "latest_step": 8500000,
-        "latest_age_hours": 406.193,
+        "latest_age_hours": 406.703,
         "total_gb": 244.0568
       },
       "costs": {
         "compute_current_run": 0.0,
-        "nat_since_active": 44.02,
-        "storage_current": 4.7486,
-        "live_estimate_total": 48.77,
+        "nat_since_active": 44.04,
+        "storage_current": 4.752,
+        "live_estimate_total": 48.79,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 403.569,
+        "progress_file_age_hours": 404.08,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 93,
@@ -126,14 +126,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 511.225,
+        "latest_age_hours": 511.735,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 5.0334,
-        "live_estimate_total": 5.03,
+        "storage_current": 5.037,
+        "live_estimate_total": 5.04,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
