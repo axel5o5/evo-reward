@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-15T22:04:05+00:00",
+  "updated_at": "2026-06-15T22:52:38+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -22,14 +22,14 @@
         "bucket": "evo-reward-ckpts",
         "count": 816,
         "latest_step": 8500000,
-        "latest_age_hours": 797.602,
+        "latest_age_hours": 798.412,
         "total_gb": 244.0568
       },
       "costs": {
         "compute_current_run": 0.0,
-        "nat_since_active": 61.24,
-        "storage_current": 2.3926,
-        "live_estimate_total": 63.63,
+        "nat_since_active": 61.28,
+        "storage_current": 2.398,
+        "live_estimate_total": 63.68,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -86,7 +86,7 @@
             ]
           }
         },
-        "progress_file_age_hours": 794.979,
+        "progress_file_age_hours": 795.789,
         "evolution_detected": true,
         "gpu": {
           "util_pct": 93,
@@ -126,13 +126,13 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 902.635,
+        "latest_age_hours": 903.444,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 2.5361,
+        "storage_current": 2.5418,
         "live_estimate_total": 2.54,
         "billing_actual_usd": null,
         "billing_as_of": null,
@@ -142,7 +142,7 @@
       "errors": [
         {
           "stage": "vm",
-          "message": "403 GET https://compute.googleapis.com/compute/v1/projects/rl-bio-sims-494715/zones/us-central1-a/instances/sac-scafhalf: This API method requires billing to be enabled. Please enable billing on project #rl-bio-sims-494715 by visiting https://console.developers.google.com/billing/enable?project=rl-bio-sims-494715 then retry. If you enabled billing for this project recently, wait a few minutes for the action to propagate to our systems and retry."
+          "message": "403 GET https://compute.googleapis.com/compute/v1/projects/rl-bio-sims-494715/zones/us-central1-a/instances/sac-scafhalf: Compute Engine API has not been used in project rl-bio-sims-494715 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/compute.googleapis.com/overview?project=rl-bio-sims-494715 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry."
         },
         {
           "stage": "training",
