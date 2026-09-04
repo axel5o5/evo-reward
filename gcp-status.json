@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-04T01:19:03+00:00",
+  "updated_at": "2026-09-04T06:07:19+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -7,103 +7,44 @@
       "allow_actions": true,
       "vm": {
         "name": "evo-reward-gpu",
-        "status": "TERMINATED",
-        "zone": "us-west1-a",
-        "machine_type": "g2-standard-8",
-        "provisioning": "STANDARD",
-        "created_at": "2026-04-23T08:54:36.579-07:00",
-        "last_started_at": "2026-05-05T00:40:44.168-07:00",
+        "status": "MISSING",
+        "zone": null,
+        "machine_type": null,
+        "provisioning": "UNKNOWN",
+        "created_at": null,
+        "last_started_at": null,
         "runtime_hours_current": null,
-        "hourly_rate_usd": 0.85,
+        "hourly_rate_usd": null,
         "estimated_current_run_usd": null,
         "labels": {}
       },
       "checkpoints": {
         "bucket": "evo-reward-ckpts",
-        "count": 816,
-        "latest_step": 8500000,
-        "latest_age_hours": 2720.852,
-        "total_gb": 244.0568
+        "count": 0,
+        "latest_step": null,
+        "latest_age_hours": null,
+        "total_gb": null
       },
       "costs": {
         "compute_current_run": 0.0,
-        "nat_since_active": 145.86,
-        "storage_current": 0.4899,
-        "live_estimate_total": 146.35,
+        "nat_since_active": 146.07,
+        "storage_current": 0.0,
+        "live_estimate_total": 146.07,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
       },
-      "training": {
-        "experiment_name": "baseline_05-12_scafhalf_small",
-        "seed": 0,
-        "step": 4410000,
-        "total_steps": 10240000,
-        "progress_frac": 0.43066,
-        "sps": 55.823,
-        "eta_hours": 29.01,
-        "population": {
-          "prey": 137,
-          "pred": 6,
-          "food": 399,
-          "mean_energy": 19.17574691772461
+      "training": null,
+      "errors": [
+        {
+          "stage": "checkpoints",
+          "message": "404 GET https://storage.googleapis.com/storage/v1/b/evo-reward-ckpts/o?projection=noAcl&prefix=results%2F&prettyPrint=false: The specified bucket does not exist."
         },
-        "reward_weights": {
-          "prey": {
-            "eat": [
-              16.44129753112793,
-              5.813712120056152
-            ],
-            "act": [
-              -0.45215481519699097,
-              4.295543670654297
-            ],
-            "prey": [
-              3.136585235595703,
-              9.270484924316406
-            ],
-            "pred": [
-              15.635945320129395,
-              6.4038896560668945
-            ]
-          },
-          "pred": {
-            "eat": [
-              5.379829406738281,
-              0.4260290563106537
-            ],
-            "act": [
-              -1.3506114482879639,
-              0.3985458314418793
-            ],
-            "prey": [
-              2.8785247802734375,
-              0.17553356289863586
-            ],
-            "pred": [
-              -5.417195796966553,
-              0.5664334893226624
-            ]
-          }
-        },
-        "progress_file_age_hours": 2718.228,
-        "evolution_detected": true,
-        "gpu": {
-          "util_pct": 93,
-          "mem_util_pct": 65,
-          "mem_used_mb": 22132,
-          "mem_total_mb": 23034
-        },
-        "host": {
-          "cpu_pct": 14.1,
-          "ram_pct": 19.0,
-          "ram_used_mb": 6398,
-          "ram_total_mb": 33652
-        },
-        "learner_type": "ppo",
-        "sac": null
-      },
-      "errors": []
+        {
+          "stage": "training",
+          "message": "404 GET https://storage.googleapis.com/storage/v1/b/evo-reward-ckpts/o?projection=noAcl&prefix=results%2F&prettyPrint=false: The specified bucket does not exist."
+        }
+      ]
     },
     {
       "label": "Gil",
@@ -126,14 +67,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 2825.884,
+        "latest_age_hours": 2830.689,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 0.5193,
-        "live_estimate_total": 0.52,
+        "storage_current": 0.5533,
+        "live_estimate_total": 0.55,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
