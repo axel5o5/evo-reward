@@ -1,0 +1,15 @@
+# Reproducible CPU test environment for Python 3.10.
+# Keep this explicit: requirements.txt intentionally permits newer research
+# environments, while the required pull-request gate must not drift silently.
+jax[cpu]==0.6.2
+flax==0.10.7
+optax==0.2.8
+phyjax2d==0.4.0
+numpy==2.2.6
+scipy==1.15.3
+pyyaml==6.0.3
+google-cloud-storage==3.14.1
+matplotlib==3.10.9
+pytest==9.1.1
+pytest-xdist==3.8.0
+pytest-cov==7.1.0
