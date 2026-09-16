@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Pull requests may contain untrusted code. Tests need only repository reads.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: pytest on ${{ matrix.os }}
@@ -20,28 +24,27 @@ jobs:
             experimental: false
           # Apple Silicon — covers the Mac local-setup path
           - os: macos-latest
-            experimental: false
+            experimental: true
           # ARM Linux — stands in for Raspberry Pi (public preview runner)
           - os: ubuntu-24.04-arm
             experimental: true
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.10"
 
       - name: Install Rust (needed for phyjax2d on some platforms)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable 2026-09-16
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -U "jax[cpu]"
-          pip install -r requirements.txt
-          pip install pytest-cov
+          python -m pip install --upgrade pip==25.2
+          python -m pip install -r requirements-ci.txt
 
       - name: Run fast test suite
         run: pytest -x -q -m "not slow" --cov=src --cov-report=term-missing --cov-report=xml
@@ -54,8 +57,24 @@ jobs:
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-${{ github.sha }}
           path: coverage.xml
           if-no-files-found: ignore
+
+  gate:
+    name: CI gate
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require the supported test target
+        env:
+          MATRIX_RESULT: ${{ needs.test.result }}
+        run: |
+          if [ "$MATRIX_RESULT" != "success" ]; then
+            echo "Required test target failed: $MATRIX_RESULT"
+            exit 1
+          fi
