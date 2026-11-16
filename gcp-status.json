@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-15T21:38:16+00:00",
+  "updated_at": "2026-11-16T01:24:10+00:00",
   "targets": [
     {
       "label": "Axel",
@@ -27,9 +27,9 @@
       },
       "costs": {
         "compute_current_run": 0.0,
-        "nat_since_active": 222.79,
+        "nat_since_active": 222.95,
         "storage_current": 0.0,
-        "live_estimate_total": 222.79,
+        "live_estimate_total": 222.95,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
@@ -67,14 +67,14 @@
         "bucket": "rl-bio-sims-494715-ckpts",
         "count": 479,
         "latest_step": 7700000,
-        "latest_age_hours": 4574.205,
+        "latest_age_hours": 4577.969,
         "total_gb": 258.6945
       },
       "costs": {
         "compute_current_run": 0.0,
         "nat_since_active": null,
-        "storage_current": 2.533,
-        "live_estimate_total": 2.53,
+        "storage_current": 2.5597,
+        "live_estimate_total": 2.56,
         "billing_actual_usd": null,
         "billing_as_of": null,
         "month_to_date_usd": null
