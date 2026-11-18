@@ -244,6 +244,17 @@ def extract_sim_loop():
     }
 
 
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PROJECT_ID = re.compile(r"rl-bio-sims-\d+")
+
+
+def _redact(text):
+    """Keep account emails and partner project ids out of the public site."""
+    if not text:
+        return text
+    return _PROJECT_ID.sub("partner-project-id", _EMAIL.sub("<email>", text))
+
+
 def extract_git_timeline():
     """Parse git log into a timeline of project milestones."""
     # Use record separator to reliably split multi-line bodies
@@ -282,8 +293,8 @@ def extract_git_timeline():
 
         commits.append({
             "hash": hash_[:8],
-            "message": message,
-            "body": body or None,
+            "message": _redact(message),
+            "body": _redact(body) or None,
             "date": date.strip(),
             "author": author.strip(),
             "phase": phase_match.group(1) if phase_match else None,
