@@ -11,8 +11,11 @@
 # defaults. Unset with `unset CLOUDSDK_CORE_ACCOUNT CLOUDSDK_CORE_PROJECT`
 # or just close the shell.
 
-export CLOUDSDK_CORE_ACCOUNT=db3792@columbia.edu
-export CLOUDSDK_CORE_PROJECT=evo-reward
+# Set EVO_GCP_ACCOUNT (your gcloud account) before sourcing; EVO_GCP_PROJECT and
+# GCS_BUCKET default to the evo-reward project and its checkpoint bucket.
+export CLOUDSDK_CORE_ACCOUNT="${EVO_GCP_ACCOUNT:?set EVO_GCP_ACCOUNT to your gcloud account first}"
+export CLOUDSDK_CORE_PROJECT="${EVO_GCP_PROJECT:-evo-reward}"
+export GCS_BUCKET="${GCS_BUCKET:-evo-reward-ckpts}"
 
 # Per-project Application Default Credentials file. Python google-cloud
 # libraries (used by scripts/gcp_monitor.py) read ADC from this env var if

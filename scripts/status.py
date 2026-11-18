@@ -44,8 +44,8 @@ GCS_BUCKET = "evo-reward-ckpts"
 # terminal without first sourcing scripts/gcloud-env.sh. If the user's
 # global gcloud config happens to point at a different project with a
 # same-named VM, that'd return bogus data otherwise.
-GCP_PROJECT = "evo-reward"
-GCP_ACCOUNT = "db3792@columbia.edu"
+GCP_PROJECT = os.environ.get("EVO_GCP_PROJECT", "evo-reward")
+GCP_ACCOUNT = os.environ.get("EVO_GCP_ACCOUNT", "")  # your gcloud account; empty = gcloud's active one
 
 TOTAL_STEPS_DEFAULT = 10_240_000  # baseline_faithful.yaml
 
@@ -71,9 +71,9 @@ def c(text, code):
 def gcloud(*args, timeout=60):
     # Run gcloud with project+account pinned via env vars, so the caller's
     # shell-global gcloud config can't redirect us to a different project.
-    env = {**os.environ,
-           "CLOUDSDK_CORE_PROJECT": GCP_PROJECT,
-           "CLOUDSDK_CORE_ACCOUNT": GCP_ACCOUNT}
+    env = {**os.environ, "CLOUDSDK_CORE_PROJECT": GCP_PROJECT}
+    if GCP_ACCOUNT:
+        env["CLOUDSDK_CORE_ACCOUNT"] = GCP_ACCOUNT
     try:
         r = subprocess.run(["gcloud"] + list(args), capture_output=True,
                            text=True, timeout=timeout, env=env)

@@ -564,7 +564,7 @@ def _synthetic_payload() -> dict[str, Any]:
             },
             {
                 "label": "Gil",
-                "project_id": "rl-bio-sims-494715",
+                "project_id": "partner-project-id",
                 "allow_actions": False,
                 "vm": {
                     "name": "evo-reward-gpu", "status": "MISSING", "zone": None,
@@ -575,7 +575,7 @@ def _synthetic_payload() -> dict[str, Any]:
                     "labels": {},
                 },
                 "checkpoints": {
-                    "bucket": "rl-bio-sims-494715-ckpts", "count": 12,
+                    "bucket": "partner-project-ckpts", "count": 12,
                     "latest_step": 1_200_000, "latest_age_hours": 18.0,
                     "total_gb": 0.45,
                 },

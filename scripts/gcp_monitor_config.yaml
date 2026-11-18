@@ -6,10 +6,9 @@
 #                             training, errors, allow_actions}, ... ] }
 # which the dashboard renders as one card per target.
 #
-# allow_actions: only targets where this is true get the PIN-protected
-# Stop/Start/Restart/Delete control panel. The action workflow
-# (.github/workflows/gcp-action.yml) is wired only to the Axel/evo-reward
-# project, so other targets must stay read-only.
+# allow_actions: kept for the status file's schema. The dashboard's VM
+# control panel and its action workflow were retired on 2026-11-18, so
+# nothing acts on this flag any more.
 #
 # Auth: a single service account (gcp-dashboard@evo-reward.iam) is used
 # for all probes. It needs roles/compute.viewer + roles/storage.objectViewer
@@ -59,12 +58,10 @@ targets:
       account_id:   null
 
   - label: Gil
-    project_id: rl-bio-sims-494715
+    project_id: partner-project-id
     # launch_sweep_vm.sh names the VM via $1 — keep this in sync with the
     # name passed at launch time (or set to the actual running VM's name).
     vm_name: sac-scafhalf
-    # Read-only on the dashboard: api/action.ts + gcp-action.yml only
-    # know about the evo-reward project, so PIN actions can't target this.
     allow_actions: false
     candidate_zones:
       - us-central1-a
@@ -77,7 +74,7 @@ targets:
       - us-west1-a
       - us-west1-b
     gcs:
-      bucket: rl-bio-sims-494715-ckpts
+      bucket: partner-project-ckpts
       storage_usd_per_gb_month: 0.020
     pricing:
       g2-standard-8:
