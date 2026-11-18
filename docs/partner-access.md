@@ -17,18 +17,8 @@ ask Axel.
 
 ## TL;DR — just watch what's running
 
-Open the dashboard. No gcloud needed.
-
-```
-https://evo-reward.axelinter.net/gcp
-```
-
-Ask Axel for the PIN if you want to see the Stop/Start/Restart/Delete
-buttons (viewing is anonymous).
-
-The dashboard shows live VM status, checkpoint freshness, cost
-estimate, and full training progress (step / rate / ETA / population /
-8 reward weights + evolution-detected flag).
+The live GCP dashboard page and its PIN controls were retired on 2026-11-18.
+Use `scripts/status.py` from a clone (below) to check a run.
 
 ---
 
@@ -147,7 +137,8 @@ instead of the browser dashboard.
 ```bash
 # From a clone of the repo:
 cd evo-reward
-source scripts/gcloud-env.sh      # (you may need to edit it to use your account)
+export EVO_GCP_ACCOUNT=<your gcloud account>
+source scripts/gcloud-env.sh
 python3 scripts/status.py
 
 # Live, refreshes every 30s:
@@ -170,8 +161,7 @@ With the current IAM:
 | Write to the GCS bucket | `storage.objectViewer` is read-only |
 
 If something looks broken and you want to intervene (e.g. restart the
-training tmux session), ask Axel — or use the dashboard's control
-panel if you have the PIN.
+training tmux session), ask Axel.
 
 ---
 
@@ -182,12 +172,10 @@ panel if you have the PIN.
 daemon takes a moment to register a new identity.
 
 **`Required 'compute.instances.start' permission`** on Start/Stop —
-expected. Viewer role can't do mutations. Use the dashboard if you
-have the PIN; otherwise ask Axel.
+expected. Viewer role can't do mutations. Ask Axel.
 
 **`ZONE_RESOURCE_POOL_EXHAUSTED`** — not relevant to you unless you
 try to create resources, which you can't.
 
-**Dashboard won't load** — the `/gcp` page needs no auth to view
-monitor data. If it fails to fetch, the monitor workflow probably
-hasn't run recently. Check GitHub Actions → GCP Monitor.
+**Looking for the `/gcp` dashboard page?** It was retired on
+2026-11-18; use `scripts/status.py`.

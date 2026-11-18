@@ -57,39 +57,5 @@ targets:
       export_table: null
       account_id:   null
 
-  - label: Gil
-    project_id: partner-project-id
-    # launch_sweep_vm.sh names the VM via $1 — keep this in sync with the
-    # name passed at launch time (or set to the actual running VM's name).
-    vm_name: sac-scafhalf
-    allow_actions: false
-    candidate_zones:
-      - us-central1-a
-      - us-central1-b
-      - us-central1-c
-      - us-east1-b
-      - us-east1-c
-      - us-east4-b
-      - us-east4-c
-      - us-west1-a
-      - us-west1-b
-    gcs:
-      bucket: partner-project-ckpts
-      storage_usd_per_gb_month: 0.020
-    pricing:
-      g2-standard-8:
-        ondemand: 0.85
-        spot:     0.28
-      g2-standard-4:
-        ondemand: 0.71
-        spot:     0.21
-    infra_costs:
-      nat_hourly_usd: 0.044
-      disk_hourly_usd_when_stopped: 0.020
-      nat_active_since: null  # set when first router+NAT created in this project
-    billing:
-      export_table: null
-      account_id:   null
 
-# UI hints (frontend reads from the top level, not per-target).
 staleness_threshold_minutes: 20

@@ -155,6 +155,7 @@ export default function App() {
               <Route path="/docs" element={<DocsViewer />} />
               <Route path="/replay" element={<Replay />} />
               <Route path="/replay/compare" element={<ReplayCompare />} />
+              <Route path="*" element={<Home />} />
             </Routes>
           </Suspense>
         </main>

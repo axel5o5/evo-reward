@@ -38,7 +38,7 @@ import time
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_FILE = os.path.join(REPO_ROOT, ".claude-orch-state.json")
 VM_NAME = "evo-reward-gpu"
-GCS_BUCKET = "evo-reward-ckpts"
+GCS_BUCKET = os.environ.get("GCS_BUCKET", "evo-reward-ckpts")
 
 # Hardcode the project + account so this script is safe to run from any
 # terminal without first sourcing scripts/gcloud-env.sh. If the user's

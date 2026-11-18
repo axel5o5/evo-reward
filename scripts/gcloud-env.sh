@@ -30,7 +30,7 @@ export GCS_BUCKET="${GCS_BUCKET:-evo-reward-ckpts}"
 #   mv ~/.config/gcloud/application_default_credentials.json \
 #      ~/.config/gcloud/adc-evo-reward.json
 #   source scripts/gcloud-env.sh              # now Python libs use the project file
-export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/adc-evo-reward.json"
+export GOOGLE_APPLICATION_CREDENTIALS="${EVO_GCP_ADC:-$HOME/.config/gcloud/adc-evo-reward.json}"
 
 # Quick verification — run `gcloud config list` after sourcing to confirm
 # account + project show the evo-reward values above.
