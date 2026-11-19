@@ -13,7 +13,6 @@ const SessionTimeline = lazy(() => import("./pages/SessionTimeline"));
 const DeviationTracker = lazy(() => import("./pages/DeviationTracker"));
 const DocsViewer = lazy(() => import("./pages/DocsViewer"));
 const References = lazy(() => import("./pages/References"));
-const GcpMonitor = lazy(() => import("./pages/GcpMonitor"));
 const Replay = lazy(() => import("./pages/Replay"));
 const ReplayCompare = lazy(() => import("./pages/ReplayCompare"));
 
@@ -92,7 +91,6 @@ const NAV_ITEMS = [
   { path: "/deviations", label: "Deviations", description: "Paper vs code tracker" },
   { path: "/references", label: "References", description: "Annotated paper bibliography" },
   { path: "/docs", label: "Documentation", description: "Rendered markdown docs" },
-  { path: "/gcp", label: "GCP Monitor", description: "Live GCP jobs + accumulated cost" },
   { path: "/replay", label: "Replay", description: "Scrub through re-simulated checkpoints" },
 ];
 
@@ -155,9 +153,9 @@ export default function App() {
               <Route path="/deviations" element={<DeviationTracker />} />
               <Route path="/references" element={<References />} />
               <Route path="/docs" element={<DocsViewer />} />
-              <Route path="/gcp" element={<GcpMonitor />} />
               <Route path="/replay" element={<Replay />} />
               <Route path="/replay/compare" element={<ReplayCompare />} />
+              <Route path="*" element={<Home />} />
             </Routes>
           </Suspense>
         </main>

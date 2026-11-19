@@ -22,6 +22,7 @@ haven't yet been synced to GCS. No compute charges while stopped
 (disk storage still costs ~$10/month for 200 GB, negligible).
 
 ```bash
+export EVO_GCP_ACCOUNT=<your gcloud account>   # once per shell
 source scripts/gcloud-env.sh
 gcloud compute instances stop evo-reward-gpu --zone=us-west1-a
 ```

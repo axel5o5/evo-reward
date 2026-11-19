@@ -11,8 +11,11 @@
 # defaults. Unset with `unset CLOUDSDK_CORE_ACCOUNT CLOUDSDK_CORE_PROJECT`
 # or just close the shell.
 
-export CLOUDSDK_CORE_ACCOUNT=db3792@columbia.edu
-export CLOUDSDK_CORE_PROJECT=evo-reward
+# Set EVO_GCP_ACCOUNT (your gcloud account) before sourcing; EVO_GCP_PROJECT and
+# GCS_BUCKET default to the evo-reward project and its checkpoint bucket.
+export CLOUDSDK_CORE_ACCOUNT="${EVO_GCP_ACCOUNT:?set EVO_GCP_ACCOUNT to your gcloud account first}"
+export CLOUDSDK_CORE_PROJECT="${EVO_GCP_PROJECT:-evo-reward}"
+export GCS_BUCKET="${GCS_BUCKET:-evo-reward-ckpts}"
 
 # Per-project Application Default Credentials file. Python google-cloud
 # libraries (used by scripts/gcp_monitor.py) read ADC from this env var if
@@ -27,7 +30,7 @@ export CLOUDSDK_CORE_PROJECT=evo-reward
 #   mv ~/.config/gcloud/application_default_credentials.json \
 #      ~/.config/gcloud/adc-evo-reward.json
 #   source scripts/gcloud-env.sh              # now Python libs use the project file
-export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/adc-evo-reward.json"
+export GOOGLE_APPLICATION_CREDENTIALS="${EVO_GCP_ADC:-$HOME/.config/gcloud/adc-evo-reward.json}"
 
 # Quick verification — run `gcloud config list` after sourcing to confirm
 # account + project show the evo-reward values above.
